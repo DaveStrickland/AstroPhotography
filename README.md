@@ -21,8 +21,6 @@ Python workflow for processing digital camera astrophotography
 
 Install for the current user:
 
-.. code-block:: console
-
 ```bash
 $ python -m pip install . --user
 ```
