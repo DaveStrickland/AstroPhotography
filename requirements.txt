@@ -1,5 +1,8 @@
 ## Python requirements for using the AstroPhotography application.
 ##
-##   pyhon -m pip install --requirement=requirements.txt
+##   python3 -m pip install . --requirement=requirements.txt
 ##
 PyYAML>=3.11
+matplotlib>=3.0.3
+numpy>=1.16.2
+rawpy>=0.13.1
