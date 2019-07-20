@@ -1,4 +1,4 @@
 ## Runtime configuration for the AstroPhotography application.
 ##
 core:
-  logging: WARN
+  logging: INFO
