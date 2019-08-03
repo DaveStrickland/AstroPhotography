@@ -56,9 +56,21 @@ def _args(argv):
             help="print version and exit")
     parser.add_argument("-w", "--warn", default="WARN",
             help="logger warning level [WARN]")
-    common = ArgumentParser(add_help=False)  # common subcommand arguments
-    common.add_argument("--name", "-n", default="World", help="greeting name")
-    subparsers = parser.add_subparsers(title="subcommands")
+            
+    # Common options for all command parsers
+    common = ArgumentParser(add_help=False)
+    common.add_argument("rawfile",
+        help="RAW file to process.") 
+    common.add_argument("--output", "-o", 
+        help="Name or root name for output files." + 
+        " If omitted then the name of the input RAW file " +
+        "(with extension removed) will be used as the base name.")
+    
+    # Command parsers
+    subparsers = parser.add_subparsers(title="Commands", 
+        description="RAW file processing commands." +
+        "One command must be selected by the user.",
+        help="Command-specfic help.")
     _hello(subparsers, common)
     args = parser.parse_args(argv)
     if not args.config:
@@ -74,7 +86,11 @@ def _hello(subparsers, common):
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
     """
-    parser = subparsers.add_parser("hello", parents=[common])
+    parser = subparsers.add_parser("hello", 
+        description="Hello world command.",
+        parents=[common], help='Toy test command for debugging purposes.')
+    parser.add_argument("--name", "-n", 
+        default="World", help="Greeting name")
     parser.set_defaults(command=hello)
     return
 

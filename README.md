@@ -23,7 +23,10 @@ See `requirements.txt` for full dependency list.
 Install:
 
 ```bash
-$ python3 -m pip install . --requirements=requirements.txt
+# Install for user
+$ python3 -m pip install . --requirements=requirements.txt --user
+# or install for the system (as root)
+$ pip3 install . --requirements=requirements.txt
 ```
 
 Run the application:
