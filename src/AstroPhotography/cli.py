@@ -6,6 +6,7 @@ from inspect import getfullargspec
 
 from . import __version__
 from .api import hello
+from .api import split
 from .core.config import config
 from .core.logger import logger
 
@@ -21,7 +22,7 @@ def main(argv=None) -> int:
     """
     args = _args(argv)
     logger.start(args.warn or "DEBUG")  # can't use default from config yet
-    logger.debug("starting execution")
+    logger.debug("Starting execution")
     config.load(args.config)
     config.core.config = args.config
     if args.warn:
@@ -39,7 +40,7 @@ def main(argv=None) -> int:
     except RuntimeError as err:
         logger.critical(err)
         return 1
-    logger.debug("successful completion")
+    logger.debug("Successful completion")
     return 0
  
 
@@ -61,10 +62,11 @@ def _args(argv):
     common = ArgumentParser(add_help=False)
     common.add_argument("rawfile",
         help="RAW file to process.") 
-    common.add_argument("--output", "-o", 
+    common.add_argument("--output", "-o",
+        default=None,
         help="Name or root name for output files." + 
         " If omitted then the name of the input RAW file " +
-        "(with extension removed) will be used as the base name.")
+        "(with extension removed) will be used as the root name.")
     
     # Command parsers
     subparsers = parser.add_subparsers(title="Commands", 
@@ -72,6 +74,9 @@ def _args(argv):
         "One command must be selected by the user.",
         help="Command-specfic help.")
     _hello(subparsers, common)
+    _split(subparsers, common)
+    
+    # Process
     args = parser.parse_args(argv)
     if not args.config:
         # Don't specify this as an argument default or else it will always be
@@ -80,6 +85,21 @@ def _args(argv):
     return args
  
 
+def _split(subparsers, common):
+    """ CLI adaptor for the api.split command.
+
+    :param subparsers: subcommand parsers
+    :param common: parser for common subcommand arguments
+    """
+    parser = subparsers.add_parser("split", 
+        description="Exports raw Bayer map as separate images with suffix _r.tiff," +
+        " g1.tiff, _b.tiff and _g2.tiff.",
+        parents=[common], help='Outputs raw, unmodified, R, G, B and G as TIFF files.')
+    #parser.add_argument("--name", "-n", 
+    #    default="World", help="Greeting name")
+    parser.set_defaults(command=split)
+    return
+     
 def _hello(subparsers, common):
     """ CLI adaptor for the api.hello command.
 
@@ -87,21 +107,19 @@ def _hello(subparsers, common):
     :param common: parser for common subcommand arguments
     """
     parser = subparsers.add_parser("hello", 
-        description="Hello world command.",
-        parents=[common], help='Toy test command for debugging purposes.')
+        description="Hello world command used only for testing/debugging.",
+        parents=[common], help='Test command for debugging purposes.')
     parser.add_argument("--name", "-n", 
         default="World", help="Greeting name")
     parser.set_defaults(command=hello)
     return
 
-
 # Make the module executable.
-
 if __name__ == "__main__":
     try:
         status = main()
     except:
-        logger.critical("shutting down due to fatal error")
+        logger.critical("Shutting down due to fatal error")
         raise  # print stack trace
     else:
         raise SystemExit(status)

@@ -2,7 +2,10 @@
 
 ## General
 
-- [ ] Package layout
+- [X] Package layout
+- [X] Work out how to add a command line executable.
+- [ ] Work out how pytest works with the command line executables 
+- [ ] Work out where to add the main library module
 
 ## RAW Conversion
 
