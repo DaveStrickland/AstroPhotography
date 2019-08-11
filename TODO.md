@@ -20,5 +20,6 @@
 - [ ] features: Indexed FITS or PNG image of features
 - [ ] features: CSV or other ascii file of feature locations.
 - [ ] general: black-level subtraction
+- [ ] info: Extract and print image metadata to stdout.
 - [ ] general: Camera metadata conversion to FITS kw or image metadata
 - [ ] general: Optional flipping
