@@ -6,3 +6,4 @@ PyYAML>=3.11
 matplotlib>=3.0.3
 numpy>=1.16.2
 rawpy>=0.13.1
+imageio>=2.5.0

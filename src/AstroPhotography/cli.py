@@ -1,4 +1,30 @@
-""" Implementation of the command line interface.
+""" Implementation of the command line interface for the AstroPhotography
+    module.
+    
+This provides the following subcommands:
+- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
+        FITS file using one of several methods.
+- rgb: Convert a RAW file into an RGB PNG image.
+- hist: Calculate and plot RGB or greyscale levels from a RAW image. 
+- split: Splits the input RAW file into separate 16-bit PNG files for each
+         of the R, G, B and G channel in the Bayer mask.
+- whitebalance: Perform whitebalance calculations on the input RAW file in one
+                of several ways.
+- info: Print metadata about the input RAW file to stdout.
+- features: Performs image segmentation on the input RAW image and outputs a
+            list of the coordinates and sizes of features thus found, along
+            with an indexed image that can be used to view them.
+
+Typical workflow might consist of:
+- Taking a RAW image using a digital camera attached to a telescope, 
+  processing it with default options using `dksraw grey` in a FITS image, 
+  viewing the FITS image with ds9 with asinh scaling to see both low and 
+  high brightness features, and then adjusting the exposure time of further
+  images.
+- Looking at the levels using `dksraw hist`.
+- Finding the location of specific objects within an image (e.g. Jupiter)
+  using `dksraw features` to find the pixel locations to use in whitebalance
+  calculations using `dksraw whitebalance`.
 
 """
 from argparse import ArgumentParser
