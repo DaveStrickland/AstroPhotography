@@ -90,7 +90,7 @@ def _args(argv):
         help="RAW file to process.") 
     common.add_argument("--output", "-o",
         default=None,
-        help="Name or root name for output files." + 
+        help="Root name for output files." + 
         " If omitted then the name of the input RAW file " +
         "(with extension removed) will be used as the root name.")
     
@@ -108,11 +108,38 @@ def _args(argv):
         # Don't specify this as an argument default or else it will always be
         # included in the list.
         args.config = "etc/config.yml"
+    
+    # Perform any additional command line argument checking or processing
+    _check_args(args)    
+        
     return args
  
+def _check_args(args):
+    """Runs any additional command line arguement validation or processing
+    """
+    if args.command == split:
+        _check_split_args(args)
+    return
+    
+def _check_split_args(args):
+    """Additional command line arguement validation for the split command
+    """
+    if args.output is None:
+        # For split command output is root name for output PNG images.
+        idx = args.rawfile.rfind('.')
+        if ( idx != -1 ):
+            slash_idx = args.rawfile.rfind('/')
+            if (slash_idx == -1):
+                start_idx = 0
+            else:
+                start_idx = slash_idx + 1
+            args.output = args.rawfile[start_idx:idx]
+        else:
+            raise RuntimeError('Could not determine root name from {}'.format(args.rawfile))
+    return
 
 def _split(subparsers, common):
-    """ CLI adaptor for the api.split command.
+    """Defines command line options for the split command.
 
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
@@ -121,13 +148,12 @@ def _split(subparsers, common):
         description="Exports raw Bayer map as separate images with suffix _r.tiff," +
         " g1.tiff, _b.tiff and _g2.tiff.",
         parents=[common], help='Outputs raw, unmodified, R, G, B and G as TIFF files.')
-    #parser.add_argument("--name", "-n", 
-    #    default="World", help="Greeting name")
+
     parser.set_defaults(command=split)
     return
      
 def _hello(subparsers, common):
-    """ CLI adaptor for the api.hello command.
+    """Defines command line options for the hello command.
 
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
