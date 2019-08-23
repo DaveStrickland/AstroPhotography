@@ -23,11 +23,15 @@ class RawConv:
         return
 
     def split(self, subtract_black=False, verbose=False):
-        """ Exports the raw, unprocessed, bayer RGBG as four separate uint16
-            numpy arrays.
+        """ Exports the raw, unprocessed, bayer RGBG as four separate 
+            uint16 numpy arrays.
         
-        For each band (R, G etc) the only non-zero pixels will be that band, and
-        pixels associated with other bands will be set to zero.
+        For each band (R, G etc) the only non-zero pixels will be that 
+        band, and pixels associated with other bands will be set to zero.
+        
+        :param subtract_black: If true the camera black levels will be 
+          subtracted from the channel data.
+        :param verbose: TBA
         """
         
         rawim      = self._rawpy

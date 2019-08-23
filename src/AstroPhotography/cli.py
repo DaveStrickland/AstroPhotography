@@ -122,8 +122,10 @@ def _check_args(args):
     return
     
 def _check_split_args(args):
-    """Additional command line arguement validation for the split command
+    """Additional command line argument validation for the split command
     """
+    # If args.output is not defined we need to craft a suitable output
+    # prefix to which split will add vaious band-specific suffixes.
     if args.output is None:
         # For split command output is root name for output PNG images.
         idx = args.rawfile.rfind('.')
@@ -148,7 +150,10 @@ def _split(subparsers, common):
         description="Exports raw Bayer map as separate images with suffix _r.tiff," +
         " g1.tiff, _b.tiff and _g2.tiff.",
         parents=[common], help='Outputs raw, unmodified, R, G, B and G as TIFF files.')
-
+    parser.add_argument('-b', '--black',
+        default=False,
+        action='store_true',
+        help='Subtract camera band-specific black levels from the data. Default: False')
     parser.set_defaults(command=split)
     return
      

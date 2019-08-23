@@ -5,19 +5,21 @@ from ..core.logger import logger
 from ..core.RawConv import *
 import imageio
 
-def main(rawfile, output):
+def main(rawfile, output, black):
     """ Execute the split command.
     
-    :param rawfile: RAW input file to process
-    :param output: File prefix for output images. Output image file names
-      will consist of the prefix followed by '_r.png', '_g1.png', '_b.png'
-      and '_g2.png'
+    :param rawfile: RAW input file to process.
+    :param output: File prefix for output images. Output image 
+      file names will consist of the prefix followed by '_r.png', 
+      '_g1.png', '_b.png' and '_g2.png'.
+    :param black: If true the camera black levels will be subtracted
+      from the channel data.
     """
     logger.info("Executing split command on {:s}".format(rawfile))
     
     # Read and process the file.
     rawconv = RawConv(rawfile)
-    r_im, g1_im, b_im, g2_im = rawconv.split()
+    r_im, g1_im, b_im, g2_im = rawconv.split(subtract_black=black)
     
     r_fname  = output + '_r.png'
     g1_fname = output + '_g1.png'
