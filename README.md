@@ -54,15 +54,17 @@ Install:
 
 ```bash
 # Install for user
-$ python3 -m pip install . --requirements=requirements.txt --user
+$ python3 -m pip install . -r requirements.txt --user
 # or install for the system (as root)
-$ pip3 install . --requirements=requirements.txt
+$ pip3 install . -r requirements.txt
 ```
 
-Run the application:
+Get general command line application help:
 
 ```bash
-    $ python3 dksraw --help
+$ dksraw --help
+# Or for a specific subcommand, e.g. split
+$ dksraw split --help
 ```
 
 Run the test suite:

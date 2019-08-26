@@ -97,7 +97,7 @@ def _args(argv):
     # Command parsers
     subparsers = parser.add_subparsers(title="Commands", 
         description="RAW file processing commands." +
-        "One command must be selected by the user.",
+        " One command must be selected by the user.",
         help="Command-specfic help.")
     _hello(subparsers, common)
     _split(subparsers, common)
@@ -149,7 +149,8 @@ def _split(subparsers, common):
     parser = subparsers.add_parser("split", 
         description="Exports raw Bayer map as separate images with suffix _r.tiff," +
         " g1.tiff, _b.tiff and _g2.tiff.",
-        parents=[common], help='Outputs raw, unmodified, R, G, B and G as TIFF files.')
+        parents=[common], 
+        help='Outputs raw, unmodified, R, G, B and G as separate TIFF files.')
     parser.add_argument('-b', '--black',
         default=False,
         action='store_true',

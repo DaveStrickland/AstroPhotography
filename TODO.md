@@ -21,19 +21,25 @@
 - [ ] general: black-level subtraction
 - [ ] general: Camera metadata conversion to FITS kw or image metadata
 - [ ] general: Optional flipping
+- [ ] general: Check rawfile exists and can be read using os.path
 
 ## Metadata
 
 - [ ] info: Extract and print image metadata to stdout.
-- [ ] valid FITS metadata
-- [ ] Investigate valid is PNG metadata
+- [ ] Investihate what constitutes valid FITS metadata.
+- [ ] Investigate valid PNG metadata.
 - [X] See what metadata dcraw writes when creating tiff with -T
 - [ ] Plate scale based on camera?
-- [ ] Use imageio image class that does metadata. 
+- [X] Use imageio image class that does metadata. 
       This doesn't seem to read metadata for dcraw-created TIFF files.
+- [ ] Investigate switching to pillow as imageio cannot handle metadata.
 
 ## Testing
 
 - [ ] Work out how pytest works with the command line executables 
 - [ ] Work how to do test coverage in python.
 - [ ] RawConv.split() unit test.
+
+## Bugs
+
+- [ ] Canon CR2 has minimum values below the black levels causing uint16 wrapping.
