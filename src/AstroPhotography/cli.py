@@ -33,6 +33,7 @@ from inspect import getfullargspec
 from . import __version__
 from .api import hello
 from .api import split
+from .api import grey
 from .core.config import config
 from .core.logger import logger
 
@@ -100,6 +101,7 @@ def _args(argv):
         " One command must be selected by the user.",
         help="Command-specfic help.")
     _hello(subparsers, common)
+    _grey(subparsers, common)
     _split(subparsers, common)
     
     # Process
@@ -115,14 +117,19 @@ def _args(argv):
     return args
  
 def _check_args(args):
-    """Runs any additional command line arguement validation or processing
+    """Runs any additional command line argument validation or processing
     """
-    if args.command == split:
-        _check_split_args(args)
+    if ( args.command == split ):
+        _check_output_args(args)
+    elif ( args.command == grey ):
+        default_suffix = '.fits'
+        if args.output is None:
+            _check_output_args(args)
+            args.output += default_suffix
     return
     
-def _check_split_args(args):
-    """Additional command line argument validation for the split command
+def _check_output_args(args):
+    """Additional processing for the output argument.
     """
     # If args.output is not defined we need to craft a suitable output
     # prefix to which split will add vaious band-specific suffixes.
@@ -140,6 +147,29 @@ def _check_split_args(args):
             raise RuntimeError('Could not determine root name from {}'.format(args.rawfile))
     return
 
+def _grey(subparsers, common):
+    """Defines command line options for the grey command.
+
+    :param subparsers: subcommand parsers
+    :param common: parser for common subcommand arguments
+    """
+    default_wb = 'daylight'
+    
+    parser = subparsers.add_parser("grey", 
+        description="Creates a monochrome output image using the specified white-balance.",
+        parents=[common], 
+        help='Creates a monochrome output image using the specified white-balance.')
+    parser.add_argument('-w', '--whitebalance',
+        default=default_wb,
+        help='Whitebalance to use when convert R, G and B channels.' + 
+            ' Default: {}'.format(default_wb))
+    parser.add_argument('-b', '--black',
+        default=False,
+        action='store_true',
+        help='Subtract camera band-specific black levels from the data. Default: False')
+    parser.set_defaults(command=grey)
+    return
+    
 def _split(subparsers, common):
     """Defines command line options for the split command.
 
@@ -157,6 +187,7 @@ def _split(subparsers, common):
         help='Subtract camera band-specific black levels from the data. Default: False')
     parser.set_defaults(command=split)
     return
+
      
 def _hello(subparsers, common):
     """Defines command line options for the hello command.
