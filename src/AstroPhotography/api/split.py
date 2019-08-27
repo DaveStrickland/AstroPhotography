@@ -2,8 +2,8 @@
 
 """
 from ..core.logger import logger
-from ..core.RawConv import *
-import imageio
+from ..core.RawConv import RawConv
+from ..core.file_writer import file_writer
 
 def main(rawfile, output, black):
     """ Execute the split command.
@@ -26,16 +26,8 @@ def main(rawfile, output, black):
     b_fname  = output + '_b.png'
     g2_fname = output + '_g2.png'
     
-    logger.debug("Wrote R image to {:s}".format(r_fname))
-    imageio.imsave(r_fname, r_im)
-    
-    logger.debug("Wrote G1 image to {:s}".format(g1_fname))
-    imageio.imsave(g1_fname, g1_im)
-    
-    logger.debug("Wrote B image to {:s}".format(b_fname))
-    imageio.imsave(b_fname, b_im)
-    
-    logger.debug("Wrote G2 image to {:s}".format(g1_fname))
-    imageio.imsave(g2_fname, g2_im)
-
+    file_writer(r_im,  r_fname)
+    file_writer(g1_im, g1_fname)
+    file_writer(b_im,  b_fname)
+    file_writer(g2_im, g2_fname)
     return 

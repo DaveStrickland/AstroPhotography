@@ -26,7 +26,7 @@
 ## Metadata
 
 - [ ] info: Extract and print image metadata to stdout.
-- [ ] Investihate what constitutes valid FITS metadata.
+- [ ] Investigate what constitutes valid FITS metadata.
 - [ ] Investigate valid PNG metadata.
 - [X] See what metadata dcraw writes when creating tiff with -T
 - [ ] Plate scale based on camera?
@@ -42,4 +42,4 @@
 
 ## Bugs
 
-- [ ] Canon CR2 has minimum values below the black levels causing uint16 wrapping.
+- [X] Canon CR2 has minimum values below the black levels causing uint16 wrapping.

@@ -4,6 +4,7 @@
 from .logger import logger
 import rawpy
 import numpy as np
+import os.path
 
 class RawConv:
     """ Higher level conversions and processing of RAW image files to graphics formats 
@@ -18,7 +19,8 @@ class RawConv:
     def __del__(self):
         """ RawConv class destructor
         """
-        self._rawpy.close()
+        if self._rawpy is not None:
+            self._rawpy.close()
         return
 
     def _unsupported_colors(self):
@@ -31,9 +33,15 @@ class RawConv:
         return
 
     def _load(self, rawfile):
-        print('RawConv on {}'.format(rawfile))
         self._rawfile    = rawfile
-        self._rawpy      = rawpy.imread(rawfile)
+        self._rawpy      = None
+        if os.path.isfile(rawfile):
+            logger.debug('RawConv loading {}'.format(rawfile))
+            self._rawpy      = rawpy.imread(rawfile)
+        else:
+            err_msg = 'RawConv cannot load {}. Not a valid path or file.'.format(rawfile)
+            logger.error(err_msg)
+            raise RuntimeError(err_msg)
         
         # Common image characteristics
         self._nrows        = self._rawpy.raw_image_visible.shape[0]
@@ -141,7 +149,7 @@ class RawConv:
         """
         odd_mask = data_arr < val_to_subtract
         num_odd  = np.sum(odd_mask)
-        print('Input array has {} pixels less than array we will subract from it.'.format(num_odd))
+        logger.warn('Input array has {} pixels less than array we will subract from it.'.format(num_odd))
         if num_odd > 0:
             # Reset those pixels to the value we're going to subtract.
             tmp_raw = np.where(odd_mask, val_to_subtract, data_arr)
