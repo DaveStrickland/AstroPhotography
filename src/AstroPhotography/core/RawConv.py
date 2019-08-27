@@ -32,13 +32,13 @@ class RawConv:
 
     def _load(self, rawfile):
         print('RawConv on {}'.format(rawfile))
-        self._rawfile      = rawfile
-        self._rawpy        = rawpy.imread(rawfile)
+        self._rawfile    = rawfile
+        self._rawpy      = rawpy.imread(rawfile)
         
         # Common image characteristics
         self._nrows        = self._rawpy.raw_image_visible.shape[0]
         self._ncols        = self._rawpy.raw_image_visible.shape[1]
-        self._color_desc   = str(self._rawpy.color_desc)
+        self._color_desc = str(self._rawpy.color_desc)
         if self._color_desc not in self._supported_colors:
             self._unsupported_colors
         # Know that for RGBG the color indices are 0, 1, 2, 3
@@ -46,13 +46,19 @@ class RawConv:
         self.G1 = 1
         self.B  = 2
         self.G2 = 3
-        self._color_map    = self._rawpy.raw_colors_visible.copy()
-        self._mask_r       = self._color_map == self.R
-        self._mask_g1      = self._color_map == self.G1
-        self._mask_b       = self._color_map == self.B
-        self._mask_g2      = self._color_map == self.G2
+        self._color_map  = self._rawpy.raw_colors_visible.copy()
+        self._mask_r     = self._color_map == self.R
+        self._mask_g1    = self._color_map == self.G1
+        self._mask_b     = self._color_map == self.B
+        self._mask_g2    = self._color_map == self.G2
+        
+        self._rawim_r    = np.where(self._mask_r,  self._rawpy.raw_image_visible, 0)
+        self._rawim_g1   = np.where(self._mask_g1, self._rawpy.raw_image_visible, 0)
+        self._rawim_b    = np.where(self._mask_b,  self._rawpy.raw_image_visible, 0)
+        self._rawim_g2   = np.where(self._mask_g2, self._rawpy.raw_image_visible, 0)
 
         self._black_levels = self._rawpy.black_level_per_channel
+        self._black_subtracted = False
         self.default_whitebalances()
         return
 
@@ -87,6 +93,69 @@ class RawConv:
         
         return
 
+    def _subtract_black_levels(self):
+        """Subtract black levels from sub-bands.
+        """
+        if self._black_subtracted:
+            # Already black subtracted
+            return
+            
+        r_bg  = int( self._black_levels[self.R]  )
+        g1_bg = int( self._black_levels[self.G1] )
+        b_bg  = int( self._black_levels[self.B]  )
+        g2_bg = int( self._black_levels[self.G2] )
+        print('r_bg={} g1_bg={} b_bg={} g2_bg={}'.format(r_bg,
+            g1_bg, b_bg, g2_bg), type(r_bg))
+
+        self._rawim_r  = self._safe_subtract(self._rawim_r,
+            self._mask_r, 
+            r_bg)
+        self._rawim_g1 = self._safe_subtract(self._rawim_g1,
+            self._mask_g1, 
+            g1_bg)
+        self._rawim_b  = self._safe_subtract(self._rawim_b,
+            self._mask_b, 
+            b_bg)
+        self._rawim_g2 = self._safe_subtract(self._rawim_g2,
+            self._mask_g2, 
+            g2_bg)
+        self._black_subtracted = True
+
+    def _safe_subtract(self, data_arr, data_mask, val_to_subtract):
+        """Safe subtraction of one array or scalar from another array
+           avoiding unsigned integer wrap-around.
+        
+        It is possible for a value within a data array to be less
+        than the value to subtract, so we need to carefully reset those
+        pixels to the black level to avoid them wrapping around to
+        a very large number.
+        
+        :param data_array: 2-D uint array to subract values from. Only
+          those pixels within data_mask will be modified. 
+        :param data_mask:  2-D boolean mask specifying where data_array
+          is valid.
+        :param val_to_subtract: 2-D uint array of values to subtract from
+          data_array, or a scalar that will be broadcast to match the shape
+          of data_array.
+        :returns: 2-D uint array.
+        """
+        odd_mask = data_arr < val_to_subtract
+        num_odd  = np.sum(odd_mask)
+        print('Input array has {} pixels less than array we will subract from it.'.format(num_odd))
+        if num_odd > 0:
+            # Reset those pixels to the value we're going to subtract.
+            tmp_raw = np.where(odd_mask, val_to_subtract, data_arr)
+        else:
+            # Just use normal rawim
+            tmp_raw = data_arr.copy()
+        
+        # np.subtract will leave original output array values (if out 
+        # supplied and not None) where the where mask is False.
+        # Elsewhere, the pixels will be the first input - second input.
+        return np.subtract(tmp_raw, 
+            val_to_subtract, 
+            where=data_mask).copy()
+
     def split(self, subtract_black=False, verbose=False):
         """ Exports the raw, unprocessed, bayer RGBG as four separate 
             uint16 numpy arrays.
@@ -107,46 +176,19 @@ class RawConv:
         tmp_raw = rawim.raw_image_visible.copy()
         
         if subtract_black:
-            r_bg  = int( self._black_levels[self.R]  )
-            g1_bg = int( self._black_levels[self.G1] )
-            b_bg  = int( self._black_levels[self.B]  )
-            g2_bg = int( self._black_levels[self.G2] )
-            print('r_bg={} g1_bg={} b_bg={} g2_bg={}'.format(r_bg,
-                g1_bg, b_bg, g2_bg), type(r_bg))
-        else:
-            r_bg = g1_bg = b_bg = g2_bg = int(0)
-
-        # Note python indexing is inclusive to exclusive, so the 2 is excluded.
-        r_im = np.zeros(rawim.raw_image_visible.shape[0:2], 
-            dtype=np.uint16)
-        # np.subtract will leave original out array values if it 
-        # supplied and not None, and where the where mask is False
-        np.subtract(tmp_raw, r_bg, 
-            out=r_im, where=self._mask_r)
+            self._subtract_black_levels()
+           
+        r_im  = np.where(self._mask_r,  self._rawim_r,  0)
+        g1_im = np.where(self._mask_g1, self._rawim_g1, 0)
+        b_im  = np.where(self._mask_b,  self._rawim_b,  0)
+        g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
         
-        g1_im = np.zeros(rawim.raw_image_visible.shape[0:2], 
-            dtype=np.uint16)
-        np.subtract(tmp_raw, g1_bg, 
-            out=g1_im, where=self._mask_g1)
-            
-        b_im = np.zeros(rawim.raw_image_visible.shape[0:2], 
-            dtype=np.uint16)
-        np.subtract(tmp_raw, b_bg, 
-            out=b_im, where=self._mask_b)
-                
-        g2_im = np.zeros(rawim.raw_image_visible.shape[0:2], 
-            dtype=np.uint16)
-        np.subtract(tmp_raw, g2_bg, 
-            out=g2_im, where=self._mask_g2)
-            
-        # where is good for selecting one or the other, not for operations.
-        # r_im  = np.where(self._color_map == R,  tmp_raw_r,  0)
-        # g1_im = np.where(self._color_map == G1, tmp_raw_g1, 0)
-        # b_im  = np.where(self._color_map == B,  tmp_raw_b,  0)
-        # g2_im = np.where(self._color_map == G2, tmp_raw_g2, 0)
-        
-        print('raw_r=', r_im, r_im.dtype)
-        print('raw_g1=', g1_im, g1_im.dtype)
+        minr=400
+        maxr=500
+        minc=2800
+        maxc=2900
+        print('raw_r=', r_im[minr:maxr,minc:maxc], r_im.dtype)
+        print('raw_g1=', g1_im[minr:maxr,minc:maxc], g1_im.dtype)
         
         #r_im3d  = rawim.postprocess(output_color=rawpy.ColorSpace.raw,
         #    gamma=(1, 1), 
@@ -162,8 +204,8 @@ class RawConv:
             
         #print(r_im3d.shape, r_im3d.dtype)
         print(r_im.shape, r_im.dtype)
-        print('R  min, max: ', np.nanmin(r_im),  np.nanmax(r_im))
-        print('G1 min, max: ', np.nanmin(g1_im), np.nanmax(g1_im))
-        print('B  min, max: ', np.nanmin(b_im),  np.nanmax(b_im))
-        print('G2 min, max: ', np.nanmin(g2_im), np.nanmax(g2_im))
+        print('R  min, max: ', np.nanmin(r_im[self._mask_r]),   np.nanmax(r_im[self._mask_r]))
+        print('G1 min, max: ', np.nanmin(g1_im[self._mask_g1]), np.nanmax(g1_im[self._mask_g1]))
+        print('B  min, max: ', np.nanmin(b_im[self._mask_b]),   np.nanmax(b_im[self._mask_b]))
+        print('G2 min, max: ', np.nanmin(g2_im[self._mask_g2]), np.nanmax(g2_im[self._mask_g2]))
         return r_im, g1_im, b_im, g2_im
