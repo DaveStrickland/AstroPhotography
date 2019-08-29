@@ -176,15 +176,26 @@ def _split(subparsers, common):
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
     """
+    
+    # png is very slow with imageio, and imageio doesn't
+    # support 16-bit jp2 or jpeg.
+    default_ext = 'tiff'
+    
     parser = subparsers.add_parser("split", 
         description="Exports raw Bayer map as separate images with suffix _r.tiff," +
         " g1.tiff, _b.tiff and _g2.tiff.",
         parents=[common], 
-        help='Outputs raw, unmodified, R, G, B and G as separate TIFF files.')
+        help='Outputs raw, unmodified, R, G, B and G as separate TIFF files.' +
+            'Output files use the specified or default output root name followed' +
+            ' by a channel-specific suffix, and specified or default file name extension.')
     parser.add_argument('-b', '--black',
         default=False,
         action='store_true',
         help='Subtract camera band-specific black levels from the data. Default: False')
+    parser.add_argument('--extension',
+        default=default_ext,
+        help='File name extension (i.e. type) for output files.' +
+            ' Default: {}'.format(default_ext))
     parser.set_defaults(command=split)
     return
 

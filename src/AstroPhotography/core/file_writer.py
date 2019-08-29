@@ -48,7 +48,13 @@ def file_writer(data_array, out_file):
     # TODO make sure write is succesful.
     t_start = time.perf_counter()
     if ftype == 'graphics':
-        imageio.imsave(out_file, data_array)
+        # Special handling of format?
+        our_format=None
+        if 'jp2' in out_file:
+            our_format='JPEG2000-PIL'
+        imageio.imsave(uri=out_file, 
+            im=data_array,
+            format=our_format)
     elif ftype == 'fits':
         print('fits not yet implemented')
         return

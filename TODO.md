@@ -32,7 +32,12 @@
 - [ ] Plate scale based on camera?
 - [X] Use imageio image class that does metadata. 
       This doesn't seem to read metadata for dcraw-created TIFF files.
-- [ ] Investigate switching to pillow as imageio cannot handle metadata.
+- [ ] Investigate switching to pillow as imageio cannot handle metadata,
+      png output is slow, and it doesn't support 16-bit jp2.
+
+## Configuration
+
+- [ ] Work out how to get config values through to commands.
 
 ## Testing
 
