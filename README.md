@@ -70,7 +70,7 @@ $ dksraw split --help
 Run the test suite:
 
 ```bash
-    $ pytest test/
+    $ pytest -rpfs test/
 ```
 
 Build documentation:

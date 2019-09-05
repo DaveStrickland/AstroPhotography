@@ -26,6 +26,24 @@ def test_hello_name():
     assert hello("foo") == "Hello, foo!"
     return
 
+class RawConvTest(object):
+    """Tests RawConv methods"""
+    
+    def test_split(self):
+        # TODO work out how to read fixed files in tests.
+        # best info seem so far is https://pybit.es/pytest-fixtures.html
+        ##rawfile = 
+        ##rawconv = RawConv(rawfile)
+        
+        # Check split without black-level subtraction
+        black = False
+        ##r_im, g1_im, b_im, g2_im = rawconv.split(subtract_black=black)
+        assert 3 == 5
+        
+        # Check split with black-level subtraction.
+        black = True
+        ##r_im, g1_im, b_im, g2_im = rawconv.split(subtract_black=black)
+        return
 
 # Make the script executable.
 
