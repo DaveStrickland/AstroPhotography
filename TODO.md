@@ -42,6 +42,7 @@
 ## Testing
 
 - [ ] Work out how pytest works with the command line executables 
+- [ ] Get test test fixtures working?
 - [ ] Work how to do test coverage in python.
 - [ ] RawConv.split() unit test.
 

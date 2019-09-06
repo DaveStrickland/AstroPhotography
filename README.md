@@ -67,10 +67,11 @@ $ dksraw --help
 $ dksraw split --help
 ```
 
-Run the test suite:
+Run the test suite. For reasons I haven't resolved running pytest as a stand-alone
+runs into the path issues related to https://docs.pytest.org/en/latest/pythonpath.html
 
 ```bash
-    $ pytest -rpfs test/
+    $ python3 -m pytest -rPfs test/
 ```
 
 Build documentation:
