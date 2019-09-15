@@ -9,9 +9,9 @@ def main(rawfile, output, black, whitebalance):
     """ Execute the grey command.
     
     :param rawfile: RAW input file to process.
-    :param output: File prefix for output images. Output image 
-      file names will consist of the prefix followed by '_r.png', 
-      '_g1.png', '_b.png' and '_g2.png'.
+    :param output: Name of the output file to write the luminance image to. This
+      may be a graphics file format or the astronomical FITS format. The correct
+      writer will be used depending on the user-supplied file extension.
     :param whitebalance: Whitebalance method to use when converting R, G and B
       channels to monochrome
     :param black: If true the camera black levels will be subtracted

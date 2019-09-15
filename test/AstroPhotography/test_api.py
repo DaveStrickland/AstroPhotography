@@ -7,9 +7,10 @@ precedence over the version in this project directory. Use a virtualenv test
 environment or setuptools develop mode to test against the development version.
 
 """
+import os
+import os.path
 import pytest
 from AstroPhotography.api import *  # tests __all__
-
 
 def test_hello():
     """ Test the hello() function.
@@ -26,8 +27,6 @@ def test_hello_name():
     assert hello("foo") == "Hello, foo!"
     return
 
-
 # Make the script executable.
-
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
