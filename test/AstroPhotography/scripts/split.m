@@ -6,14 +6,26 @@ function split(r_file, g1_file, b_file, g2_file)
     format compact;
     more off;
     
-    minrow = 445;
+    # Array size should be multiple of two to get full bayer mask in each image
+    # otherwise we will distort any white-balance calculations.
+    minrow = 451;
     maxrow = 464;
-    mincol = 2845;
+    mincol = 2851;
     maxcol = 2864;
     
-    r_im = read_and_plot(r_file, minrow, maxrow, mincol, maxcol);
+    # index for sumval in out_stats.
+    idx_sum = 8;
     
-    function out_arr = read_and_plot(fname, minrow, maxrow, mincol, maxcol)
+    [r_im,  r_stats]  = read_and_plot(r_file,  minrow, maxrow, mincol, maxcol);
+    [g1_im, g1_stats] = read_and_plot(g1_file, minrow, maxrow, mincol, maxcol);
+    [b_im,  b_stats]  = read_and_plot(b_file,  minrow, maxrow, mincol, maxcol);
+    [g2_im, g2_stats] = read_and_plot(g2_file, minrow, maxrow, mincol, maxcol);
+    
+    # Calculate region-based white balance.
+    # wb_in is sum from a given band, wb_out is multiplies for each band.
+    wb_in = [r_stats(idx_sum) g1_stats(idx_sum) b_stats(idx_sum) g2_stats(idx_sum)]
+    
+    function [out_arr, out_stats] = read_and_plot(fname, minrow, maxrow, mincol, maxcol)
         % @brief Helper function to process a single image.
         %
         % @param minrow Mininum row number to include of image, inclusive.
@@ -29,7 +41,9 @@ function split(r_file, g1_file, b_file, g2_file)
         axis image;
         
         out_arr = imdata(minrow:maxrow, mincol:maxcol);
-        img_stats(out_arr);
+        disp(sprintf('# %s %d %d %d %d', fname, ...
+            minrow, maxrow, mincol, maxcol));
+        out_stats = img_stats(out_arr);
         
         subplot(2,1,2);
         imagesc(out_arr);
@@ -39,8 +53,6 @@ function split(r_file, g1_file, b_file, g2_file)
         
         % Note an octave range a:b (1-based, inclusive) maps
         % to numpy (0-based, exclusive end) as a-1:b
-        disp(sprintf('# %s %d %d %d %d', fname, ...
-            minrow, maxrow, mincol, maxcol));
         as_python(out_arr, '%d');
     end
     
@@ -80,7 +92,7 @@ function split(r_file, g1_file, b_file, g2_file)
         % trailing end-of-array brace
     end
     
-    function img_stats(input_arr)
+    function out_stats = img_stats(input_arr)
         % @brief Calculates and prints some simple statistics.
         nrows   = rows(input_arr);
         ncols   = columns(input_arr);
@@ -91,9 +103,12 @@ function split(r_file, g1_file, b_file, g2_file)
         meanval = mean(input_arr(:));
         stdval  = std(input_arr(:));
         disp(sprintf('Array %dx%d has %d pixels', nrows, ncols, nvals));
-        disp(sprintf('  Mean = %.f +/- %.f', meanval, stdval));
-        disp(sprintf('  Min = %.f    Max = %.f', minval, maxval));
-        disp(sprintf('  Sum = %.f', sumval));
+        disp(sprintf('  meanval=%.f', meanval));
+        disp(sprintf('  stdval=%.f', stdval));
+        disp(sprintf('  minval=%.f', minval));
+        disp(sprintf('  maxval=%.f', maxval));
+        disp(sprintf('  sumval=%.f', sumval));
+        out_stats = [nrows, ncols, nvals, minval, maxval, meanval, stdval, sumval];
     end
     
 end
