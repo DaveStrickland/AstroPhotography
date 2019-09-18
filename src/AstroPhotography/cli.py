@@ -154,11 +154,16 @@ def _grey(subparsers, common):
     :param common: parser for common subcommand arguments
     """
     default_wb = 'daylight'
+    default_method = 'direct'
     
     parser = subparsers.add_parser("grey", 
-        description="Creates a monochrome output image using the specified white-balance.",
+        description="Creates a monochrome output image using the specified method and white-balance.",
         parents=[common], 
-        help='Creates a monochrome output image using the specified white-balance.')
+        help='Creates a monochrome output image using the specified method and white-balance.')
+    parser.add_argument('-m', '--method',
+        default=default_method,
+        help='Method used to assemble the monochrome luminance image from the Bayer channels.' + 
+            ' Default: {}'.format(default_method))
     parser.add_argument('-w', '--whitebalance',
         default=default_wb,
         help='Whitebalance to use when convert R, G and B channels.' + 

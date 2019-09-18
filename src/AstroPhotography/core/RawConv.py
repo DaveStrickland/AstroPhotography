@@ -12,6 +12,9 @@ class RawConv:
     """
     
     def __init__(self, rawfile):
+        """RawConv constructor loads the raw file and performs initial processing.
+        """
+        
         self._supported_colors = ['RGBG']
         self._load(rawfile)
         return
@@ -19,6 +22,7 @@ class RawConv:
     def __del__(self):
         """ RawConv class destructor
         """
+        
         if self._rawpy is not None:
             self._rawpy.close()
         return
@@ -27,6 +31,7 @@ class RawConv:
         """ Raises an exception if the image color description is not 
             supported.
         """
+        
         err_str = 'Image colors ({}) not in supported list of {}.'.format(self._color_desc, 
             self._supported_colors)
         raise NotImplementedError(err_str)        
@@ -67,10 +72,10 @@ class RawConv:
 
         self._black_levels = self._rawpy.black_level_per_channel
         self._black_subtracted = False
-        self.default_whitebalances()
+        self._default_whitebalances()
         return
 
-    def default_whitebalances(self):
+    def _default_whitebalances(self):
         """Convert default camera and daylight whitebalances into
            a more consistent form
            
@@ -164,9 +169,71 @@ class RawConv:
             val_to_subtract, 
             where=data_mask).copy()
 
+    def get_whitebalance(self, wb_method):
+        """Return the whitebalance multiplies for a given white-balance
+           calculation method.
+        """
+        
+        allowed_methods = ['daylight', 'camera']
+        if wb_method not in allowed_methods:
+            err_str = 'Unexpected white balance method {} not ones of the allowed method: {}'.format(wb_method, allowed_methods)
+            logger.error(err_str)
+            raise RuntimeError(err_str)
+        
+        wb_list = [1, 1, 1, 1]
+        if wb_method == 'daylight':   
+            wb_list = self._wb_daylight
+        elif wb_method == 'camera':
+            wb_list = self._wb_camera
+            
+        return wb_list
+
+    def grey(self, luminance_method='direct', subtract_black=False, wb_list=None, 
+        verbose=False):
+        """Create a luminance image using the supplied white-balance
+           values, with or without black-level subtraction.
+        
+        For each band (R, G etc) the only non-zero pixels will be that 
+        band, and pixels associated with other bands will be set to zero.
+        
+        :param luminance_method: Luminance method to use. At present only the
+           following method(s) are supported:
+           - direct: Each channel is multiplied by its white-balance factor
+             and the added to the final image. There is no interpolation.
+        :param subtract_black: If true the camera black levels will be 
+          subtracted from the channel data.
+        :param wb_list: List of white-balance multipliers to apply to
+          each channel.
+        :param verbose: TBA
+        """
+        
+        allowed_methods=['direct']
+        if luminance_method not in allowed_methods:
+            err_str = 'Unexpected luminance calculate method supplied to RawConv.grey: {}. Allowed methods are: {}'.format(luminance_method, allowed_methods)
+            logger.error(err_str)
+        
+        # Should check that wb_list is the correct size.
+        
+        
+        if subtract_black:
+            self._subtract_black_levels()
+           
+        r_im  = np.where(self._mask_r,  self._rawim_r,  0)
+        g1_im = np.where(self._mask_g1, self._rawim_g1, 0)
+        b_im  = np.where(self._mask_b,  self._rawim_b,  0)
+        g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
+        
+        grey_im = np.zeros(r_im.shape[0:2], dtype=np.float64)
+        grey_im += wb_list[self.R]  * r_im
+        grey_im += wb_list[self.G1] * g1_im
+        grey_im += wb_list[self.B]  * b_im
+        grey_im += wb_list[self.G2] * g2_im
+        
+        return grey_im.astype(np.uint16)
+
     def split(self, subtract_black=False, verbose=False):
-        """ Exports the raw, unprocessed, bayer RGBG as four separate 
-            uint16 numpy arrays.
+        """Exports the raw, unprocessed, bayer RGBG as four separate 
+        uint16 numpy arrays.
         
         For each band (R, G etc) the only non-zero pixels will be that 
         band, and pixels associated with other bands will be set to zero.
@@ -176,12 +243,12 @@ class RawConv:
         :param verbose: TBA 
         """
         
-        rawim      = self._rawpy
+        #rawim      = self._rawpy
         print('black_levels', self._black_levels)
         print('camera_wb', self._wb_camera, type(self._wb_camera))
         print('daylight_wb', self._wb_daylight, type(self._wb_daylight))
         
-        tmp_raw = rawim.raw_image_visible.copy()
+        #tmp_raw = rawim.raw_image_visible.copy()
         
         if subtract_black:
             self._subtract_black_levels()
