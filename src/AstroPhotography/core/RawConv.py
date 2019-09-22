@@ -1,4 +1,4 @@
-""" Implements the RawConv class
+""" Implements the RawConv, which encapsulates raw data manipulations.
 """
 
 from .logger import logger
@@ -154,7 +154,8 @@ class RawConv:
         """
         odd_mask = data_arr < val_to_subtract
         num_odd  = np.sum(odd_mask)
-        logger.warn('Input array has {} pixels less than array we will subract from it.'.format(num_odd))
+        pct_odd  = 100 * num_odd / data_arr.size
+        logger.warn('Input array has {} pixels ({:.2f}%) less than array we will subract from it.'.format(num_odd, pct_odd))
         if num_odd > 0:
             # Reset those pixels to the value we're going to subtract.
             tmp_raw = np.where(odd_mask, val_to_subtract, data_arr)
@@ -186,6 +187,7 @@ class RawConv:
         elif wb_method == 'camera':
             wb_list = self._wb_camera
             
+        logger.debug('White balance values adopted: {}'.format(wb_list))
         return wb_list
 
     def grey(self, luminance_method='direct', subtract_black=False, wb_list=None, 
@@ -223,11 +225,14 @@ class RawConv:
         b_im  = np.where(self._mask_b,  self._rawim_b,  0)
         g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
         
+        # Perform calculations as double
         grey_im = np.zeros(r_im.shape[0:2], dtype=np.float64)
         grey_im += wb_list[self.R]  * r_im
         grey_im += wb_list[self.G1] * g1_im
         grey_im += wb_list[self.B]  * b_im
         grey_im += wb_list[self.G2] * g2_im
+        
+        # Should really do some sanity calculations here.
         
         return grey_im.astype(np.uint16)
 
@@ -243,12 +248,9 @@ class RawConv:
         :param verbose: TBA 
         """
         
-        #rawim      = self._rawpy
         print('black_levels', self._black_levels)
         print('camera_wb', self._wb_camera, type(self._wb_camera))
         print('daylight_wb', self._wb_daylight, type(self._wb_daylight))
-        
-        #tmp_raw = rawim.raw_image_visible.copy()
         
         if subtract_black:
             self._subtract_black_levels()
@@ -258,13 +260,15 @@ class RawConv:
         b_im  = np.where(self._mask_b,  self._rawim_b,  0)
         g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
         
-        minr=400
-        maxr=500
-        minc=2800
-        maxc=2900
-        print('raw_r=', r_im[minr:maxr,minc:maxc], r_im.dtype)
-        print('raw_g1=', g1_im[minr:maxr,minc:maxc], g1_im.dtype)
+        # --> Should be moved to custom whitebalance
+        # minr=400
+        # maxr=500
+        # minc=2800
+        # maxc=2900
+        # print('raw_r=', r_im[minr:maxr,minc:maxc], r_im.dtype)
+        # print('raw_g1=', g1_im[minr:maxr,minc:maxc], g1_im.dtype)
         
+        # --> Should be moved to RGB
         #r_im3d  = rawim.postprocess(output_color=rawpy.ColorSpace.raw,
         #    gamma=(1, 1), 
         #    no_auto_bright=True, 
@@ -274,13 +278,9 @@ class RawConv:
         #    output_bps=16, 
         #    user_flip=0)
             
-        # Note python indexing is inclusive to exclusive, so the 2 is excluded.
-        #r_im = np.zeros(r_im3d.shape[0:2], dtype=np.uint16)
-            
-        #print(r_im3d.shape, r_im3d.dtype)
-        print(r_im.shape, r_im.dtype)
-        print('R  min, max: ', np.nanmin(r_im[self._mask_r]),   np.nanmax(r_im[self._mask_r]))
-        print('G1 min, max: ', np.nanmin(g1_im[self._mask_g1]), np.nanmax(g1_im[self._mask_g1]))
-        print('B  min, max: ', np.nanmin(b_im[self._mask_b]),   np.nanmax(b_im[self._mask_b]))
-        print('G2 min, max: ', np.nanmin(g2_im[self._mask_g2]), np.nanmax(g2_im[self._mask_g2]))
+        # --> Should be moved to stats...
+        # print('R  min, max: ', np.nanmin(r_im[self._mask_r]),   np.nanmax(r_im[self._mask_r]))
+        # print('G1 min, max: ', np.nanmin(g1_im[self._mask_g1]), np.nanmax(g1_im[self._mask_g1]))
+        # print('B  min, max: ', np.nanmin(b_im[self._mask_b]),   np.nanmax(b_im[self._mask_b]))
+        # print('G2 min, max: ', np.nanmin(g2_im[self._mask_g2]), np.nanmax(g2_im[self._mask_g2]))
         return r_im, g1_im, b_im, g2_im
