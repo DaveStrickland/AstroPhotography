@@ -155,7 +155,7 @@ class RawConv:
         odd_mask = data_arr < val_to_subtract
         num_odd  = np.sum(odd_mask)
         pct_odd  = 100 * num_odd / data_arr.size
-        logger.warn('Input array has {} pixels ({:.2f}%) less than array we will subract from it.'.format(num_odd, pct_odd))
+        logger.warning('Input array has {} pixels ({:.2f}%) less than array we will subract from it.'.format(num_odd, pct_odd))
         if num_odd > 0:
             # Reset those pixels to the value we're going to subtract.
             tmp_raw = np.where(odd_mask, val_to_subtract, data_arr)
