@@ -71,7 +71,11 @@ Run the test suite. For reasons I haven't resolved running pytest as a stand-alo
 runs into the path issues related to https://docs.pytest.org/en/latest/pythonpath.html
 
 ```bash
-    $ python3 -m pytest -rPfs test/
+    # Run tests capturing stdout
+    $ python3 -m pytest -rfsP test/
+    
+    # Runs tests with a short summary of each test run
+    $ python3 -m pytest -rfsp test/
 ```
 
 Build documentation:

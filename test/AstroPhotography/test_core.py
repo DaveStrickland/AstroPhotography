@@ -10,6 +10,7 @@ environment or setuptools develop mode to test against the development version.
 import os
 import os.path
 import pytest
+import numpy as np
 from AstroPhotography.core.RawConv import RawConv
 
 def rawconv_tfile():
@@ -144,17 +145,30 @@ class RawConvTest(object):
             # black subtraction HAS been performed
             pytest.fail('Have not implemented test datat for black-level subtracted data')
             
-        return oct_ind, meanval, stdval, minval, maxval, sumval, imgdata
+        return oct_ind, meanval, stdval, minval, maxval, sumval, np.array(imgdata)
             
     def _compare_channel_data(self, channel, channel_img, black):
         
         # Get expected data
         oct_ind, meanval, stdval, minval, maxval, sumval, imgdata = self._get_split_data(channel, black)
         
-        # Extract sub-image from current data
+        # numpy indices are 0-based, but ranges are exclusive on the upper end
+        # so for an octave range a:b the numpy equivalent is a-1:b.
+        r1 = oct_ind[0] - 1
+        r2 = oct_ind[1]
+        c1 = oct_ind[2] - 1
+        c2 = oct_ind[3]
         
-        # Compare
-        pytest.fail('Test not complete')
+        # Extract sub-image from current data in channel image
+        sub_img = channel_img[r1:r2,c1:c2]
+        
+        # Compare raw sub-image shapes, then arrays themselves
+        assert imgdata.shape == sub_img.shape
+        assert np.array_equal(imgdata, sub_img) == True
+        
+        # Compute and compare statistics (which should also match if the
+        # arrays match.
+        
         return
         
     def test_split(self):
