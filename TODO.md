@@ -9,7 +9,7 @@
 ## RAW Conversion
 
 - [ ] whitebalance: options to select camera, daylight, auto, region, user-specified
-- [ ] spit: Option to output unprocessed RGBG as separate 16-bit greyscal TIFF
+- [ ] spit: Option to output unprocessed RGBG as separate 16-bit greyscale TIFFs
 - [ ] grey, rgb: Output options for FITS, TIFF (?)
 - [ ] hist: Calculate histograms (rgb or greyscale).
 - [ ] hist: Plot histograms (matplotlib)
@@ -18,10 +18,10 @@
 - [ ] features: Image segmentation and feature finding.
 - [ ] features: Indexed FITS or PNG image of features
 - [ ] features: CSV or other ascii file of feature locations.
-- [ ] general: black-level subtraction
+- [X] general: black-level subtraction
 - [ ] general: Camera metadata conversion to FITS kw or image metadata
 - [ ] general: Optional flipping
-- [ ] general: Check rawfile exists and can be read using os.path
+- [X] general: Check rawfile exists and can be read using os.path
 
 ## Metadata
 
@@ -42,7 +42,7 @@
 ## Testing
 
 - [ ] Work out how pytest works with the command line executables 
-- [ ] Get test test fixtures working?
+- [ ] Get test fixtures working?
 - [ ] Work how to do test coverage in python.
 - [ ] RawConv.split() unit test.
 
