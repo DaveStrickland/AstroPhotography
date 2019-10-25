@@ -96,7 +96,7 @@ class RawConvTest(object):
                     [0, 960, 0, 971, 0, 947, 0, 862, 0, 802, 0, 714, 0, 634],
                     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
                 
-            elif 'G2' in channel:
+            elif 'B' in channel:
                 # ../../../capture000003_noblack_b.tiff 451 464 2851 2864
                 oct_ind = [451, 464, 2851, 2864]
                 # Array 14x14 has 196 pixels
@@ -120,7 +120,7 @@ class RawConvTest(object):
                     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                     [0, 643, 0, 642, 0, 639, 0, 624, 0, 592, 0, 530, 0, 485]]
                     
-            elif 'B' in channel:
+            elif 'G2' in channel:
                 # ../../../capture000003_noblack_g2.tiff 451 464 2851 2864
                 oct_ind = [451, 464, 2851, 2864]
                 # Array 14x14 has 196 pixels
