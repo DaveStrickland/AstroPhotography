@@ -2,6 +2,7 @@
 % @brief Used to extract "truth" values for testing RawConv.split()
 %
 % @history 2019-09-14 dks : Initial version coded.
+# @history 2019-10-24 dks : Closer approximate format used in test_core.py
 function split(r_file, g1_file, b_file, g2_file)
     format compact;
     more off;
@@ -23,7 +24,9 @@ function split(r_file, g1_file, b_file, g2_file)
     
     # Calculate region-based white balance.
     # wb_in is sum from a given band, wb_out is multiplies for each band.
-    wb_in = [r_stats(idx_sum) g1_stats(idx_sum) b_stats(idx_sum) g2_stats(idx_sum)]
+    wb_in = [r_stats(idx_sum) g1_stats(idx_sum) b_stats(idx_sum) g2_stats(idx_sum)];
+    disp(sprintf('wb_in = [%d, %d, %d, %d]', wb_in(1), wb_in(2), wb_in(3), wb_in(4)));
+
     
     function [out_arr, out_stats] = read_and_plot(fname, minrow, maxrow, mincol, maxcol)
         % @brief Helper function to process a single image.
@@ -43,6 +46,7 @@ function split(r_file, g1_file, b_file, g2_file)
         out_arr = imdata(minrow:maxrow, mincol:maxcol);
         disp(sprintf('# %s %d %d %d %d', fname, ...
             minrow, maxrow, mincol, maxcol));
+        disp(sprintf('oct_ind = [%d, %d, %d, %d]', minrow, maxrow, mincol, maxcol));
         out_stats = img_stats(out_arr);
         
         subplot(2,1,2);
@@ -67,7 +71,7 @@ function split(r_file, g1_file, b_file, g2_file)
         end
         line_fmt = [fmt ', '];
         nrows = rows(arr);
-        line_start_str=' [[';
+        line_start_str='imgdata = [[';
         line_end_str='],';
         for ir = 1:nrows
             if (ir == 2)
@@ -102,7 +106,7 @@ function split(r_file, g1_file, b_file, g2_file)
         sumval  = sum(input_arr(:));
         meanval = mean(input_arr(:));
         stdval  = std(input_arr(:));
-        disp(sprintf('Array %dx%d has %d pixels', nrows, ncols, nvals));
+        disp(sprintf('# Array %dx%d has %d pixels', nrows, ncols, nvals));
         disp(sprintf('  meanval=%.f', meanval));
         disp(sprintf('  stdval=%.f', stdval));
         disp(sprintf('  minval=%.f', minval));

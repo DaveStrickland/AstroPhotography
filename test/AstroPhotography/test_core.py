@@ -13,6 +13,7 @@ import pytest
 import numpy as np
 from AstroPhotography.core.RawConv import RawConv
 
+@pytest.fixture
 def rawconv_tfile():
     """Returns a rawconv object using the standard test file
     
@@ -29,7 +30,11 @@ def rawconv_tfile():
         pytest.fail('Could not find expected test RAW file {}'.format(rawfile))
     rawconv = RawConv(rawfile)
     return rawconv
-    
+
+@pytest.fixture(params=("R", "G1", "B", "G2"))  
+def channel(request):
+    """Returns a parameterized channel for the split command tests"""
+    return request.param
 
 class RawConvTest(object):
     """Tests RawConv methods"""
@@ -142,9 +147,104 @@ class RawConvTest(object):
                 # TODO pytest error
                 pytest.fail('Unexpected channel {}. Expecting on of R, G1, B. or G2'.format(channel))
         else:
-            # black subtraction HAS been performed
-            pytest.fail('Have not implemented test datat for black-level subtracted data')
-            
+            # black-level subtraction has been performed.
+            if 'R' in channel:
+                # black subtraction HAS been performed
+                # ../../../capture000003_r.tiff 451 464 2851 2864
+                oct_ind = [451, 464, 2851, 2864]
+                # Array 14x14 has 196 pixels
+                meanval=56
+                stdval=107
+                minval=0
+                maxval=365
+                sumval=11035
+                imgdata = [[227, 0, 190, 0, 164, 0, 133, 0, 104, 0, 81, 0, 65, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [260, 0, 233, 0, 195, 0, 156, 0, 126, 0, 101, 0, 83, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [298, 0, 272, 0, 225, 0, 189, 0, 161, 0, 124, 0, 105, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [335, 0, 310, 0, 261, 0, 225, 0, 187, 0, 145, 0, 123, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [351, 0, 330, 0, 297, 0, 268, 0, 219, 0, 186, 0, 153, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [362, 0, 355, 0, 332, 0, 300, 0, 261, 0, 217, 0, 177, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [365, 0, 359, 0, 354, 0, 332, 0, 293, 0, 245, 0, 201, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+            elif 'G1' in channel:
+                # ../../../capture000003_g1.tiff 451 464 2851 2864
+                oct_ind = [451, 464, 2851, 2864]
+                # Array 14x14 has 196 pixels
+                meanval=104
+                stdval=200
+                minval=0
+                maxval=715
+                sumval=20424
+                imgdata = [[0, 422, 0, 362, 0, 296, 0, 245, 0, 195, 0, 150, 0, 111],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 484, 0, 422, 0, 353, 0, 289, 0, 237, 0, 187, 0, 148],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 562, 0, 492, 0, 396, 0, 341, 0, 288, 0, 230, 0, 181],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 619, 0, 556, 0, 477, 0, 406, 0, 335, 0, 269, 0, 224],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 663, 0, 628, 0, 557, 0, 479, 0, 407, 0, 341, 0, 274],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 697, 0, 677, 0, 606, 0, 547, 0, 470, 0, 378, 0, 325],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 704, 0, 715, 0, 691, 0, 606, 0, 546, 0, 458, 0, 378],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+            elif 'B' in channel:
+                # ../../../capture000003_b.tiff 451 464 2851 2864
+                oct_ind = [451, 464, 2851, 2864]
+                # Array 14x14 has 196 pixels
+                meanval=63
+                stdval=119
+                minval=0
+                maxval=402
+                sumval=12386
+                imgdata = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 265, 0, 215, 0, 185, 0, 158, 0, 134, 0, 111, 0, 80],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 295, 0, 255, 0, 218, 0, 189, 0, 152, 0, 127, 0, 90],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 337, 0, 297, 0, 252, 0, 213, 0, 179, 0, 145, 0, 123],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 356, 0, 332, 0, 294, 0, 251, 0, 211, 0, 179, 0, 150],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 378, 0, 371, 0, 339, 0, 291, 0, 253, 0, 202, 0, 179],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 402, 0, 391, 0, 362, 0, 333, 0, 294, 0, 236, 0, 199],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 387, 0, 386, 0, 383, 0, 368, 0, 336, 0, 274, 0, 229]]
+            elif 'G2' in channel:
+                # ../../../capture000003_g2.tiff 451 464 2851 2864
+                oct_ind = [451, 464, 2851, 2864]
+                # Array 14x14 has 196 pixels
+                meanval=118
+                stdval=221
+                minval=0
+                maxval=720
+                sumval=23127
+                imgdata = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [501, 0, 405, 0, 357, 0, 287, 0, 236, 0, 191, 0, 148, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [577, 0, 486, 0, 406, 0, 346, 0, 287, 0, 223, 0, 193, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [615, 0, 552, 0, 497, 0, 410, 0, 341, 0, 276, 0, 235, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [675, 0, 619, 0, 558, 0, 487, 0, 408, 0, 336, 0, 278, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [687, 0, 665, 0, 622, 0, 555, 0, 473, 0, 396, 0, 320, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [714, 0, 714, 0, 673, 0, 617, 0, 554, 0, 457, 0, 376, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [686, 0, 705, 0, 720, 0, 673, 0, 603, 0, 539, 0, 448, 0]]
+            else:
+                # TODO pytest error
+                pytest.fail('Unexpected channel {}. Expecting on of R, G1, B. or G2'.format(channel))
+                        
         return oct_ind, meanval, stdval, minval, maxval, sumval, np.array(imgdata)
             
     def _compare_channel_data(self, channel, channel_img, black):
@@ -171,23 +271,40 @@ class RawConvTest(object):
         
         return
         
-    def test_split(self):
+    def test_split(self, rawconv_tfile, channel):
         """Tests RawConv.split(), which ultimately tests a lot of the most
         basic processing used by any call to RawConv.
         """
         
-        rawconv = rawconv_tfile()
-                
         # Check split without black-level subtraction
         black = False
-        r_im, g1_im, b_im, g2_im = rawconv.split(subtract_black=black)
+        r_im, g1_im, b_im, g2_im = rawconv_tfile.split(subtract_black=black)
         
-        
-        self._compare_channel_data('R', r_im, black)
+        if 'R' in channel:
+            img = r_im
+        elif 'G1' in channel:
+            img = g1_im
+        elif 'B' in channel:
+            img = b_im
+        elif 'G2' in channel:
+            img = g2_im
+            
+        self._compare_channel_data(channel, img, black)
         
         # Check split with black-level subtraction.
         black = True
-        r_im, g1_im, b_im, g2_im = rawconv.split(subtract_black=black)
+        r_im, g1_im, b_im, g2_im = rawconv_tfile.split(subtract_black=black)
+        
+        if 'R' in channel:
+            img = r_im
+        elif 'G1' in channel:
+            img = g1_im
+        elif 'B' in channel:
+            img = b_im
+        elif 'G2' in channel:
+            img = g2_im
+            
+        self._compare_channel_data(channel, img, black)
         return
 
 # Make the script executable.
