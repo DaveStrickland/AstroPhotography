@@ -42,6 +42,12 @@ class RawConvTest(object):
     def _get_split_data(self, channel, black=False):
         """Returns expected postage-stamp data for a given channel.
         
+        This test data set is limited in the sense it is data file
+        specific, and requires some by-hand work to get data from the
+        octave scripts into the python. It also presumes that some
+        aspects of the split command were correct in order to generate
+        the test channel files read in octave.
+        
         :param channel: Bayer channel, must be one on 'R', 'G1', 'B', 'G2'
         :param black: Boolean whether black-level subtraction should have
            been performed.
@@ -246,7 +252,36 @@ class RawConvTest(object):
                 pytest.fail('Unexpected channel {}. Expecting on of R, G1, B. or G2'.format(channel))
                         
         return oct_ind, meanval, stdval, minval, maxval, sumval, np.array(imgdata)
-            
+    
+    def _get_split_wb(self, black=False):
+        """Returns the expected white-balance multipliers for the test postage stamps
+ 
+        This test data set is limited in the sense it is data file
+        specific, and requires some by-hand work to get data from the
+        octave scripts into the python. It also presumes that some
+        aspects of the split command were correct in order to generate
+        the test channel files read in octave.
+        
+        :param black: If true, then black-level subtraction has been
+          applied. Otherwise the black-level subtraction has not been
+          applied.
+        """
+        
+        # Raw image sums for the postage stamps
+        if black:
+            wb_in = [11035, 20424, 12386, 23127]
+        else:
+            wb_in = [23579, 32968, 24930, 35671]
+        
+        # Convert numbers to expected conversion factors, which are of
+        # the form: camera_wb [1.849074074074074, 1.0, 2.160185185185185, 1.0]
+        max_val = max(wb_in)
+        wb_list = []
+        for idx, val in enumerate(wb_in):
+            wb_list.append(max_val / val)
+        
+        return wb_list        
+    
     def _compare_channel_data(self, channel, channel_img, black):
         
         # Get expected data
