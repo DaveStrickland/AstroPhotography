@@ -1,12 +1,14 @@
 # AstroPhotography TODO
 
-## General
+## General Tool Features
 
 - [X] Package layout
 - [X] Work out how to add a command line executable.
 - [ ] Clean up or remove the baselevel __main__.py.
+- [ ] Check it works with DNG format files.
+- [ ] Write basic FITS files (Correct metadata is separate item)
 
-## RAW Conversion
+## RAW Conversion Sub Tools
 
 - [ ] whitebalance: options to select camera, daylight, auto, region, user-specified
 - [ ] spit: Option to output unprocessed RGBG as separate 16-bit greyscale TIFFs
@@ -41,10 +43,12 @@
 
 ## Testing
 
-- [ ] Work out how pytest works with the command line executables 
-- [ ] Get test fixtures working?
+- [X] Work out how pytest works with the command line executables 
+- [X] Get test fixtures working? DONE (within single file)
+- [ ] Move basic test machinary into a separate file.
+- [ ] Separate tests of individual commands into separate files.
 - [ ] Work how to do test coverage in python.
-- [ ] RawConv.split() unit test.
+- [X] RawConv.split() unit test.
 
 ## Bugs
 

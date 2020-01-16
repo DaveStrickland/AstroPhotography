@@ -268,6 +268,7 @@ class RawConvTest(object):
         """
         
         # Raw image sums for the postage stamps
+        # TODO: Should really real expected postage stamps and calculate sums.
         if black:
             wb_in = [11035, 20424, 12386, 23127]
         else:
