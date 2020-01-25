@@ -1,5 +1,8 @@
-# Ignore Python build artifacts.
+# AstroPhotography specific files to ignore
+#  (For example, files generated during testing)
 
+
+# Ignore Python build artifacts.
 MANIFEST
 build/
 dist/
@@ -9,22 +12,18 @@ dist/
 
 
 # Ignore pyenv files.
-
 .python-version
 
 
 # Ignore virtualenv environments.
-
 .venv*/
 
 
 # Ignore Vagrant runtime files.
-
 .vagrant/
 
 
 # Ignore settings for various IDEs.
-
 .idea/
 .project/
 .pydevproject/
@@ -34,6 +33,5 @@ nbproject/
 
 
 # Ignore OS metadata files.
-
 .DS_Store
 Thumbs.db
