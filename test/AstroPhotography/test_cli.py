@@ -14,11 +14,9 @@ import pytest
 from AstroPhotography.cli import *  # test __all__
 
 
-@pytest.fixture(params=("hello", "split"))
+@pytest.fixture(params=("grey", "split"))
 def command(request):
-    """ Return the command to run.
-
-    """
+    """ Return the command to run."""
     return request.param
 
 

@@ -11,7 +11,7 @@
 ## RAW Conversion Sub Tools
 
 - [ ] whitebalance: options to select camera, daylight, auto, region, user-specified
-- [ ] spit: Option to output unprocessed RGBG as separate 16-bit greyscale TIFFs
+- [X] spit: Option to output unprocessed RGBG as separate 16-bit greyscale TIFFs
 - [ ] grey, rgb: Output options for FITS, TIFF (?)
 - [ ] hist: Calculate histograms (rgb or greyscale).
 - [ ] hist: Plot histograms (matplotlib)
@@ -49,6 +49,8 @@
 - [ ] Separate tests of individual commands into separate files.
 - [ ] Work how to do test coverage in python.
 - [X] RawConv.split() unit test.
+- [ ] RawConv.get_whitebalance() unit test.
+- [ ] RawConv.grey() unit test.
 
 ## Bugs
 

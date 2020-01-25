@@ -22,7 +22,6 @@ def rawconv_tfile():
     """
     
     cwd = os.getcwd()
-    print(dir())
     test_data_dir = 'test/AstroPhotography/data/'
     test_data_file = 'capture000003.cr2'
     rawfile = os.path.join(cwd, test_data_dir, test_data_file)
@@ -35,6 +34,12 @@ def rawconv_tfile():
 def channel(request):
     """Returns a parameterized channel for the split command tests"""
     return request.param
+    
+@pytest.fixture(params=("daylight", "camera"))  
+def wb_method(request):
+    """Returns a parameterized whitebalance method"""
+    return request.param
+
 
 class RawConvTest(object):
     """Tests RawConv methods"""
@@ -268,7 +273,7 @@ class RawConvTest(object):
         """
         
         # Raw image sums for the postage stamps
-        # TODO: Should really real expected postage stamps and calculate sums.
+        # TODO: Should really read expected postage stamps and calculate sums.
         if black:
             wb_in = [11035, 20424, 12386, 23127]
         else:
@@ -310,6 +315,10 @@ class RawConvTest(object):
     def test_split(self, rawconv_tfile, channel):
         """Tests RawConv.split(), which ultimately tests a lot of the most
         basic processing used by any call to RawConv.
+        
+        :param rawconv_tfile: RawConv object loaded with the test file
+        :param channel: A string denoting the
+          channel to process.
         """
         
         # Check split without black-level subtraction
@@ -332,6 +341,7 @@ class RawConvTest(object):
         r_im, g1_im, b_im, g2_im = rawconv_tfile.split(subtract_black=black)
         
         if 'R' in channel:
+            
             img = r_im
         elif 'G1' in channel:
             img = g1_im
@@ -341,6 +351,35 @@ class RawConvTest(object):
             img = g2_im
             
         self._compare_channel_data(channel, img, black)
+        return
+
+    def test_get_whitebalance(self, rawconv_tfile, wb_method):
+        """Tests that get_whitebalance returns the expected white balance multipliers
+        
+        :param rawconv_tfile: RawConv object loaded with the test file
+        :param wb_method: String denoting the whitebalance method to use.
+        """
+        
+        # Allowed floating point tolerance, better than the dynamic range
+        # of any realistic camera.
+        toler = 1.0-6
+        
+        if wb_method == 'daylight':
+            expected_wb = [2.63078458003413, 1.0, 1.2493076831610352, 1.0]
+        elif wb_method == 'camera':
+            expected_wb = [1.849074074074074, 1.0, 2.160185185185185, 1.0]
+        else:
+            pytest.fail('Error: unexpected whitebalance method {} tested.'.format(wb_method))
+            
+        wb = rawconv_tfile.get_whitebalance(wb_method)
+
+        # Check that whitebalance lists have the same number of elements,
+        # then check that each value matches with the tolerance allowed.
+        assert len(wb) == len(expected_wb)
+        for idx, val in enumerate(wb):
+            assert val == pytest.approx(expected_wb[idx],
+                abs=toler)
+        
         return
 
 # Make the script executable.
