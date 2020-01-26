@@ -10,13 +10,17 @@
 
 ## RAW Conversion Sub Tools
 
-- [ ] whitebalance: options to select camera, daylight, auto, region, user-specified
+- [X] whitebalance: options to select camera, daylight, auto, region, user-specified
+- [ ] whitebalance: Implement auto
+- [ ] whitebalance: Implement region
+- [ ] whitebalance: Implement user
 - [X] spit: Option to output unprocessed RGBG as separate 16-bit greyscale TIFFs
 - [ ] grey, rgb: Output options for FITS, TIFF (?)
 - [ ] hist: Calculate histograms (rgb or greyscale).
 - [ ] hist: Plot histograms (matplotlib)
 - [ ] hist: Write histograms to CSV or other ascii format.
-- [ ] general: percentiles, used for preparing for image segmentation.
+- [ ] general: Percentiles, used for preparing for image segmentation.
+- [ ] general: Image stats output in verbose mode.
 - [ ] features: Image segmentation and feature finding.
 - [ ] features: Indexed FITS or PNG image of features
 - [ ] features: CSV or other ascii file of feature locations.
@@ -24,6 +28,8 @@
 - [ ] general: Camera metadata conversion to FITS kw or image metadata
 - [ ] general: Optional flipping
 - [X] general: Check rawfile exists and can be read using os.path
+- [ ] general: Optional normalization to 16 bit dynamic range
+- [ ] general: Optional asinh strech.
 
 ## Metadata
 
@@ -49,7 +55,7 @@
 - [ ] Separate tests of individual commands into separate files.
 - [ ] Work how to do test coverage in python.
 - [X] RawConv.split() unit test.
-- [ ] RawConv.get_whitebalance() unit test.
+- [ ] RawConv.get_whitebalance() unit test. IN PROGRESS
 - [ ] RawConv.grey() unit test.
 
 ## Bugs
