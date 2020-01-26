@@ -153,6 +153,7 @@ def _grey(subparsers, common):
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
     """
+    allowed_wb = ['daylight', 'camera', 'auto', 'region[regspec]', 'user[userspec]']
     default_wb = 'daylight'
     default_method = 'direct'
     
@@ -167,6 +168,16 @@ def _grey(subparsers, common):
     parser.add_argument('-w', '--whitebalance',
         default=default_wb,
         help='Whitebalance to use when convert R, G and B channels.' + 
+            ' Allowed whitebalance methods are: {}'.format(allowed_wb) +
+            ' To calculate the whitebalance from the entire image use "auto".' +
+            ' To calculate the whitebalance from part of an image use "region"' +
+            ' with a region specifier of the form [minrow, maxrow, mincol, maxcol],' +
+            ' where the pixel indices are zero-based and inclusive. For example:' +
+            ' "region[450, 463, 2850, 2863]".' +
+            ' To specify a user selected whitebalance use "user" with a user specifier' +
+            ' of form [Rmult, G1mult, Bmult, G2mult].' +
+            ' For example "user[185, 1.0, 2.01, 1.0]".' +
+            ' The region and user options should be enclosed in quotes to prevent shell expansion.' +
             ' Default: {}'.format(default_wb))
     parser.add_argument('-b', '--black',
         default=False,

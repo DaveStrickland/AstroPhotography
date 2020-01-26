@@ -175,9 +175,13 @@ class RawConv:
            calculation method.
         """
         
-        allowed_methods = ['daylight', 'camera']
-        if wb_method not in allowed_methods:
-            err_str = 'Unexpected white balance method {} not ones of the allowed method: {}'.format(wb_method, allowed_methods)
+        # Check whitebalance method supplied.
+        allowed_methods = ['daylight', 'camera', 'auto', 'region', 'user']
+        # Split off method[specifier] to just check the method part.
+        method = wb_method.split('[')[0]
+        
+        if method not in allowed_methods:
+            err_str = 'Unexpected white balance method "{}" not one of the allowed method: {}'.format(method, allowed_methods)
             logger.error(err_str)
             raise RuntimeError(err_str)
         
@@ -186,6 +190,16 @@ class RawConv:
             wb_list = self._wb_daylight
         elif wb_method == 'camera':
             wb_list = self._wb_camera
+        elif wb_method == "auto":
+            # TODO hand off to function
+            logger.warning('Whitebalance method {} not yet implemented'.format(wb_method))
+        elif 'region' in wb_method:
+            # TODO parse region spec, hand off to function
+            logger.warning('Whitebalance method {} not yet implemented'.format(wb_method))
+        elif 'user' in wb_method:
+            # TODO parse user spec, hand off to function
+            logger.warning('Whitebalance method {} not yet implemented'.format(wb_method))
+            
             
         logger.debug('White balance values adopted: {}'.format(wb_list))
         return wb_list
