@@ -15,7 +15,7 @@ def main(rawfile, output, method, black, whitebalance):
     :param method: Luminance method used to construct monochrome image from 
       Bayer channels. See RawConv.grey() for details on allowable methods.
     :param whitebalance: Whitebalance method to use when converting R, G and B
-      channels to monochrome
+      channels to monochrome.
     :param black: If true the camera black levels will be subtracted
       from the channel data.
     """
@@ -23,9 +23,8 @@ def main(rawfile, output, method, black, whitebalance):
     
     # Read and process the file.
     rawconv = RawConv(rawfile)
-    wb_vals = rawconv.get_whitebalance(whitebalance)
     grey_im = rawconv.grey(luminance_method=method, 
         subtract_black=black, 
-        wb_list=wb_vals)
+        wb_method=whitebalance)
     file_writer(grey_im, output)
     return 

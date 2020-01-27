@@ -5,6 +5,7 @@ from .logger import logger
 import rawpy
 import numpy as np
 import os.path
+import ast
 
 class RawConv:
     """ Higher level conversions and processing of RAW image files to graphics formats 
@@ -169,7 +170,29 @@ class RawConv:
         return np.subtract(tmp_raw, 
             val_to_subtract, 
             where=data_mask).copy()
-
+            
+    def _get_whitebalance_from_region(self, wb_method):
+        """Determine the whitebalance from a rectangular patch or the entire image
+        
+        :param wb_method: The method can be 'auto' to select the entire 
+          visible image, or 'region[rowmin, rowmax, colmin, colmax]'
+        """
+        
+        # Safe default
+        wb_list = [1,1,1,1]
+        
+        if wb_method == 'auto':
+            pixel_list=[0, self._nrows, 0, self._ncols]
+        elif 'region' in wb_method:
+            # Split off region from the region spec and parse as list.
+            str_list = wb_method.replace('region', '')
+            pixel_list = ast.literal_eval(str_list)
+            
+        # Extract data sums within the regions.
+        # TODO extract.
+        
+        return wb_list
+        
     def get_whitebalance(self, wb_method):
         """Return the whitebalance multiplies for a given white-balance
            calculation method.
@@ -191,11 +214,9 @@ class RawConv:
         elif wb_method == 'camera':
             wb_list = self._wb_camera
         elif wb_method == "auto":
-            # TODO hand off to function
-            logger.warning('Whitebalance method {} not yet implemented'.format(wb_method))
+            wb_list = self._get_whitebalance_from_region(wb_method)
         elif 'region' in wb_method:
-            # TODO parse region spec, hand off to function
-            logger.warning('Whitebalance method {} not yet implemented'.format(wb_method))
+            wb_list = self._get_whitebalance_from_region(wb_method)
         elif 'user' in wb_method:
             # TODO parse user spec, hand off to function
             logger.warning('Whitebalance method {} not yet implemented'.format(wb_method))
@@ -204,8 +225,8 @@ class RawConv:
         logger.debug('White balance values adopted: {}'.format(wb_list))
         return wb_list
 
-    def grey(self, luminance_method='direct', subtract_black=False, wb_list=None, 
-        verbose=False):
+    def grey(self, luminance_method='direct', subtract_black=False, 
+        wb_method='auto', verbose=False):
         """Create a luminance image using the supplied white-balance
            values, with or without black-level subtraction.
         
@@ -218,8 +239,9 @@ class RawConv:
              and the added to the final image. There is no interpolation.
         :param subtract_black: If true the camera black levels will be 
           subtracted from the channel data.
-        :param wb_list: List of white-balance multipliers to apply to
-          each channel.
+        :param wb_method: Whitebalance method to user to determine white 
+          balances. See get_whitebalance() for details of the allowed
+          methods.
         :param verbose: TBA
         """
         
@@ -228,11 +250,10 @@ class RawConv:
             err_str = 'Unexpected luminance calculate method supplied to RawConv.grey: {}. Allowed methods are: {}'.format(luminance_method, allowed_methods)
             logger.error(err_str)
         
-        # Should check that wb_list is the correct size.
-        
-        
         if subtract_black:
             self._subtract_black_levels()
+            
+        wb_list = self.get_whitebalance(wb_method)
            
         r_im  = np.where(self._mask_r,  self._rawim_r,  0)
         g1_im = np.where(self._mask_g1, self._rawim_g1, 0)
