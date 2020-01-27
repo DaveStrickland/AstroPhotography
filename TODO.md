@@ -11,8 +11,8 @@
 ## RAW Conversion Sub Tools
 
 - [X] whitebalance: options to select camera, daylight, auto, region, user-specified
-- [ ] whitebalance: Implement auto
-- [ ] whitebalance: Implement region
+- [X] whitebalance: Implement auto
+- [X] whitebalance: Implement region
 - [ ] whitebalance: Implement user
 - [X] spit: Option to output unprocessed RGBG as separate 16-bit greyscale TIFFs
 - [ ] grey, rgb: Output options for FITS, TIFF (?)
@@ -28,7 +28,7 @@
 - [ ] general: Camera metadata conversion to FITS kw or image metadata
 - [ ] general: Optional flipping
 - [X] general: Check rawfile exists and can be read using os.path
-- [ ] general: Optional normalization to 16 bit dynamic range
+- [ ] general: Optional normalization to 16 bit dynamic range. 
 - [ ] general: Optional asinh strech.
 
 ## Metadata

@@ -118,8 +118,6 @@ class RawConv:
         g1_bg = int( self._black_levels[self.G1] )
         b_bg  = int( self._black_levels[self.B]  )
         g2_bg = int( self._black_levels[self.G2] )
-        print('r_bg={} g1_bg={} b_bg={} g2_bg={}'.format(r_bg,
-            g1_bg, b_bg, g2_bg), type(r_bg))
 
         self._rawim_r  = self._safe_subtract(self._rawim_r,
             self._mask_r, 
@@ -178,9 +176,6 @@ class RawConv:
           visible image, or 'region[rowmin, rowmax, colmin, colmax]'
         """
         
-        # Safe default
-        wb_list = [1,1,1,1]
-        
         if wb_method == 'auto':
             pixel_list=[0, self._nrows, 0, self._ncols]
         elif 'region' in wb_method:
@@ -188,10 +183,66 @@ class RawConv:
             str_list = wb_method.replace('region', '')
             pixel_list = ast.literal_eval(str_list)
             
-        # Extract data sums within the regions.
-        # TODO extract.
-        
+        # Extract data sums within the regions. Masks are also necessary as there
+        # may well be a different number of valid pixels per band.
+        sum_r,  nvalid_r  = self._get_sum_in_region(self._rawim_r,  self._mask_r,  pixel_list)
+        sum_g1, nvalid_g1 = self._get_sum_in_region(self._rawim_g1, self._mask_g1, pixel_list)
+        sum_b,  nvalid_b  = self._get_sum_in_region(self._rawim_b,  self._mask_b,  pixel_list)
+        sum_g2, nvalid_g2 = self._get_sum_in_region(self._rawim_g2, self._mask_g2, pixel_list)
+             
+        # Need to check that the number of pixels is greater than zero and the
+        # data sum is greater than zero too. Otherwise, the 
+        wb_avg = [] # Avg DN per pixel.
+        for itr in zip([sum_r, sum_g1, sum_b, sum_g2], 
+            [nvalid_r, nvalid_g1, nvalid_b, nvalid_g2], 
+            ['R', 'G1', 'B', 'G2']):
+            if itr[0] < 0:
+                logger.warning('For band {}, the sum of data within the region is {}'.format(itr[2], itr[0]))
+            elif itr[1] < 1:
+                logger.error('For band {}, the number of valid pixels within the region is {}'.format(itr[2], itr[1]))
+                
+            wb_avg.append( itr[0]/itr[1] )
+            
+        max_val = max(wb_avg)
+        wb_list = []
+        for idx, val in enumerate(wb_avg):
+            wb_list.append(max_val / val)
+                
         return wb_list
+        
+    def _get_sum_in_region(self, data_arr, mask_arr, rpix_list):
+        """Find the data sum in a rectangular region described by a list
+        and optionally within a mask
+        
+        :param data_arr: 2-dimensional array of data values.
+        :param mask_arr: An optional mask array, where only data where the mask
+          is valid is selected. If not mask is to be used supply a None instead.
+        :param rpix_list: A list of pixel indices correspond to rowmin,
+          rowmax, colmin and colmax of the region with which the data sum is
+          required. Note that these are inclusive and zero based.
+        :returns: [sum, nvalid] The data sum within the specified region that
+          is also valid within the optional mask, and the number of valid pixels
+          within that region.
+        """
+        
+        sumpix = 0
+        numpix = 0
+        
+        if mask_arr is not None:
+            masked = np.where(mask_arr, data_arr, 0)
+        else:
+            masked = data_arr
+            
+        # Note that numpy indices are (start,end] not (start, end)
+        subregion = masked[rpix_list[0]:rpix_list[1]+1, rpix_list[2]:rpix_list[3]+1]
+        sumpix = np.sum(subregion)
+        
+        if mask_arr is not None:
+            numpix = np.sum( mask_arr[rpix_list[0]:rpix_list[1]+1, rpix_list[2]:rpix_list[3]+1] )
+        else:
+            numpix = subregion.size
+
+        return sumpix, numpix
         
     def get_whitebalance(self, wb_method):
         """Return the whitebalance multiplies for a given white-balance
