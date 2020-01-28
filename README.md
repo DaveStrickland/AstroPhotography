@@ -78,6 +78,14 @@ runs into the path issues related to https://docs.pytest.org/en/latest/pythonpat
     $ python3 -m pytest -rfsp test/
 ```
 
+To generate test coverage:
+```bash
+# Generates html files in the directory ./htmlcov
+python3 -m pytest --cov-report html --cov=AstroPhotography test/
+
+# Open htmlcov/index.html with a browser...
+```
+
 Build documentation:
 
 ```bash

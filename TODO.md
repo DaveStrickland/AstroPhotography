@@ -30,6 +30,8 @@
 - [X] general: Check rawfile exists and can be read using os.path
 - [ ] general: Optional normalization to 16 bit dynamic range. 
 - [ ] general: Optional asinh strech.
+- [ ] general: Try dng file type.
+- [ ] Switch TODO file to list task backlog by planned release.
 
 ## Metadata
 
@@ -53,7 +55,7 @@
 - [X] Get test fixtures working? DONE (within single file)
 - [ ] Move basic test machinary into a separate file.
 - [ ] Separate tests of individual commands into separate files.
-- [ ] Work how to do test coverage in python.
+- [X] Work how to do test coverage in python.
 - [X] RawConv.split() unit test.
 - [ ] RawConv.get_whitebalance() unit test. IN PROGRESS
 - [ ] RawConv.grey() unit test.
