@@ -7,6 +7,7 @@
 - [ ] Clean up or remove the baselevel __main__.py.
 - [ ] Check it works with DNG format files.
 - [ ] Write basic FITS files (Correct metadata is separate item)
+- [X] Remove hello command stub provided by cookiecutter.
 
 ## RAW Conversion Sub Tools
 
@@ -59,6 +60,11 @@
 - [X] RawConv.split() unit test.
 - [ ] RawConv.get_whitebalance() unit test. IN PROGRESS
 - [ ] RawConv.grey() unit test.
+
+## Documentation
+
+- [ ] Provide examples in either md or notebook form.
+- [ ] Clean up sphinx documentation to a basic level of quality.
 
 ## Bugs
 

@@ -31,12 +31,11 @@ from argparse import ArgumentParser
 from inspect import getfullargspec
 
 from . import __version__
-from .api import hello
 from .api import split
 from .api import grey
 from .core.config import config
 from .core.logger import logger
-
+import sys
 
 __all__ = "main",
 
@@ -76,7 +75,8 @@ def _args(argv):
 
     :param argv: argument list to parse
     """
-    parser = ArgumentParser()
+    parser = ArgumentParser(prog='dksraw',
+        description='Dave\'s RAW file conversion tool for AstroPhotography')
     parser.add_argument("-c", "--config", action="append",
             help="config file [etc/config.yml]")
     parser.add_argument("-v", "--version", action="version",
@@ -98,9 +98,8 @@ def _args(argv):
     # Command parsers
     subparsers = parser.add_subparsers(title="Commands", 
         description="RAW file processing commands." +
-        " One command must be selected by the user.",
+        " One command MUST be selected by the user.",
         help="Command-specfic help.")
-    _hello(subparsers, common)
     _grey(subparsers, common)
     _split(subparsers, common)
     
@@ -112,13 +111,19 @@ def _args(argv):
         args.config = "etc/config.yml"
     
     # Perform any additional command line argument checking or processing
-    _check_args(args)    
+    _check_args(parser, args)    
         
     return args
  
-def _check_args(args):
+def _check_args(parser, args):
     """Runs any additional command line argument validation or processing
     """
+    if not hasattr(args, 'command'):
+        # Command not defined.
+        parser.print_help()
+        print('Error: no command was specified.')
+        sys.exit(1)
+    
     if ( args.command == split ):
         _check_output_args(args)
     elif ( args.command == grey ):
@@ -213,21 +218,6 @@ def _split(subparsers, common):
         help='File name extension (i.e. type) for output files.' +
             ' Default: {}'.format(default_ext))
     parser.set_defaults(command=split)
-    return
-
-     
-def _hello(subparsers, common):
-    """Defines command line options for the hello command.
-
-    :param subparsers: subcommand parsers
-    :param common: parser for common subcommand arguments
-    """
-    parser = subparsers.add_parser("hello", 
-        description="Hello world command used only for testing/debugging.",
-        parents=[common], help='Test command for debugging purposes.')
-    parser.add_argument("--name", "-n", 
-        default="World", help="Greeting name")
-    parser.set_defaults(command=hello)
     return
 
 # Make the module executable.

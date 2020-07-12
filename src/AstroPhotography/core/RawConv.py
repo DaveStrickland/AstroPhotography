@@ -334,9 +334,10 @@ class RawConv:
         :param verbose: TBA 
         """
         
-        print('black_levels', self._black_levels)
-        print('camera_wb', self._wb_camera, type(self._wb_camera))
-        print('daylight_wb', self._wb_daylight, type(self._wb_daylight))
+        if verbose:
+            logger.info('split: black_levels {}'.format(self._black_levels))
+            logger.info('split: camera_wb   {} type={}'.format( self._wb_camera, type(self._wb_camera) ))
+            logger.info('split: daylight_wb {} type={}'.format( self._wb_daylight, type(self._wb_daylight) ))
         
         if subtract_black:
             self._subtract_black_levels()

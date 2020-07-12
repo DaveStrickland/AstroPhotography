@@ -341,7 +341,6 @@ class RawConvTest(object):
         r_im, g1_im, b_im, g2_im = rawconv_tfile.split(subtract_black=black)
         
         if 'R' in channel:
-            
             img = r_im
         elif 'G1' in channel:
             img = g1_im

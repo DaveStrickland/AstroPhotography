@@ -53,9 +53,9 @@ See `requirements.txt` for full dependency list.
 Install:
 
 ```bash
-# Install for user
+# Install for user (if not using a virtual environment).
 $ python3 -m pip install . -r requirements.txt --user
-# or install for the system (as root)
+# or install for the system (as root, or as a user in a virtual environment).
 $ pip3 install . -r requirements.txt
 ```
 
