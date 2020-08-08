@@ -186,42 +186,45 @@ def write_source_list(p_sourcelist, p_fitsimg,
     # data file, the background, and the software used.
     # TODO check for KW presence and handle...
     
-    kw_dict = {'IMG_FILE': p_fitsimg}
+    kw_dict = {'IMG_FILE': (p_fitsimg, 'Name of image file searched for stars')}
     
     # These must exist by definition.
     cols         = int(hdr['NAXIS1'])
     rows         = int(hdr['NAXIS2'])
-    kw_dict['IMG_COLS'] = cols
-    kw_dict['IMG_ROWS'] = rows
+    kw_dict['IMG_COLS'] = (cols, 'Number of columns in input image')
+    kw_dict['IMG_ROWS'] = (rows, 'Number of rows in input image')
+    kw_dict['BGMEDIAN'] = (bg_median, '[ADU] Median BG level in sigma clipped masked image')
+    kw_dict['BGSTDDEV'] = (bg_stddev, '[ADU] Std dev of BG level')
     logger.info('Image is {} cols x {} rows'.format(cols, rows))
     
     # Add keywords that may or may not exist
+    # Each value of the dict is a (value, comment) tuple.
     add_optional_keywords(hdr, kw_dict)
         
     # Coordinates
     angl_ra  = None
     angl_dec = None
     if 'RA' in kw_dict:
-        raw_ra       = kw_dict['RA']
+        raw_ra       = kw_dict['RA'][0]
         angl_ra      = Angle(raw_ra, unit=u.hourangle)
     if 'DEC' in hdr:
-        raw_dec      = kw_dict['DEC']
+        raw_dec      = kw_dict['DEC'][0]
         angl_dec     = Angle(raw_dec, unit=u.deg)
     if (angl_ra is not None) and (angl_dec is not None):
         raw_coord    = SkyCoord(ra=angl_ra, dec=angl_dec)
         logger.info('Approximate coordinates: ra={:.6f} hours, dec={:.6f} deg'.format(raw_coord.ra.hour, raw_coord.dec.degree))
-        kw_dict['APRX_RA']  = raw_coord.ra.hour
-        kw_dict['APRX_DEC'] = raw_coord.dec.degree
+        kw_dict['APRX_RA']  = (raw_coord.ra.hour, '[hours] Approximate image center RA')
+        kw_dict['APRX_DEC'] = (raw_coord.dec.degree, '[deg] Approximate image center Dec')
     
     # Pixel and image size
     if (('FOCALLEN' in kw_dict) and ('XPIXSX' in kw_dict) and ('YPIXSZ' in kw_dict)):
-        focal_len_mm  = float(kw_dict['FOCALLEN'])                      # mm
-        pixsiz_x_um   = float(kw_dict['XPIXSZ'])                        # micrometers
+        focal_len_mm  = float(kw_dict['FOCALLEN'][0])                      # mm
+        pixsiz_x_um   = float(kw_dict['XPIXSZ'][0])                        # micrometers
         pixsiz_x_rad  = (pixsiz_x_um*1.0e-6) / (focal_len_mm*1.0e-3) # radians
         pixsiz_x_deg  = math.degrees(pixsiz_x_rad)
         pixsiz_x_arcs = 3600.0 * pixsiz_x_deg
 
-        pixsiz_y_um   = float(kw_dict['YPIXSZ'])                        # micrometers
+        pixsiz_y_um   = float(kw_dict['YPIXSZ'][0])                        # micrometers
         pixsiz_y_rad  = (pixsiz_y_um*1.0e-6) / (focal_len_mm*1.0e-3) # radians
         pixsiz_y_deg  = math.degrees(pixsiz_y_rad)
         pixsiz_y_arcs = 3600.0 * pixsiz_y_deg
@@ -233,9 +236,9 @@ def write_source_list(p_sourcelist, p_fitsimg,
         logger.info('Image is approximately {:.3f} degrees across.'.format(imgsiz_deg))
         logger.info('Pixel size (arcseconds) x={:.3f}, y={:.3f}'.format(pixsiz_x_arcs, pixsiz_y_arcs))
         
-        kw_dict['APRX_FOV'] = imgsiz_deg
-        kw_dict['APRX_XSZ'] = pixsiz_x_arcs
-        kw_dict['APRX_YSZ'] = pixsiz_y_arcs
+        kw_dict['APRX_FOV'] = (imgsiz_deg, '[deg] Approximate diagonal size of image')
+        kw_dict['APRX_XSZ'] = (pixsiz_x_arcs, '[arcseconds] Approximate X-axis plate scale')
+        kw_dict['APRX_YSZ'] = (pixsiz_y_arcs, '[arcseconds] Approximate Y-axis plate scale')
     
     # Currently just do Simplistic write with no added header
     logger.info('Writing source list to FITS binary table {}'.format(p_sourcelist))
@@ -270,13 +273,21 @@ def add_optional_keywords(hdr, kw_dict):
     logger = logging.getLogger(__name__)
     
     # The following may exist.
-    kw_list = ['EXPOSURE', 'DATE-OBS', 'OBJECT', 'TELESCOP',
-        'RA', 'DEC', 'XPIXSZ', 'YPIXSZ',
-        'FOCALLEN', 'FILTER', 'EGAIN']
+    kw_comment_dict = {'EXPOSURE': '[seconds] Image exposure time',
+        'DATE-OBS': 'Observation date and time',
+        'OBJECT':   'Target object', 
+        'TELESCOP': 'Telescope used',
+        'RA':       'Requested right ascension', 
+        'DEC':      'Requested declination', 
+        'XPIXSZ':   '[micrometers] Stated X-axis pixel scale after binning',
+        'YPIXSZ':   '[micrometers] Stated Y-axis pixel scale after binning',
+        'FOCALLEN': '[mm] Stated telescope focal length', 
+        'FILTER':   'Filter used', 
+        'EGAIN':    '[e/ADU] Gain in electrons per ADU'}
     kw_missing_list = []
-    for kw in kw_list:
+    for kw in kw_comment_dict:
         if kw in hdr:
-            kw_dict[kw] = hdr[kw]
+            kw_dict[kw] = (hdr[kw], kw_comment_dict[kw])
         else:
             kw_missing_list.append(kw)
 
@@ -348,9 +359,13 @@ def main(args=None):
     
     # Write source list or subset to a FITS table
     # with expected FITS-style coordinates...
-    write_source_list(p_fitstbl, p_fitsimg,
-        p_maxsrcs, p_regfile, hdr, 
-        median, std,
+    write_source_list(p_fitstbl, 
+        p_fitsimg,
+        p_maxsrcs, 
+        p_regfile, 
+        hdr, 
+        median, 
+        std,
         phot_table)
     
     return 0
