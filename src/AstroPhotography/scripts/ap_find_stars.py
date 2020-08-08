@@ -151,7 +151,8 @@ def read_fits(image_filename, image_extension):
         sys.exit(1)
     return ext_data, ext_hdr
 
-def write_source_list(cli_args, hdr,
+def write_source_list(p_sourcelist, p_fitsimg, 
+        p_max_sources, p_regfile, hdr,
         bg_median, bg_stddev,
         src_table):
     """Write detected source information to a FITS table with info on the
@@ -159,7 +160,7 @@ def write_source_list(cli_args, hdr,
        
     This function also:
      - Prints a summary of values useful for astrometry.net at INFO level.
-     - Writes the ds9-format region file if cli_args.ds9 is not None.
+     - Writes the ds9-format region file if p_regfile is not None.
     """
     
     logger = logging.getLogger(__name__)
@@ -167,8 +168,8 @@ def write_source_list(cli_args, hdr,
     # Create a copy, filtering the brightest if necessary...
     nsrc = len(src_table)
     nuse = nsrc
-    if cli_args.max_sources is not None:
-        nuse = min(nsrc, cli_args.max_sources)
+    if p_max_sources is not None:
+        nuse = min(nsrc, p_max_sources)
     out_table = src_table[0:nuse]
     logger.debug('Selecting {} sources out of {} to write to the output source list.'.format(nuse, nsrc))
 
@@ -185,7 +186,7 @@ def write_source_list(cli_args, hdr,
     # data file, the background, and the software used.
     # TODO check for KW presence and handle...
     
-    kw_dict = {'IMG_FILE': cli_args.fits_image}
+    kw_dict = {'IMG_FILE': p_fitsimg}
     
     # These must exist by definition.
     cols         = int(hdr['NAXIS1'])
@@ -237,7 +238,7 @@ def write_source_list(cli_args, hdr,
         kw_dict['APRX_YSZ'] = pixsiz_y_arcs
     
     # Currently just do Simplistic write with no added header
-    logger.info('Writing source list to FITS binary table {}'.format(cli_args.source_list))
+    logger.info('Writing source list to FITS binary table {}'.format(p_sourcelist))
 
     pri_hdr = create_primary_header(kw_dict)
     pri_hdu = fits.PrimaryHDU(header=pri_hdr)
@@ -251,7 +252,7 @@ def write_source_list(cli_args, hdr,
     tbl_hdu2.header['COMMENT'] = 'Uses python 0-based pixel coordinate system.'
 
     hdu_list = fits.HDUList([pri_hdu, tbl_hdu1, tbl_hdu2])
-    hdu_list.writeto(cli_args.source_list, overwrite=True)
+    hdu_list.writeto(p_sourcelist, overwrite=True)
 
     return
     
@@ -284,9 +285,17 @@ def add_optional_keywords(hdr, kw_dict):
     return
 
 def main(args=None):
-    p_args    = command_line_opts(args)
-    logger    = initialize_logger(p_args.loglevel)    
-    data, hdr = read_fits(p_args.fits_image, p_args.fits_extension)
+    p_args     = command_line_opts(args)
+    p_loglevel = p_args.loglevel
+    p_fitsimg  = p_args.fits_image
+    p_fitstbl  = p_args.source_list
+    p_extnum   = p_args.fits_extension
+    p_regfile  = p_args.ds9
+    p_maxsrcs  = p_args.max_sources
+    
+    logger    = initialize_logger(p_loglevel)   
+    
+    data, hdr = read_fits(p_fitsimg, p_extnum)
     
     sqrt_norm  = ImageNormalize(stretch=SqrtStretch())
     asinh_norm = ImageNormalize(stretch=AsinhStretch())
@@ -339,7 +348,8 @@ def main(args=None):
     
     # Write source list or subset to a FITS table
     # with expected FITS-style coordinates...
-    write_source_list(p_args, hdr, 
+    write_source_list(p_fitstbl, p_fitsimg,
+        p_maxsrcs, p_regfile, hdr, 
         median, std,
         phot_table)
     
