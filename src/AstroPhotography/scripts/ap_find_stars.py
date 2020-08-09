@@ -24,6 +24,7 @@
 
 # 2020-08-05 dks : Initial coding
 # 2020-08-08 dks : Final script for writing XY source list and approx mags.
+# 2020-08-09 dks : Added initial and temporary astrometry.net query.
 
 import argparse
 import sys
@@ -33,7 +34,7 @@ import matplotlib.pyplot as plt
 import math
 
 from astropy.io import fits
-from astropy.table import QTable
+from astropy.table import QTable, Table
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import Angle
 from astropy.visualization import SqrtStretch
@@ -81,6 +82,14 @@ def command_line_opts(argv):
         help='Limit output source list the brightest set of NUM_SRCS sources.' + 
         ' This also applies to the ds9 format region file, if any.'
         ' Default: Output all the sources.')
+        
+    # TODO move astrometry.et stuff to separate script
+    parser.add_argument('-k', '--key',
+        default=None,
+        type=str,
+        metavar='ASTROMETRY_API_KEY',
+        help='Your personal Astrometry.net API key.' + 
+        ' If supplied an astrometry.net solution will be attempted.')
             
     args = parser.parse_args(argv)
     return args
@@ -154,9 +163,10 @@ def read_fits(image_filename, image_extension):
 def write_source_list(p_sourcelist, p_fitsimg, 
         p_max_sources, p_regfile, hdr,
         bg_median, bg_stddev,
-        src_table):
+        src_table,
+        p_astnetkey):
     """Write detected source information to a FITS table with info on the
-       original data file, and optionally only outputing the brightest stars.
+       original data file
        
     This function also:
      - Prints a summary of values useful for astrometry.net at INFO level.
@@ -165,19 +175,11 @@ def write_source_list(p_sourcelist, p_fitsimg,
     
     logger = logging.getLogger(__name__)
     
-    # Create a copy, filtering the brightest if necessary...
-    nsrc = len(src_table)
-    nuse = nsrc
-    if p_max_sources is not None:
-        nuse = min(nsrc, p_max_sources)
-    out_table = src_table[0:nuse]
-    logger.debug('Selecting {} sources out of {} to write to the output source list.'.format(nuse, nsrc))
-
     # Create an X and Y table for use with astrometry.net,
     # adding 1 to get FITS like pixel indices
-    logger.debug('Converting python 0-based coordinates the FITS 1-based pixel coordinates.')
-    x = out_table['xcenter'] + 1.0 * u.Unit('pix')
-    y = out_table['ycenter'] + 1.0 * u.Unit('pix')
+    logger.debug('Converting python 0-based coordinates to FITS 1-based pixel coordinates for XY table.')
+    x = src_table['xcenter'] + 1.0 * u.Unit('pix')
+    y = src_table['ycenter'] + 1.0 * u.Unit('pix')
     xy_table = QTable([x, y],
         names=('X', 'Y'))
 
@@ -213,7 +215,7 @@ def write_source_list(p_sourcelist, p_fitsimg,
     if (angl_ra is not None) and (angl_dec is not None):
         raw_coord    = SkyCoord(ra=angl_ra, dec=angl_dec)
         logger.info('Approximate coordinates: ra={:.6f} hours, dec={:.6f} deg'.format(raw_coord.ra.hour, raw_coord.dec.degree))
-        kw_dict['APRX_RA']  = (raw_coord.ra.hour, '[hours] Approximate image center RA')
+        kw_dict['APRX_RA']  = (raw_coord.ra.degree, '[deg] Approximate image center RA')
         kw_dict['APRX_DEC'] = (raw_coord.dec.degree, '[deg] Approximate image center Dec')
     
     # Pixel and image size
@@ -240,6 +242,19 @@ def write_source_list(p_sourcelist, p_fitsimg,
         kw_dict['APRX_XSZ'] = (pixsiz_x_arcs, '[arcseconds] Approximate X-axis plate scale')
         kw_dict['APRX_YSZ'] = (pixsiz_y_arcs, '[arcseconds] Approximate Y-axis plate scale')
     
+    # TODO move to another script
+    if p_astnetkey is not None:
+        wcs = query_astrometry_dot_net(p_astnetkey,
+            cols, 
+            rows, 
+            Table(xy_table))
+        if len(wcs) > 0:
+            logger.debug('Non-zero length WCS header returned')
+            print(wcs)
+        else:
+            logger.warn('Zero length WCS returned. Solution failed')
+    
+    
     # Currently just do Simplistic write with no added header
     logger.info('Writing source list to FITS binary table {}'.format(p_sourcelist))
 
@@ -250,7 +265,7 @@ def write_source_list(p_sourcelist, p_fitsimg,
     tbl_hdu1.header['EXTNAME'] = 'AP_XYPOS'
     tbl_hdu1.header['COMMENT'] = 'Uses FITS 1-based pixel coordinate system.'
     
-    tbl_hdu2 = fits.table_to_hdu(out_table)
+    tbl_hdu2 = fits.table_to_hdu(src_table)
     tbl_hdu2.header['EXTNAME'] = 'AP_L1MAG'
     tbl_hdu2.header['COMMENT'] = 'Uses python 0-based pixel coordinate system.'
 
@@ -258,7 +273,53 @@ def write_source_list(p_sourcelist, p_fitsimg,
     hdu_list.writeto(p_sourcelist, overwrite=True)
 
     return
+
+def query_astrometry_dot_net(p_astnetkey, cols, rows, xy_table):
+    """Attempt get astrometric solution"""
+
+    logger = logging.getLogger(__name__)    
+    wcs = {}
+    image_width = 3073
+    image_height = 2048
     
+    from astroquery.astrometry_net import AstrometryNet
+
+    ast = AstrometryNet()
+    ast.api_key = p_astnetkey
+    try_again = True
+    submission_id = None
+
+    while try_again:
+        try:
+            if not submission_id:
+                logger.debug('Submitting astrometry.net solve from source list with {} poisitions'.format(len(xy_table)))
+                wcs_header = ast.solve_from_source_list(xy_table['X'], 
+                    xy_table['Y'],
+                    image_width, 
+                    image_height,
+                    parity=2,
+                    positional_error=10,
+                    crpix_center=True,
+                    publicly_visible='n',
+                    submission_id=submission_id)
+            else:
+                logger.debug('Monitoring astrometry.net submission {}'.format(submission_id))
+                wcs_header = ast.monitor_submission(submission_id,
+                    solve_timeout=120)
+        except TimeoutError as e:
+            submission_id = e.args[1]
+        else:
+            # got a result, so terminate
+            try_again = False
+    
+    if wcs_header:
+        logger.info('Obtained a WCS header')
+        wcs = wcs_header
+    else:
+        logger.warn('Astrometry.net submission={} failed'.format(submission_id))
+
+    return wcs
+
 def create_primary_header(kw_dict):
     """Creates a FITS primary header adding the keywords in the dict"""
     
@@ -295,14 +356,32 @@ def add_optional_keywords(hdr, kw_dict):
     logger.debug('FITS keywords missing from image: {}'.format(kw_missing_list))
     return
 
+def trim_table(src_table, max_sources):
+    """Trims the table to contain at maximum max_sources if max_sources
+       is not None
+    """
+    
+    logger = logging.getLogger(__name__)
+    
+    # Create a copy, filtering the brightest if necessary...
+    nsrc = len(src_table)
+    nuse = nsrc
+    if max_sources is not None:
+        nuse = min(nsrc, max_sources)
+    out_table = src_table[0:nuse]
+    logger.debug('Selecting {} sources out of {} to write to the output source list.'.format(nuse, nsrc))
+
+    return out_table
+
 def main(args=None):
-    p_args     = command_line_opts(args)
-    p_loglevel = p_args.loglevel
-    p_fitsimg  = p_args.fits_image
-    p_fitstbl  = p_args.source_list
-    p_extnum   = p_args.fits_extension
-    p_regfile  = p_args.ds9
-    p_maxsrcs  = p_args.max_sources
+    p_args      = command_line_opts(args)
+    p_loglevel  = p_args.loglevel
+    p_fitsimg   = p_args.fits_image
+    p_fitstbl   = p_args.source_list
+    p_extnum    = p_args.fits_extension
+    p_regfile   = p_args.ds9
+    p_maxsrcs   = p_args.max_sources
+    p_astnetkey = p_args.key
     
     logger    = initialize_logger(p_loglevel)   
     
@@ -334,9 +413,6 @@ def main(args=None):
     # TODO better estimate of aperture to use
     positions = np.transpose((sources['xcentroid'], sources['ycentroid']))
     apertures = CircularAperture(positions, r=4.)
-
-    plt.imshow(data, cmap='Greys', origin='lower', norm=asinh_norm)
-    apertures.plot(color='red', lw=1.5, alpha=0.5)
     
     # Use initial source list for aperture photometry
     phot_table = aperture_photometry(data -median, apertures)
@@ -354,6 +430,14 @@ def main(args=None):
 
     phot_table.sort(['adu_per_sec', 'xcenter', 'ycenter'], reverse=True)
     print(phot_table)
+
+    phot_table = trim_table(phot_table, p_maxsrcs)
+
+    positions = np.transpose((phot_table['xcenter'], phot_table['ycenter']))
+    apertures = CircularAperture(positions, r=4.)
+
+    plt.imshow(data, origin='lower', norm=asinh_norm)
+    apertures.plot(color='red', lw=1.5, alpha=0.5)
     
     plt.show()
     
@@ -366,7 +450,8 @@ def main(args=None):
         hdr, 
         median, 
         std,
-        phot_table)
+        phot_table,
+        p_astnetkey)
     
     return 0
 
