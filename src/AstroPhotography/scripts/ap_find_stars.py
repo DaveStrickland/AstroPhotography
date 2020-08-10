@@ -25,6 +25,8 @@
 # 2020-08-05 dks : Initial coding
 # 2020-08-08 dks : Final script for writing XY source list and approx mags.
 # 2020-08-09 dks : Added initial and temporary astrometry.net query.
+# 2020-08-10 dks : Moved search params to CLI, flag possible saturation,
+#                  use percentile interval in plotting/visualization.
 
 import argparse
 import sys
@@ -37,6 +39,7 @@ from astropy.io import fits
 from astropy.table import QTable, Table
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import Angle
+from astropy.visualization import AsymmetricPercentileInterval
 from astropy.visualization import SqrtStretch
 from astropy.visualization import AsinhStretch
 from astropy.visualization.mpl_normalize import ImageNormalize
@@ -83,6 +86,28 @@ def command_line_opts(argv):
         ' This also applies to the ds9 format region file, if any.'
         ' Default: Output all the sources.')
         
+    def_search_fwhm   = 3.0
+    def_search_nsigma = 7.0
+    def_bitdepth      = 16
+    def_sat_frac      = 0.80
+    parser.add_argument('--search_fwhm',
+        default=def_search_fwhm,
+        type=float,
+        help=f'Initial source search FWHM (pixels). Default: {def_search_fwhm}')
+    parser.add_argument('--search_nsigma',
+        default=def_search_nsigma,
+        type=float,
+        help='Initial source search threshold in numbers of sigma above the background (standard deviations).' + 
+        f' Default: {def_search_nsigma}')
+    parser.add_argument('--bitdepth',
+        default=def_bitdepth,
+        type=int,
+        help=f'Detector bitdepth used in saturation calculation. Default: {def_bitdepth}')
+    parser.add_argument('--sat_frac',
+        default=def_sat_frac,
+        type=float,
+        help=f'Fraction of max ADU used in saturation calculation. Default: {def_sat_frac}')
+
     # TODO move astrometry.et stuff to separate script
     parser.add_argument('-k', '--key',
         default=None,
@@ -219,7 +244,7 @@ def write_source_list(p_sourcelist, p_fitsimg,
         kw_dict['APRX_DEC'] = (raw_coord.dec.degree, '[deg] Approximate image center Dec')
     
     # Pixel and image size
-    if (('FOCALLEN' in kw_dict) and ('XPIXSX' in kw_dict) and ('YPIXSZ' in kw_dict)):
+    if (('FOCALLEN' in kw_dict) and ('XPIXSZ' in kw_dict) and ('YPIXSZ' in kw_dict)):
         focal_len_mm  = float(kw_dict['FOCALLEN'][0])                      # mm
         pixsiz_x_um   = float(kw_dict['XPIXSZ'][0])                        # micrometers
         pixsiz_x_rad  = (pixsiz_x_um*1.0e-6) / (focal_len_mm*1.0e-3) # radians
@@ -235,8 +260,8 @@ def write_source_list(p_sourcelist, p_fitsimg,
         imgsiz_y_deg  = rows * pixsiz_y_deg
         imgsiz_deg    = math.sqrt( (imgsiz_x_deg * imgsiz_x_deg) + (imgsiz_y_deg * imgsiz_y_deg) )
     
-        logger.info('Image is approximately {:.3f} degrees across.'.format(imgsiz_deg))
-        logger.info('Pixel size (arcseconds) x={:.3f}, y={:.3f}'.format(pixsiz_x_arcs, pixsiz_y_arcs))
+        logger.info('Approximate image field of view is {:.3f} degrees across.'.format(imgsiz_deg))
+        logger.info('Approximate pixel sizes (arcseconds) are x={:.3f}, y={:.3f}'.format(pixsiz_x_arcs, pixsiz_y_arcs))
         
         kw_dict['APRX_FOV'] = (imgsiz_deg, '[deg] Approximate diagonal size of image')
         kw_dict['APRX_XSZ'] = (pixsiz_x_arcs, '[arcseconds] Approximate X-axis plate scale')
@@ -375,20 +400,30 @@ def trim_table(src_table, max_sources):
 
 def main(args=None):
     p_args      = command_line_opts(args)
-    p_loglevel  = p_args.loglevel
-    p_fitsimg   = p_args.fits_image
-    p_fitstbl   = p_args.source_list
-    p_extnum    = p_args.fits_extension
-    p_regfile   = p_args.ds9
-    p_maxsrcs   = p_args.max_sources
-    p_astnetkey = p_args.key
+    p_loglevel  = p_args.loglevel          # Loglevel
+    p_fitsimg   = p_args.fits_image        # Input fits image
+    p_extnum    = p_args.fits_extension    # Extension number for data in input fits
+    p_fitstbl   = p_args.source_list       # Output fits table of srcs
+    p_regfile   = p_args.ds9               # Name of ds9 region file or None
+    p_maxsrcs   = p_args.max_sources       # Max number of sources to output or None
+    p_astnetkey = p_args.key               # Astrometry.net API key or None
+
+    search_fwhm   = p_args.search_fwhm
+    search_nsigma = p_args.search_nsigma
+    detector_bitdepth = p_args.bitdepth
+    sat_frac          = p_args.sat_frac
     
     logger    = initialize_logger(p_loglevel)   
     
     data, hdr = read_fits(p_fitsimg, p_extnum)
     
-    sqrt_norm  = ImageNormalize(stretch=SqrtStretch())
-    asinh_norm = ImageNormalize(stretch=AsinhStretch())
+    pct_interval = AsymmetricPercentileInterval(0.50, 99.5)
+    sqrt_norm    = ImageNormalize(data, 
+        interval=pct_interval, 
+        stretch=SqrtStretch())
+    asinh_norm   = ImageNormalize(data,
+        interval=pct_interval,
+        stretch=AsinhStretch())
     
     # TODO should replace plt use with proper fig, ax etc...
 
@@ -401,8 +436,7 @@ def main(args=None):
     logger.debug('Source-masked image stats: mean={:.3f}, median={:.3f}, stddev={:.3f}'.format(mean, median, std))  
     
     # TODO better estimate of FWHM, sigma to use
-    search_fwhm   = 3.0
-    search_nsigma = 7.0
+    logger.debug(f'Running DAOStarFinder with FWHM={search_fwhm:.2f} pixels, threshold={search_nsigma} BG sigma.')
     daofind = DAOStarFinder(fwhm=search_fwhm, threshold=search_nsigma*std)  
     sources = daofind(data - median)  
     for col in sources.colnames:  
@@ -412,12 +446,24 @@ def main(args=None):
     
     # TODO better estimate of aperture to use
     positions = np.transpose((sources['xcentroid'], sources['ycentroid']))
-    apertures = CircularAperture(positions, r=4.)
+    ap_radius = math.ceil(1.5 * search_fwhm)
+    logger.debug(f'Radius of circular aperture photometry is {ap_radius} pixels.')
+    apertures = CircularAperture(positions, r=ap_radius)
     
     # Use initial source list for aperture photometry
     phot_table = aperture_photometry(data -median, apertures)
     phot_table['aperture_sum'].info.format = '%.4f'  # for consistent table output
-    print(phot_table)
+    
+    # Copy over peak flux from star finder output and use it to derive
+    # possible saturation flag.
+    max_adu           = math.pow(2, detector_bitdepth) - 1
+    sat_thresh        = math.floor(sat_frac * max_adu)
+    logger.debug(f'Sources with pixels exceding {sat_thresh} ADU will be flagged as possibly saturated.')
+    phot_table['peak_adu'] = sources['peak']
+    phot_table['peak_adu'].info.format = '%.2f'
+    phot_table['psbl_sat'] = phot_table['peak_adu'] > sat_thresh
+    n_sat = np.sum(phot_table['psbl_sat'])
+    logger.debug(f'There are {n_sat} possibly saturated stars in this image.')
     
     exposure = float(hdr['EXPOSURE'])
     phot_table['adu_per_sec'] = phot_table['aperture_sum'] / exposure
