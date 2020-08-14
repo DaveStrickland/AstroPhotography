@@ -37,19 +37,15 @@ import math
 
 from astropy.io import fits
 from astropy.table import QTable, Table
-from astropy.coordinates import SkyCoord
-from astropy.coordinates import Angle
+from astropy.coordinates import SkyCoord, Angle
 from astropy.visualization import AsymmetricPercentileInterval
-from astropy.visualization import SqrtStretch
-from astropy.visualization import AsinhStretch
+from astropy.visualization import SqrtStretch, AsinhStretch
 from astropy.visualization.mpl_normalize import ImageNormalize
 from astropy.stats import sigma_clipped_stats
 from astropy import units as u
 
-from photutils import make_source_mask  
-from photutils import DAOStarFinder
-from photutils import CircularAperture
-from photutils import aperture_photometry
+from photutils import make_source_mask, find_peaks, DAOStarFinder
+from photutils import CircularAperture, aperture_photometry
 
 def command_line_opts(argv):
     """ Parse command line arguments.
@@ -107,6 +103,11 @@ def command_line_opts(argv):
         default=def_sat_frac,
         type=float,
         help=f'Fraction of max ADU used in saturation calculation. Default: {def_sat_frac}')
+    parser.add_argument('--retain_saturated', 
+        action='store_true', 
+        help='Do not exclude possibly saturated stars from the source list.' + 
+        ' By default pixels within a box of width 8x search_fwhm centered on possibly' +
+        ' saturated stars are excluded from source detection and fitting.')
 
     # TODO move astrometry.et stuff to separate script
     parser.add_argument('-k', '--key',
@@ -398,6 +399,19 @@ def trim_table(src_table, max_sources):
 
     return out_table
 
+def find_saturated(data, sat_thresh, search_fwhm):
+    """Use threshold search to look for regions of saturated pixels
+    """
+    
+    logger  = logging.getLogger(__name__)
+    boxsize = int(4 * search_fwhm)
+    logger.debug(f'Looking for possibly saturated regions above {sat_thresh} ADU separated by {boxsize} pixels.')    
+    saturated_positions = find_peaks(data, 
+        threshold=sat_thresh, 
+        box_size=boxsize)
+    print('Saturated position table:\n', saturated_positions)
+    return saturated_positions
+
 def main(args=None):
     p_args      = command_line_opts(args)
     p_loglevel  = p_args.loglevel          # Loglevel
@@ -407,11 +421,15 @@ def main(args=None):
     p_regfile   = p_args.ds9               # Name of ds9 region file or None
     p_maxsrcs   = p_args.max_sources       # Max number of sources to output or None
     p_astnetkey = p_args.key               # Astrometry.net API key or None
+    p_nosatmask = p_args.retain_saturated  # Keep possibly saturated stars.
 
     search_fwhm   = p_args.search_fwhm
     search_nsigma = p_args.search_nsigma
     detector_bitdepth = p_args.bitdepth
     sat_frac          = p_args.sat_frac
+    max_adu           = math.pow(2, detector_bitdepth) - 1
+    sat_thresh        = math.floor(sat_frac * max_adu)
+
     
     logger    = initialize_logger(p_loglevel)   
     
@@ -435,10 +453,41 @@ def main(args=None):
     mean, median, std = sigma_clipped_stats(data, sigma=3.0, mask=mask)
     logger.debug('Source-masked image stats: mean={:.3f}, median={:.3f}, stddev={:.3f}'.format(mean, median, std))  
     
+    # Generate mask for DAOStarFinder. 0 is good, 1 is bad.
+    mask = np.zeros(data.shape, dtype=bool)
+    saturated_locations = find_saturated(data, sat_thresh, search_fwhm)
+    num_sat_candidates  = len(saturated_locations)
+    if not p_nosatmask:
+        # Find possibly saturated stars and exclude them from source
+        # detection and photometry.
+        box_width = int(4 * search_fwhm)
+        ncols     = data.shape[1]
+        nrows     = data.shape[0]
+
+        logger.debug(f'Excluding {num_sat_candidates} possibly saturated stars using mask boxes of half-width {box_width} pixels.')
+
+
+        # Masking format is mask[rowmin:rowmax+1, colmin:colmax] = True
+        # But as we're counting the center as 1 pixel the first included 
+        # row is = rowcen - width + 1. The last included row is rowcen
+        # + width - 1. Adding one to the last one because python has 
+        # exclusive ranges gives us the following...
+        for isat in range(num_sat_candidates):
+            scol = saturated_locations['x_peak'][isat]
+            colmin = max(0, scol - box_width + 1)
+            colmax = min(ncols, scol + box_width)
+            srow = saturated_locations['y_peak'][isat]
+            rowmin = max(0, srow - box_width + 1)
+            rowmax = min(nrows, srow + box_width)
+            mask[rowmin:rowmax, colmin:colmax] = True
+    else:
+        # Leave possibly saturated stars in the image.
+        logger.debug(f'Retaining {num_sat_candidates} possibly saturated stars in source searching and photometry.')
+    
     # TODO better estimate of FWHM, sigma to use
     logger.debug(f'Running DAOStarFinder with FWHM={search_fwhm:.2f} pixels, threshold={search_nsigma} BG sigma.')
     daofind = DAOStarFinder(fwhm=search_fwhm, threshold=search_nsigma*std)  
-    sources = daofind(data - median)  
+    sources = daofind(data - median, mask=mask)  
     for col in sources.colnames:  
         sources[col].info.format = '%.8g'  # for consistent table output
     print('Initial source list using FHWM={} pixels, threshold={} x BG stddev'.format(search_fwhm, search_nsigma))
@@ -456,14 +505,12 @@ def main(args=None):
     
     # Copy over peak flux from star finder output and use it to derive
     # possible saturation flag.
-    max_adu           = math.pow(2, detector_bitdepth) - 1
-    sat_thresh        = math.floor(sat_frac * max_adu)
     logger.debug(f'Sources with pixels exceding {sat_thresh} ADU will be flagged as possibly saturated.')
     phot_table['peak_adu'] = sources['peak']
     phot_table['peak_adu'].info.format = '%.2f'
     phot_table['psbl_sat'] = phot_table['peak_adu'] > sat_thresh
     n_sat = np.sum(phot_table['psbl_sat'])
-    logger.debug(f'There are {n_sat} possibly saturated stars in this image.')
+    logger.debug(f'There are {n_sat} possibly saturated stars in the output source list.')
     
     exposure = float(hdr['EXPOSURE'])
     phot_table['adu_per_sec'] = phot_table['aperture_sum'] / exposure
