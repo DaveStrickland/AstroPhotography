@@ -30,6 +30,7 @@ import logging
 import numpy as np
 import math
 import os.path
+import warnings
 
 from astropy.io import fits
 from astropy.table import QTable, Table
@@ -85,6 +86,10 @@ class ApAstrometry:
        the image with valid WCS keywords.
     """
     
+    NOMINAL     = 0 # Nominal or WCS solution obtained
+    INPUT_ERROR = 1 # Non-nominal input, missing file, etc
+    NO_SOLUTION = 2 # Astrometry.net did not find a solution
+    
     def __init__(self, inp_img_fname, 
         inp_img_extnum,
         srclist_fname, 
@@ -95,11 +100,23 @@ class ApAstrometry:
         
         self._initialize_logger(loglevel)
         self._loglevel = loglevel
+        self._status   = ApAstrometry.NOMINAL
+
+        # Output image cannot be the same as the input to avoid 
+        # over-writing it.
+        if (inp_img_fname == out_img_fname):
+            err_msg = f'Output image cannot be the same as the input image. Choose a different name or path.'
+            self._logger.error(err_msg)
+            self._status = ApAstrometry.INPUT_ERROR
+            return
         
         # Read input image
-        self._inp_fname = inp_img_fname
+        self._inp_fname  = inp_img_fname
+        self._inp_extnum = inp_img_extnum
         self._idata, self._ihdr = self._read_fits_image(inp_img_fname, 
             inp_img_extnum)
+        self._cols = self._idata.shape[1]
+        self._rows = self._idata.shape[0]
             
         # Read star position data 
         self._src_fname = srclist_fname
@@ -108,20 +125,29 @@ class ApAstrometry:
             
         # Check input image corresponds to the image the source list was
         # generated from.
-        # TODO
+        self._sanity_check(self._inp_fname, self._src_meta)
         
         # Build additional astrometry settings based on source metadata
         # if possible. This should improve the speed of the solution.
-        # TODO
+        self._astnet_hint_dict = self._generate_hints(self._src_meta)
         
         # Run query 
-        # TODO
-        self._out_fname  = out_img_fname
         self._astnet_key = astnet_key
+        self._wcs        = self._query_astrometry_dot_net(self._astnet_key,
+            self._cols,
+            self._rows,
+            self._src_xytable,
+            self._astnet_hint_dict)
         
         # If a WCS solution was found then create a copy of the input
         # image and add parts of the WCS header data to it.
-        # TODO
+        self._out_fname  = out_img_fname
+        if len(self._wcs) > 0:
+            self._write_fits_image(self._wcs)
+        else:
+            self._logger.warn(f'No output as no WCS found. Output image {out_img_fname} NOT created.')
+            self._status = ApAstrometry.NO_SOLUTION
+
         return
     
     def _initialize_logger(self, loglevel):
@@ -154,7 +180,74 @@ class ApAstrometry:
         if not os.path.isfile(filename):
             err_msg = f'Cannot find {filename}. Not a valid path or file.'
             self._logger.error(err_msg)
-            raise RuntimeError(err_msg)
+            self._status = ApAstrometry.INPUT_ERROR
+            
+    def _generate_hints(self, srclist_hdr):
+        """Generate a dictionary of additional hints for astrometry.net
+        
+        This relies on keywords written to the primary header of the
+        source list by ap_find_stars.py. If the expected keywords are not
+        present then the defaults should still work, but the solution may
+        take longer.
+        
+        This function returns a dictionary corresponding to valid
+        astroquery astrometry net parameter/value pairs. See
+        https://astroquery.readthedocs.io/en/latest/astrometry_net/astrometry_net.html
+        """
+        
+        hints_dict   = {}
+        aprx_ra      = None
+        aprx_dec     = None
+        aprx_fov     = None
+        aprx_xpixsiz = None
+        aprx_ypixsiz = None
+
+        if 'APRX_RA' in srclist_hdr:
+            aprx_ra      = float( srclist_hdr['APRX_RA'] )
+        if 'APRX_DEC' in srclist_hdr:
+            aprx_dec     = float( srclist_hdr['APRX_DEC'] )
+        if 'APRX_FOV' in srclist_hdr:
+            aprx_fov     = float( srclist_hdr['APRX_FOV'] )
+        if 'APRX_XSZ' in srclist_hdr:
+            aprx_xpixsiz = float( srclist_hdr['APRX_XSZ'] )
+        if 'APRX_YSZ' in srclist_hdr:
+            aprx_ypixsiz = float( srclist_hdr['APRX_YSZ'] )
+            
+        # center_ra, center_dec, radius: all must be supplied
+        if (aprx_ra is not None) and (aprx_dec is not None):
+            hints_dict['center_ra']  = aprx_ra
+            hints_dict['center_dec'] = aprx_dec
+            if aprx_fov is None:
+                # Make a guess. Assuming this is an iTelescope image
+                # the FOV cannot be more than approx 4 degrees.
+                aprx_fov = 4.0
+            # Place an upper bound on the radius assuming the RA, Dec
+            # could be at the edge of the image, and the FOV could be 
+            # wrong by a factor 2.
+            radius = math.ceil(aprx_fov * 3.0)
+            hints_dict['radius'] = radius
+            
+        # scale_units, scale_type, scale_est, scale_err
+        if (aprx_xpixsiz is not None) and (aprx_ypixsiz is not None):
+            # Default uncertainty in pixel size, percent
+            min_pix_size_err_pct = 30
+            hints_dict['scale_units'] = 'arcsecperpix'
+            mean_pix_size = math.sqrt( (aprx_xpixsiz*aprx_xpixsiz +
+                aprx_ypixsiz*aprx_ypixsiz) / 2 )
+                
+            # In the event of non-uniform pixel sizes, work out how
+            # much they differ, and if that is greater than the default
+            # pixel size uncertainty, use that.
+            pix_size_ratio = max(aprx_xpixsiz, aprx_ypixsiz) / min(aprx_xpixsiz, aprx_ypixsiz)
+            pix_size_err_pct = math.ceil(100 * (pix_size_ratio - 1))
+            if pix_size_err_pct < min_pix_size_err_pct:
+                pix_size_err_pct = min_pix_size_err_pct
+            hints_dict['scale_type'] = 'ev'
+            hints_dict['scale_est']  = mean_pix_size
+            hints_dict['scale_err']  = pix_size_err_pct
+        
+        self._logger.debug(f'Astrometry.net hints dictionary: {hints_dict}')
+        return hints_dict
     
     def _read_fits_image(self, image_filename, image_extension):
         """Read a single extension's data and header from a FITS file
@@ -169,7 +262,8 @@ class ApAstrometry:
         uint_handling = True
         image_scaling = False
             
-        with fits.open(image_filename, 
+        with fits.open(image_filename,
+            mode='readonly',
             uint=uint_handling, 
             do_not_scale_image_data=image_scaling) as hdu_list:
             ext_hdr  = hdu_list[image_extension].header
@@ -213,34 +307,44 @@ class ApAstrometry:
                 raise RuntimeError(err_msg)
 
         num_srcs = len(xy_table)
-        self._logger.debug(f'Read {num_srcs} source positions from {srclist_fname}')
+        self._logger.info(f'Read {num_srcs} source positions from {srclist_fname}')
         return xy_table, srclist_hdr
         
-    def _query_astrometry_dot_net(self, astnetkey, cols, rows, xy_table):
-        """Attempt get astrometric solution"""
-    
-        wcs = {}
-        image_width  = cols
-        image_height = rows
+    def _query_astrometry_dot_net(self, astnetkey, cols, rows, xy_table, hints_dict):
+        """Attempt to get an astrometric solution using astrometry.net
         
-        ast = AstrometryNet()
-        ast.api_key = p_astnetkey
-        try_again = True
+        Returns a FITS header if successful, an empty dictionary if not.
+        """
+
+
+        # Try to stop astroquery astrometry warnings
+        warnings.filterwarnings("ignore", module='astroquery.astrometry_net')
+        warnings.filterwarnings("ignore", module='astroquery.astrometry_net.core')
+        warnings.filterwarnings("ignore", module='astroquery.astrometry_net.AstrometryNet')
+    
+        wcs           = {}
+        image_width   = cols
+        image_height  = rows
+        ast           = AstrometryNet()
+        ast.api_key   = astnetkey
+        try_again     = True
         submission_id = None
+        pos_err_pix   = 10               # TODO get better estimate from srclist?
     
         while try_again:
             try:
                 if not submission_id:
-                    SELF._logger.debug('Submitting astrometry.net solve from source list with {} poisitions'.format(len(xy_table)))
+                    self._logger.debug('Submitting astrometry.net solve from source list with {} positions'.format(len(xy_table)))
                     wcs_header = ast.solve_from_source_list(xy_table['X'], 
                         xy_table['Y'],
                         image_width, 
                         image_height,
                         parity=2,
-                        positional_error=10,
+                        positional_error=pos_err_pix,
                         crpix_center=True,
                         publicly_visible='n',
-                        submission_id=submission_id)
+                        submission_id=submission_id,
+                        **hints_dict)
                 else:
                     self._logger.debug('Monitoring astrometry.net submission {}'.format(submission_id))
                     wcs_header = ast.monitor_submission(submission_id,
@@ -258,6 +362,54 @@ class ApAstrometry:
             self._logger.error('Astrometry.net submission={} failed'.format(submission_id))
     
         return wcs
+    
+    def _sanity_check(self, image_filename, srclist_metadata):
+        """Warn user if the sourcelist was not produced using the input image."""
+        
+        key = 'IMG_FILE'
+        if key in srclist_metadata:
+            src_img_file = srclist_metadata[key]
+            if image_filename in src_img_file:
+                msg = 'The source list was generated from this input image. Proceding.'
+                self._logger.debug(msg)
+                return
+            else:
+                msg = f'Source list NOT generated from the input image, but instead from {src_img_file}'
+        else:
+            msg = f'Source list file lacks {key} keyword. Cannot assess if it was produced from {image_filename}'
+        self._logger.warn(msg)
+        self._logger.warn('Proceding, but WCS may be incorrect.')
+        return
+    
+    def _write_fits_image(self, wcs):
+        """Create a copy of the input file updated with the WCS solution
+        """
+
+        # That should not be copied over from the WCS into the output
+        # as they overwrite existing values that are important or they
+        # are overly long....
+        
+        bad_keys = ['SIMPLE', 'BITPIX', 'NAXIS', 'EXTEND', 
+            'HISTORY', 'DATE', 'COMMENT']
+
+        with fits.open(self._inp_fname, mode='readonly') as hdu_list:
+            ext_hdr  = hdu_list[self._inp_extnum].header
+ 
+            for key in wcs:
+                if key not in bad_keys:
+                    val_cmt      = (wcs[key], wcs.comments[key])
+                    ext_hdr[key] = val_cmt
+                    self._logger.debug(f'Setting {key} to {val_cmt}')
+            
+            hdu_list[self._inp_extnum].header = ext_hdr
+            hdu_list.writeto(self._out_fname, overwrite=True)
+        self._logger.info(f'Wrote updated file with WCS to {self._out_fname}')
+        return
+    
+    # Public member functions
+    def status(self):
+        """Return status"""
+        return self._status
     
     def create_primary_header(kw_dict):
         """Creates a FITS primary header adding the keywords in the dict"""
@@ -313,8 +465,7 @@ def main(args=None):
         p_outimg, 
         p_astnetkey,
         p_loglevel)
-    
-    return 0
+    return ap_astrom.status()
 
 if __name__ == '__main__':
     try:
