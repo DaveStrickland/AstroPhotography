@@ -28,6 +28,7 @@
 # 2020-08-10 dks : Moved search params to CLI, flag possible saturation,
 #                  use percentile interval in plotting/visualization.
 # 2020-08-20 dks : Refactor into ApFindStars
+# 2020-08-22 dks : Implemented plotfile bitmapped image with sources.
 
 import argparse
 import sys
@@ -233,21 +234,56 @@ class ApFindStars:
             self._phot_table['ycenter'])
     
         if self._plotfile is not None:
-            pct_interval = AsymmetricPercentileInterval(0.50, 99.5)
-            #sqrt_norm    = ImageNormalize(self._data, 
-            #    interval=pct_interval, 
-            #    stretch=SqrtStretch())
-            asinh_norm   = ImageNormalize(self._data,
-                interval=pct_interval,
-                stretch=AsinhStretch())
-        
-            # TODO should replace plt use with proper fig, ax etc...
-            plt.imshow(self._data, 
-                origin='lower', 
-                norm=asinh_norm)
-            self._apertures.plot(color='red', lw=1.5, alpha=0.5)
-            plt.show()
+            self._plot_image(self._plotfile)
 
+        return
+        
+    def _plot_image(self, plotfile):
+        """Plot an asinh-stretched image with the current apertures to
+           standard graphics bitmap-format file.
+        """
+        
+        # Normally the range 0.5 percent to 99.5 percent clips off the
+        # outliers.
+        pct_interval = AsymmetricPercentileInterval(0.50, 99.5)
+
+        #sqrt_norm    = ImageNormalize(self._data, 
+        #    interval=pct_interval, 
+        #    stretch=SqrtStretch())
+        asinh_norm   = ImageNormalize(self._data,
+            interval=pct_interval,
+            stretch=AsinhStretch())
+    
+        fig, ax = plt.subplots()
+        ax.tick_params(axis='both', labelsize=8)
+
+        im = ax.imshow(self._data, 
+            origin='lower', 
+            norm=asinh_norm)
+        self._apertures.plot(color='red', lw=1.5, alpha=0.5)
+         
+        # Clean up file name string to prevent _ becoming subscripts.
+        #fname_str = self._fitsimg.replace('_', '\_') # Not necessary?
+        fname_str = self._fitsimg
+        
+        # Subtitle
+        num_stars = len(self._phot_table)
+        info_str  = f'{num_stars} stars'
+        if self._nosatmask is not None:
+            info_str += ' excluding saturated stars'
+        else:
+            info_str += ' including saturated stars'
+        if self._max_adu is not None:
+            info_str = 'Brightest ' + info_str
+            
+        ax.set_title(f'{fname_str}\n{info_str}', fontsize=8)
+        ax.set_xlabel('X-axis (pixels)', fontsize=8)
+        ax.set_ylabel('Y-axis (pixels)', fontsize=8)
+        #plt.show()
+        plt.savefig(self._plotfile,
+            dpi=200, quality=95, optimize=True,
+            bbox_inches='tight')
+        self._logger.info(f'Plotting asinh-stretched bitmap of image and sources to {self._plotfile}')
         return
         
     def _make_apertures(self, colpos, rowpos):
