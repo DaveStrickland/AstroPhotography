@@ -29,6 +29,7 @@
 #                  use percentile interval in plotting/visualization.
 # 2020-08-20 dks : Refactor into ApFindStars
 # 2020-08-22 dks : Implemented plotfile bitmapped image with sources.
+# 2020-08-23 dks : Add stellar FWHM fitting and plotting.
 
 import argparse
 import sys
@@ -39,7 +40,7 @@ import matplotlib.pyplot as plt
 import math
 
 from astropy.io import fits
-from astropy.table import QTable, Table
+from astropy.table import QTable, Table, vstack
 from astropy.coordinates import SkyCoord, Angle
 from astropy.visualization import AsymmetricPercentileInterval
 from astropy.visualization import SqrtStretch, AsinhStretch
@@ -117,6 +118,14 @@ def command_line_opts(argv):
         metavar='QUALITY_REPORT.TXT',
         help="If specified, an ASCII file summarizing the image's source" +
         " and background properties will be written to disk.")
+    parser.add_argument('--fwhm_plot',
+        default=None,
+        metavar='FWHM_FITS.PNG',
+        help='If specified, a bitmap plot of selected star cut-outs' +
+        ' along with fitted gaussian model parameters such as FWHM' +
+        ' will be written to disk.' + 
+        ' (The fit results are output in the source list FITS table,' +
+        ' and summarized in the qulity report.)')
     parser.add_argument('-d', '--ds9',
         default=None,
         metavar='ds9.reg',
@@ -169,9 +178,10 @@ class ApFindStars:
         self._max_adu       = math.pow(2, detector_bitdepth) - 1
         self._sat_thresh    = math.floor(sat_frac * self._max_adu)
         self._quiet         = quiet
+        self._psf_table     = None
 
         # Set up logging
-        self._logger = self.initialize_logger(self._loglevel)
+        self._logger = self._initialize_logger(self._loglevel)
 
         # Read the image
         self._data, self._hdr = self._read_fits(fitsimg, extnum)
@@ -315,7 +325,8 @@ class ApFindStars:
             'ycentroid': '%.2f',
             'id':   '%d',
             'npix': '%d',
-            'sky':  '%d'}
+            'sky':  '%d',
+            'peak': '%.2f'}
         for col in sources.colnames:
             if col in col_fmt_dict:
                 new_fmt = col_fmt_dict[col]
@@ -323,7 +334,15 @@ class ApFindStars:
                 new_fmt = '%.4f'
             sources[col].info.format = new_fmt  # for consistent table output
         num_srcs = len(sources)
-        self._logger.debug(f'Initial source list using FHWM={search_fwhm} pixels, threshold={search_nsigma} x BG stddev, found {num_srcs} sources.')
+        self._logger.info(f'Initial source list using FHWM={search_fwhm} pixels, threshold={search_nsigma} x BG stddev, found {num_srcs} sources.')
+        
+        # Check for saturated sources, as nosatmask may have been false
+        # when initially search
+        self._logger.debug(f'Sources with pixels exceding {self._sat_thresh} ADU will be flagged as possibly saturated.')
+        sources['psbl_sat'] = sources['peak'] > self._sat_thresh
+        n_sat = np.sum(sources['psbl_sat'])
+        self._logger.debug(f'There are {n_sat} possibly saturated stars in the output source list.')
+
         if not self._quiet:
             print(sources)
         return sources
@@ -350,14 +369,10 @@ class ApFindStars:
             self._apertures)
         phot_table['aperture_sum'].info.format = '%.4f'  # for consistent table output
         
-        # Copy over peak flux from star finder output and use it to derive
-        # possible saturation flag.
-        self._logger.debug(f'Sources with pixels exceding {self._sat_thresh} ADU will be flagged as possibly saturated.')
+        # Copy over peak ADU and possibly saturated flag from initial
+        # sourcelist 
         phot_table['peak_adu'] = self._sources['peak']
-        phot_table['peak_adu'].info.format = '%.2f'
-        phot_table['psbl_sat'] = phot_table['peak_adu'] > self._sat_thresh
-        n_sat = np.sum(phot_table['psbl_sat'])
-        self._logger.debug(f'There are {n_sat} possibly saturated stars in the output source list.')
+        phot_table['psbl_sat'] = self._sources['psbl_sat']
         
         exposure = float(self._hdr['EXPOSURE'])
         phot_table['adu_per_sec'] = phot_table['aperture_sum'] / exposure
@@ -373,7 +388,7 @@ class ApFindStars:
             print(phot_table)
         return phot_table
 
-    def initialize_logger(self, loglevel):
+    def _initialize_logger(self, loglevel):
         """Initialize and return the logger
         """
         
@@ -398,6 +413,43 @@ class ApFindStars:
         # add ch to logger
         logger.addHandler(ch)
         return logger
+        
+    def measure_fwhm(self, fwhm_plot_file):
+        """Fit gaussians to a sub-selection of identified stars in the
+           center of the image and four outer quadrants, returning the
+           median 1-D full width half maximum in pixels.
+           
+        This function in intended to measure the true FWHM of the stars
+        within the image, returning a value that can be used to perform
+        a better source searching and aperture photometry than the 
+        default FWHM supplied at object instantiation. It is also intended
+        to populate image quality metrics that may be useful in excluding
+        images that have poor seeing when building stacked images.
+        
+        Only a representative subset of stars is used, drawn from the
+        central half of the image plus four outer quadrants. This 
+        partitioning is used to quantify variations in the size and
+        symmetry of the stellar PSF across the image.
+        
+        The function delegates work to an instance of ApMeasureStars.
+        
+        If fwhm_plot_file is not None then a plot of image cut-outs
+        around each selected star, along with the 2-D and 1-D best fit
+        Gaussians, is created.
+        """
+        
+        # Note: Cannot use the initial sources table as it lacks
+        #   accurate brightness estimates.
+        measure_stars   = ApMeasureStars(self._data,
+            self._phot_table,
+            self._search_fwhm,
+            self._bg_median,
+            fwhm_plot_file,
+            self._loglevel,
+            self._quiet)
+        self._psf_table = measure_stars.results_table()
+        median_fwhm     = measure_stars.median_fwhm() 
+        return median_fwhm
         
     def _check_file_exists(self, filename):
         if not os.path.isfile(filename):
@@ -604,6 +656,290 @@ class ApFindStars:
             box_size=boxsize)
         print('Saturated position table:\n', saturated_positions)
         return saturated_positions
+        
+class ApMeasureStars:
+    """Measures stellar PSF size and symmetry in selected stars across
+       and input image.
+    """
+    
+    def __init__(self,
+            img_data,
+            srclist,
+            init_fwhm,
+            init_bglevel,
+            fwhm_plot_file,
+            loglevel,
+            quiet):
+        """ApMeasureStars constructor
+        """
+        
+        self._img_data   = img_data        # Image data 2-D array
+        self._init_fwhm  = init_fwhm       # Initial guess at FWHM in pixels
+        self._init_bglvl = init_bglevel    # Initial guess at BG level per pixel
+        self._plot_file  = fwhm_plot_file  # None or name of file to plot results to.
+        self._loglevel   = loglevel        # Logging level
+        self._quiet      = quiet           # If True then table summary printing disabled.
+
+        self._fit_table  = None            # Table to store fit results in.
+                
+        # Set up logging
+        self._logger = self._initialize_logger(self._loglevel)
+
+        # Setting related to candidate selection.
+        self._num_per_reg    = 5           # Number of sources per region to fit
+        self._skip_brightest = 2           # Skip the brightest N stars in each region
+        self._logger.debug(f'Up to {self:_num_per_reg} stars per sub-region will be fitted, excluding the brightest {self:_skip_brightest} stars.')
+
+        # Slightly modify the input source list to exclude possibly
+        # saturated stars, remove unneeded columns.
+        self._init_srcs  = Table(srclist[srclist['psbl_sat']==False])         # Initial sourclist from ApFindStars
+        #self._init_srcs.remove_columns(['sharpness', 'roundness1', 'roundness2', 'flux'])
+        if not self._quiet:
+            print('Input table supplied to ApMeasureStars after saturated star filtering:')
+            print(self._init_srcs)
+            print('')
+
+        self._cols       = img_data.shape[1]
+        self._rows       = img_data.shape[0]
+        
+        # Set up variables related to fit box size and edge exclusion
+        self._fit_box_initialization()
+        
+        # Select candidates and determine data extraction boxes.
+        self._fit_table  = self._select_candidates()
+        self._calculate_boxes()
+        
+        return
+        
+    def _calculate_boxes(self):
+        """Calculate the pixel indices of the boxes from which data will
+           be extracted for fitting each star.
+        """
+        
+        half_width = self._box_width_pix / 2
+        nrst_xpix  = np.rint( self._fit_table['xcenter'] )
+        nrst_ypix  = np.rint( self._fit_table['ycenter'] )
+        self._fit_table['xmin'] = nrst_xpix - half_width
+        self._fit_table['xmax'] = nrst_xpix + half_width
+        self._fit_table['ymin'] = nrst_ypix - half_width
+        self._fit_table['ymax'] = nrst_ypix + half_width
+        
+        # Make the column printing reasonable
+        col_fmt_dict = {'xmin': '%d',
+            'xmax': '%d',
+            'ymin': '%d',
+            'ymax': '%d'}
+        for col in col_fmt_dict:
+            self._fit_table[col].info.format = col_fmt_dict[col]  
+        
+        if not self._quiet:
+            print('Fit candidates with data extraction box indices:')
+            print(self._fit_table)
+            print('')
+        return
+        
+    def _fit_box_initialization(self):
+        """Sets up variables related to the size of the region used in
+           fitting and the edge exclusion used in candidate selection.
+        """
+        
+        # We want the fit box to be at least 2x the FWHM, and an even 
+        # number of pixels. We also pad a bit in case the initial FWHM
+        # estimate is an underestimate.
+        pad_frac            = 2.5
+        min_width           = 12
+        self._box_width_pix = 2 * int(pad_frac * self._init_fwhm)
+        if self._box_width_pix < min_width:
+            self._box_width_pix = min_width
+        
+        # Edge exclusion shouldbe >= half the box size, and also an even
+        # number of pixels.
+        self._edge_excl_pix = 2 * int(math.ceil(self._box_width_pix/4)) 
+        self._logger.debug(f'Adopting a fit box width of {self._box_width_pix} pixels' + 
+            f', edge exclusion of {self._edge_excl_pix} pixels.')
+        return
+        
+    def _initialize_logger(self, loglevel):
+        """Initialize and return the logger
+        """
+        
+        logger = logging.getLogger('ApMeasureStars')
+        
+        # Check that the input log level is legal
+        numeric_level = getattr(logging, loglevel.upper(), None)
+        if not isinstance(numeric_level, int):
+            raise ValueError('Invalid log level: {}'.format(loglevel))
+        logger.setLevel(numeric_level)
+    
+        # create console handler and set level to debug
+        ch = logging.StreamHandler()
+        ch.setLevel(numeric_level)
+    
+        # create formatter
+        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    
+        # add formatter to ch
+        ch.setFormatter(formatter)
+    
+        # add ch to logger
+        logger.addHandler(ch)
+        return logger
+        
+    def _select_candidates(self):
+        """Select candidate stars in the center and four quadrants
+        
+        Fitting is computationally expensive and will not give good
+        results on saturated stars, blended/crowded stars, and faint
+        stars. Thus it makes sense to limit fitting to a subset of the
+        available stars in the input source list. In order to measure
+        whether the PSF changes across the image it is also useful to
+        break the image up into a series of regions. In the center
+        the PSF is expected to be the sharpest and most symmetric,
+        but at the edges of the image asymmetries may be expected. Hence
+        we select a set of 5 candidate stars in each of the regions
+        shown schematically below.
+        
+        Note that in the case of a square image the area of the central
+        region CN is very close to the remaining area of each of the outer 
+        quadrants TL, TR, BL, BR (despite what the ASCII depiction below
+        seems to show)
+        
+        For an image of height H, width W, H <= W, central region 
+        diameter C=H then the area of the central circle is
+        A_C = pi * H^2 / 16,
+        and
+        A_Q = H/4 * (W - (pi*H/16))
+        
+        +-----------+-----------+
+        [           |           ]
+        [ TL        |        TR ]
+        [          -+-          ]
+        [         / | \         ]
+        [        |CN|  |        ]
+        +--------+--+--+--------+
+        [        |  |  |        ]
+        [ BL      \ | /      BR ]
+        [          -+-          ]
+        [           |           ]
+        [           |           ]
+        +-----------+-----------+
+        
+        Candidate stars should not be too close to the edge of the 
+        detector. Stars with centroids within _edge_excl_pix of the 
+        edge are not selected as candidates.
+        """
+        
+        # Algorithm:
+        # Iterate over each source i in the input source list
+        #   If not saturated, calculate dx = x_i - x_c, dy = y_i - y_c, r_i
+        #   If r_i < H/2, add source id, mag to center list
+        #   else if dx < 0, dy > 0 add to TL list, etc
+        # The sort lists by magnitude
+        # Pick the top N from each quadrant and place in a table
+        # The table forms the basis for self._fit_table
+        
+        candidate_table = None
+        num_srcs        = len(self._init_srcs)
+        self._logger.info(f'Selecting candidate stars for fitting out of {num_srcs} stars in {self._rows} row x {self._cols} column image.')
+
+        radius = float( min(self._cols, self._rows) ) / 4
+        xcen   = float(self._cols) / 2
+        ycen   = float(self._rows) / 2
+        self._logger.debug(f'Center has radius {radius:.1f} pixels centered on x={xcen:.1f}, y={ycen:.1f}')
+        
+        self._init_srcs['dx'] = self._init_srcs['xcenter'] - xcen
+        self._init_srcs['dy'] = self._init_srcs['ycenter'] - ycen
+        xsq = np.square(self._init_srcs['dx'])
+        ysq = np.square(self._init_srcs['dy'])
+        self._init_srcs['radius'] = np.sqrt(xsq + ysq)
+        self._init_srcs['region'] = 'XX'
+            
+        # Select region
+        is_cn     = self._init_srcs['radius'] <= radius
+        is_right  = self._init_srcs['dx'] >= 0
+        is_left   = np.logical_not( is_right )
+        is_top    = self._init_srcs['dy'] >= 0
+        is_bottom = np.logical_not( is_top )
+        
+        is_tr     = np.logical_and(is_top,    is_right)
+        is_tl     = np.logical_and(is_top,    is_left)
+        is_br     = np.logical_and(is_bottom, is_right)
+        is_bl     = np.logical_and(is_bottom, is_left)
+        
+        # This is technically superflous considering we have the flag
+        # arrays, but its useful for human-readable analysis and we'll
+        # use it later in the candidate list.
+        self._init_srcs['region'][is_tr] = 'TR'
+        self._init_srcs['region'][is_tl] = 'TL'
+        self._init_srcs['region'][is_br] = 'BR'
+        self._init_srcs['region'][is_bl] = 'BL'
+        self._init_srcs['region'][is_cn] = 'CN'
+        
+        # Edge exclusion masks, taking into account python 0:n-1 indexing.
+        xmin = self._edge_excl_pix - 1
+        xmax = self._cols - self._edge_excl_pix - 1
+        ymin = self._edge_excl_pix
+        ymax = self._rows - self._edge_excl_pix - 1
+        ok_left = self._init_srcs['xcenter'] >= xmin
+        ok_rght = self._init_srcs['xcenter'] <= xmax
+        ok_bot  = self._init_srcs['ycenter'] >= ymin
+        ok_top  = self._init_srcs['ycenter'] <= ymax
+        ok_mask = np.logical_and(ok_left, ok_rght)
+        ok_mask = np.logical_and(ok_mask, ok_bot)
+        ok_mask = np.logical_and(ok_mask, ok_top)
+        srclist = self._init_srcs[ok_mask]
+        num_ok  = len(srclist)
+        self._logger.debug(f'There are {num_ok} stars more than {self._edge_excl_pix} pixels away from the edge of the detector.')
+                            
+        for reg in ['CN', 'TL', 'TR', 'BR', 'BL']:
+            row_select = srclist['region'] == reg
+            cand_table = srclist[row_select]
+            cand_table.sort(['magnitude'], reverse=True)
+            num_cand   = len(cand_table)
+            
+            if num_cand == 0:
+                self._logger.warning(f'There are no candidates in the {reg} region.')
+                continue
+            else:
+                self._logger.debug(f'In region {reg} found {num_cand} candidates for fitting:')
+
+            # Select the Nth to Mth brightest candidates in each region,
+            # unless there are not enough stars to do so.
+            n_start    = self._skip_brightest
+            m_end      = n_start + self._num_per_reg
+            while m_end > num_cand:
+                n_start = max(0, n_start-1)
+                m_end   = max(0, m_end-1)
+                if m_end < num_cand:
+                    self._logger.error('Logic error in _select_candidates?')
+                    self._logger.error(f'Region={reg}, num_cand={num_cand}, n_start={n_start},' + 
+                        f' m_end={m_end}, num_per_reg={self._num_per_reg}, skip_brightest={self._skip_brightest}')
+                    continue
+                
+            cand_table = cand_table[n_start:m_end]
+            if not self._quiet:
+                print(cand_table)
+                print('')
+        
+            # Now build the candidate table
+            if candidate_table is None:
+                candidate_table = cand_table
+            else:
+                candidate_table = vstack([candidate_table, cand_table])
+            
+        return candidate_table
+        
+    def median_fwhm(self):
+        """Returns the median fitted 1-D FWHM in pixels over the entire image.
+        """
+        
+        fwhm_med = None 
+        return fwhm_med
+        
+    def results_table(self):
+        """Return the fitting results as an astropy Table
+        """
+        return self._fit_table
 
 def main(args=None):
     p_args      = command_line_opts(args)
@@ -625,6 +961,8 @@ def main(args=None):
     p_qual_rprt   = p_args.quality_report    # None or name of output ascii report
     p_quiet       = p_args.quiet             # Quiet mode suppresses STDOUT list printing
 
+    p_fwhm_plot   = p_args.fwhm_plot         # PNG/JPG plot of PSF fits 
+
     # Perform initial source detection using default parameters.
     find_stars = ApFindStars(p_fitsimg, p_extnum, p_search_fwhm,
         p_search_nsigma, p_detector_bitdepth, 
@@ -632,7 +970,7 @@ def main(args=None):
         p_plotfile, p_quiet)
     
     # Measure 2-Gaussian FWHM for select stars
-    #TODO#p_new_fwhm = find_stars.measure_fwhm()
+    p_new_fwhm = find_stars.measure_fwhm(p_fwhm_plot)
     
     # Refine source detection
     #TODO#find_stars.source_search(p_new_fwhm, p_search_nsigma)
