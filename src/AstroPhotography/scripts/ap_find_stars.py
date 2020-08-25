@@ -36,8 +36,10 @@ import sys
 import logging
 import os.path
 import numpy as np
+import matplotlib                # for rc
 import matplotlib.pyplot as plt
 import math
+import time
 
 from astropy.io import fits
 from astropy.table import QTable, Table, vstack
@@ -673,14 +675,15 @@ class ApMeasureStars:
         """ApMeasureStars constructor
         """
         
-        self._img_data   = img_data        # Image data 2-D array
-        self._init_fwhm  = init_fwhm       # Initial guess at FWHM in pixels
-        self._init_bglvl = init_bglevel    # Initial guess at BG level per pixel
-        self._plot_file  = fwhm_plot_file  # None or name of file to plot results to.
-        self._loglevel   = loglevel        # Logging level
-        self._quiet      = quiet           # If True then table summary printing disabled.
+        self._img_data    = img_data        # Image data 2-D array
+        self._init_fwhm   = init_fwhm       # Initial guess at FWHM in pixels
+        self._init_bglvl  = init_bglevel    # Initial guess at BG level per pixel
+        self._loglevel    = loglevel        # Logging level
+        self._quiet       = quiet           # If True then table summary printing disabled.
 
-        self._fit_table  = None            # Table to store fit results in.
+        self._fit_table   = None            # Table to store fit results in.
+        self._pixel_array = None            # 3-D array for star cut-outs
+        self._fwhm_plot   = fwhm_plot_file  # None or PNG/JPG image file name.
                 
         # Set up logging
         self._logger = self._initialize_logger(self._loglevel)
@@ -688,7 +691,7 @@ class ApMeasureStars:
         # Setting related to candidate selection.
         self._num_per_reg    = 5           # Number of sources per region to fit
         self._skip_brightest = 2           # Skip the brightest N stars in each region
-        self._logger.debug(f'Up to {self:_num_per_reg} stars per sub-region will be fitted, excluding the brightest {self:_skip_brightest} stars.')
+        self._logger.debug(f'Up to {self._num_per_reg} stars per sub-region will be fitted, excluding the brightest {self._skip_brightest} stars.')
 
         # Slightly modify the input source list to exclude possibly
         # saturated stars, remove unneeded columns.
@@ -708,7 +711,8 @@ class ApMeasureStars:
         # Select candidates and determine data extraction boxes.
         self._fit_table  = self._select_candidates()
         self._calculate_boxes()
-        
+        self._do_fitting()
+        self._plot_fits()
         return
         
     def _calculate_boxes(self):
@@ -717,8 +721,8 @@ class ApMeasureStars:
         """
         
         half_width = self._box_width_pix / 2
-        nrst_xpix  = np.rint( self._fit_table['xcenter'] )
-        nrst_ypix  = np.rint( self._fit_table['ycenter'] )
+        nrst_xpix  = np.rint( self._fit_table['xcenter'] ).astype(int)
+        nrst_ypix  = np.rint( self._fit_table['ycenter'] ).astype(int)
         self._fit_table['xmin'] = nrst_xpix - half_width
         self._fit_table['xmax'] = nrst_xpix + half_width
         self._fit_table['ymin'] = nrst_ypix - half_width
@@ -738,14 +742,48 @@ class ApMeasureStars:
             print('')
         return
         
+    def _do_fitting(self):
+        """Performs 1-D and 2-G gaussian fits to the stars in the
+           internal fit_table.
+        """
+        
+        # Extract data from main image, stores in _pixel_array.
+        self._extract_cutouts()
+                
+        return
+
+    def _extract_cutouts(self):
+        """Create 3-D data array to store N stars x MxM pixels
+        """
+        num_stars = len(self._fit_table)
+        wdth      = self._box_width_pix
+        numel     = num_stars * wdth * wdth
+        tmp_arr = np.zeros(numel, 
+            dtype=self._img_data.dtype).reshape(num_stars, wdth, wdth)
+            
+        for idx in range(num_stars):
+            xmin         = int( self._fit_table['xmin'][idx] )
+            xmax         = int( self._fit_table['xmax'][idx] )
+            ymin         = int( self._fit_table['ymin'][idx] )
+            ymax         = int( self._fit_table['ymax'][idx] )
+            cutout       = self._img_data[ymin:ymax, xmin:xmax]
+            tmp_arr[idx] = cutout.copy()
+            
+        maxval = np.amax(tmp_arr)
+        minval = np.amin(tmp_arr)
+        self._logger.debug(f'In {num_stars}x{wdth}x{wdth} pixel array min={minval:.2f}, max={maxval:.2f}')
+        self._pixel_array = tmp_arr
+        return
+
+        
     def _fit_box_initialization(self):
         """Sets up variables related to the size of the region used in
            fitting and the edge exclusion used in candidate selection.
         """
         
-        # We want the fit box to be at least 2x the FWHM, and an even 
-        # number of pixels. We also pad a bit in case the initial FWHM
-        # estimate is an underestimate.
+        # We want the fit box to be at least 2x the initial estimated
+        # FWHM, and also an even number of pixels. We also pad a bit 
+        # in case the initial FWHM estimate is an underestimate.
         pad_frac            = 2.5
         min_width           = 12
         self._box_width_pix = 2 * int(pad_frac * self._init_fwhm)
@@ -758,6 +796,34 @@ class ApMeasureStars:
         self._logger.debug(f'Adopting a fit box width of {self._box_width_pix} pixels' + 
             f', edge exclusion of {self._edge_excl_pix} pixels.')
         return
+        
+    def _get_subplot_fitinfo(self, index):
+        """Extract a short summary of the fit results for the star at
+           the given index in the fit_table, suitable for use in the
+           subplots.
+        """
+        
+        # TODO
+        fwhm_x      = 3.2
+        fwhm_y      = 4.1
+        symmetric   = True
+        info_list   = [f'FWHM_X={fwhm_x:.1f}',
+            f'FWHM_Y={fwhm_y:.1f}',
+            f'Symmetric={symmetric}']
+        fitinfo_str = '\n'.join(info_list)
+        return fitinfo_str
+        
+    def _get_subplot_title(self, index):
+        """Return a title string for a subplot showing a single fitted star.
+        """
+        xcen  = self._fit_table['xcenter'][index]
+        ycen  = self._fit_table['ycenter'][index]
+        idnum = self._fit_table['id'][index]
+        
+        xcen = int( round( xcen ) )
+        ycen = int( round( ycen ) )
+        title_str = f'Star {idnum:d} at x={xcen:d}, y={ycen:d}'
+        return title_str
         
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
@@ -784,6 +850,114 @@ class ApMeasureStars:
         # add ch to logger
         logger.addHandler(ch)
         return logger
+        
+    def _plot_fits(self):
+        """Plot all the fits.
+        """
+
+        matplotlib.rc('axes', edgecolor='r')
+
+        # Normally the range 0.5 percent to 99.5 percent clips off the
+        # outliers.
+        pct_interval = AsymmetricPercentileInterval(0.10, 99.9)
+        
+        norm_func    = ImageNormalize(self._img_data, 
+            interval=pct_interval, 
+            stretch=SqrtStretch())
+
+        # May be overly agressive for subplots
+        ##norm_func   = ImageNormalize(self._img_data,
+        ##    interval=pct_interval,
+        ##    stretch=AsinhStretch())
+            
+        # Location of text label added internal to subplots, in
+        # normalized 0:1 coordinate. This is where the bottom left
+        # the text box will appear.
+        text_x = 0.2
+        text_y = 0.8
+            
+        region_list     = ['TL', 'TR', 'CN', 'BR', 'BL']
+        region_row_dict = {'TL': 0,
+            'TR': 1,
+            'CN': 2,
+            'BR': 3,
+            'BL': 4}
+
+        # Create a dictionary that has keys of the row index within
+        # _fit_table (also the first index of the _pixel_array)
+        # and the column index within the 2-D plotting array.
+        #
+        # This is necessary because there may be less that _num_per_reg
+        # stars per region.
+        #
+        # This is inelegant but should work.
+        num_stars     = len(self._fit_table)
+        star_col_dict = {}         # To fill
+        col_idx_dict  = {'CN': 0,  # working memory
+            'TL': 0, 
+            'TR': 0, 
+            'BL': 0, 
+            'BR': 0}
+        for idx in range(num_stars):
+            this_reg               = self._fit_table['region'][idx]
+            this_col_idx           = col_idx_dict[this_reg]
+            star_col_dict[idx]     = this_col_idx
+            new_col_idx            = this_col_idx + 1
+            col_idx_dict[this_reg] = new_col_idx
+            
+        # Create figure for plot
+        fig_rows = len(region_list)
+        fig_cols = self._num_per_reg
+
+        # List of handles to the images
+        plt_imgs = []
+        
+        fig, ax_arr = plt.subplots(nrows=fig_rows, 
+            ncols=fig_cols,
+            sharex=True, 
+            sharey=True)
+            
+        fig.suptitle('Better title here', fontsize=8)
+        
+        for idx in range(num_stars):
+            this_reg = self._fit_table['region'][idx]
+            row_idx  = region_row_dict[this_reg]
+            col_idx  = star_col_dict[idx]
+
+            # Plot the cutout image.
+            cut_out = self._pixel_array[idx]
+            plt_imgs.append( ax_arr[row_idx, col_idx].imshow(cut_out, 
+                origin='lower', 
+                norm=norm_func) )
+                 
+            # Titles, fit info etc
+            title_str   = self._get_subplot_title(idx)
+            fitinfo_str = self._get_subplot_fitinfo(idx) 
+            ax_arr[row_idx, col_idx].set_title(title_str,
+                fontsize=4,
+                pad=3)
+            ax_arr[row_idx, col_idx].text(text_x, 
+                text_y, 
+                fitinfo_str, fontsize=4, color='w')
+            #ax_arr[row_idx, col_idx].set_xlabel('X-axis (pixels)', fontsize=6)
+            ax_arr[row_idx, col_idx].set_ylabel(this_reg,
+                fontsize=6)
+        
+        # Only show tick values on outer edge of grid.
+        for ax in ax_arr.flat:
+            ax.tick_params(axis='both', 
+                labelsize=4, 
+                direction='in', 
+                color='r',
+                length=3)
+            ax.label_outer()
+        
+        plt.savefig(self._fwhm_plot,
+            dpi=200, quality=95, optimize=True,
+            bbox_inches='tight')
+        self._logger.info(f'Plotted star FWHM fit cut-outs to {self._fwhm_plot}')
+        return
+
         
     def _select_candidates(self):
         """Select candidate stars in the center and four quadrants
@@ -942,6 +1116,9 @@ class ApMeasureStars:
         return self._fit_table
 
 def main(args=None):
+    perf_time_start = time.perf_counter() # highest res timer, counts sleeps
+    prcs_time_start = time.process_time() # usr+system, excludes sleeps
+    
     p_args      = command_line_opts(args)
     p_loglevel  = p_args.loglevel          # Loglevel
     p_fitsimg   = p_args.fits_image        # Input fits image
@@ -989,6 +1166,12 @@ def main(args=None):
     # Write final sourcelist with photometry.
     find_stars.write_source_list(p_fitstbl)
         
+    # Assumed logger was set up elsewhere
+    perf_time_end = time.perf_counter() # highest res timer, counts sleeps
+    prcs_time_end = time.process_time() # usr+system, excludes sleeps
+    perf_time     = perf_time_end - perf_time_start
+    prcs_time     = prcs_time_end - prcs_time_start
+    logging.getLogger(__name__).info(f'Elapsed wall clock runtime {perf_time:.3f} s (process time {prcs_time:.3f} s).')
     return 0
 
 if __name__ == '__main__':
