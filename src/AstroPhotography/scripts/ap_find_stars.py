@@ -29,7 +29,7 @@
 #                  use percentile interval in plotting/visualization.
 # 2020-08-20 dks : Refactor into ApFindStars
 # 2020-08-22 dks : Implemented plotfile bitmapped image with sources.
-# 2020-08-23 dks : Add stellar FWHM fitting and plotting.
+# 2020-08-23 dks : Add stellar FWHM fitting and plotting class.
 
 import argparse
 import sys
@@ -44,11 +44,13 @@ import time
 from astropy.io import fits
 from astropy.table import QTable, Table, vstack
 from astropy.coordinates import SkyCoord, Angle
-from astropy.visualization import AsymmetricPercentileInterval
-from astropy.visualization import SqrtStretch, AsinhStretch
+from astropy.visualization import AsymmetricPercentileInterval, MinMaxInterval, ManualInterval
+from astropy.visualization import SqrtStretch, AsinhStretch, LinearStretch
 from astropy.visualization.mpl_normalize import ImageNormalize
 from astropy.stats import sigma_clipped_stats
 from astropy import units as u
+from astropy.modeling import models, fitting
+from astropy.stats import sigma_clip, mad_std
 
 from photutils import make_source_mask, find_peaks, DAOStarFinder
 from photutils import CircularAperture, aperture_photometry
@@ -180,7 +182,11 @@ class ApFindStars:
         self._max_adu       = math.pow(2, detector_bitdepth) - 1
         self._sat_thresh    = math.floor(sat_frac * self._max_adu)
         self._quiet         = quiet
+        
+        # Not calculated by deafult, only if a user calls measure_fwhm
         self._psf_table     = None
+        self._median_fwhm   = None
+        self._madstd_fwhm   = None
 
         # Set up logging
         self._logger = self._initialize_logger(self._loglevel)
@@ -359,7 +365,8 @@ class ApFindStars:
             self._hdr, 
             self._bg_median, 
             self._bg_stddev,
-            self._phot_table)
+            self._phot_table,
+            self._psf_table)
         return
 
     def aperature_photometry(self):
@@ -449,9 +456,12 @@ class ApFindStars:
             fwhm_plot_file,
             self._loglevel,
             self._quiet)
-        self._psf_table = measure_stars.results_table()
-        median_fwhm     = measure_stars.median_fwhm() 
-        return median_fwhm
+        self._psf_table         = measure_stars.results_table()
+        median_fwhm, madstd_fwhm = measure_stars.median_fwhm() 
+        self._logger.info(f'Median FWHM (over x and y) is {median_fwhm:.2f} +/- {madstd_fwhm:.2f} pixels.')
+        self._median_fwhm = median_fwhm
+        self._madstd_fwhm = madstd_fwhm
+        return median_fwhm, madstd_fwhm
         
     def _check_file_exists(self, filename):
         if not os.path.isfile(filename):
@@ -498,10 +508,15 @@ class ApFindStars:
             sys.exit(1)
         return ext_data, ext_hdr
     
-    def _write_source_list(self, p_sourcelist, p_fitsimg, 
-            p_max_sources, hdr,
-            bg_median, bg_stddev,
-            src_table):
+    def _write_source_list(self, 
+            p_sourcelist,   # Name of utput FIT table with source info
+            p_fitsimg,      # Name of input FITS image that was processed
+            p_max_sources,  # Max number of sources for output table
+            hdr,            # FITS header of input image
+            bg_median,      # Estimated median BG level [ADU]
+            bg_stddev,      # Estimated BG level standard deviation [ADU]
+            src_table,      # Astropy table of source photometry
+            psf_table):     # None or Astropy table of source PSF fitting.   
         """Write detected source information to a FITS table with info on the
            original data file
            
@@ -576,6 +591,16 @@ class ApFindStars:
             kw_dict['APRX_XSZ'] = (pixsiz_x_arcs, '[arcseconds] Approximate X-axis plate scale')
             kw_dict['APRX_YSZ'] = (pixsiz_y_arcs, '[arcseconds] Approximate Y-axis plate scale')
         
+        # If the FWHM and estimated error have been measured, add them to
+        # the info we write to the primary header.
+        if self._median_fwhm is not None:
+            kw_dict['AP_FWHM']  = (self._median_fwhm, '[pix] Median FWHM of fitted stars in image')
+            kw_dict['AP_EFWHM'] = (self._madstd_fwhm, '[pix] MAD standard deviation of fitted FWHM') 
+        
+        # Background levels are useful downstream
+        kw_dict['AP_BGMED'] = (self._bg_median, '[ADU] Median source-masked background level')
+        kw_dict['AP_BGSTD'] = (self._bg_stddev, '[ADU] Std dev of source-masked background level')
+        
         # Currently just write trimmed FITS-format XY pos and merged position/photomtry
         self._logger.info('Writing source list to FITS binary table {}'.format(p_sourcelist))
     
@@ -588,9 +613,20 @@ class ApFindStars:
         
         tbl_hdu2 = fits.table_to_hdu(src_table)
         tbl_hdu2.header['EXTNAME'] = 'AP_L1MAG'
+        tbl_hdu2.header['COMMENT'] = 'Aperature photometry using photutils within ApFindStars.'
         tbl_hdu2.header['COMMENT'] = 'Uses python 0-based pixel coordinate system.'
     
-        hdu_list = fits.HDUList([pri_hdu, tbl_hdu1, tbl_hdu2])
+        # Always add these to the output file as we know they're present
+        hdus_to_append = [pri_hdu, tbl_hdu1, tbl_hdu2]
+        
+        if psf_table is not None:
+            tbl_hdu3 = fits.table_to_hdu(psf_table)
+            tbl_hdu3.header['EXTNAME'] = 'AP_L1PSF'
+            tbl_hdu3.header['COMMENT'] = 'PSF characterization using ApMeasureStars.'
+            tbl_hdu3.header['COMMENT'] = 'Uses python 0-based pixel coordinate system.'
+            hdus_to_append.append(tbl_hdu3)
+    
+        hdu_list = fits.HDUList(hdus_to_append)
         hdu_list.writeto(p_sourcelist, overwrite=True)
     
         return
@@ -662,6 +698,25 @@ class ApFindStars:
 class ApMeasureStars:
     """Measures stellar PSF size and symmetry in selected stars across
        and input image.
+    
+    The primary purpose of this class is to measure the size (full width
+    at half maximum) of stars in the input image and sourcelist, and to
+    attempt to detect if there is significant asymetry in the star images.
+    This information can be used to:
+    1. Measure the seeing (star FWHM) in the image.
+    2. Refine source searching with ApFindStars based on the "true" FWHM,
+    3. Identify images with poor seeing or tracking in comparison to
+       other images of the same target from the same telescope. Such 
+       images should be excluded from image stacking.
+    
+    This class uses astropy.modelling to fit 2-D gaussian plus a constant
+    background model to cut-out regions around a selected subset of the
+    stars specified in the input source list.
+    
+    A major current limitation is quantifying the errors in the fit (not
+    currently done). Astropy modelling uses scipy under the hood, which
+    has a very limited capability of expressing or investigating fit
+    uncertainties.
     """
     
     def __init__(self,
@@ -696,7 +751,7 @@ class ApMeasureStars:
         # Slightly modify the input source list to exclude possibly
         # saturated stars, remove unneeded columns.
         self._init_srcs  = Table(srclist[srclist['psbl_sat']==False])         # Initial sourclist from ApFindStars
-        #self._init_srcs.remove_columns(['sharpness', 'roundness1', 'roundness2', 'flux'])
+        self._init_srcs.remove_columns(['aperture_sum', 'psbl_sat', 'adu_per_sec'])
         if not self._quiet:
             print('Input table supplied to ApMeasureStars after saturated star filtering:')
             print(self._init_srcs)
@@ -713,6 +768,7 @@ class ApMeasureStars:
         self._calculate_boxes()
         self._do_fitting()
         self._plot_fits()
+        # TODO # self._adjust_fitted_positions()
         return
         
     def _calculate_boxes(self):
@@ -729,10 +785,12 @@ class ApMeasureStars:
         self._fit_table['ymax'] = nrst_ypix + half_width
         
         # Make the column printing reasonable
-        col_fmt_dict = {'xmin': '%d',
-            'xmax': '%d',
-            'ymin': '%d',
-            'ymax': '%d'}
+        # Note that astropy needs integers to be padded to conform with
+        # the TDISP keyword format.
+        col_fmt_dict = {'xmin': '%8d',
+            'xmax': '%8d',
+            'ymin': '%8d',
+            'ymax': '%8d'}
         for col in col_fmt_dict:
             self._fit_table[col].info.format = col_fmt_dict[col]  
         
@@ -747,9 +805,152 @@ class ApMeasureStars:
            internal fit_table.
         """
         
+        # Setup
+        num_stars      = len(self._fit_table)
+        sigma_to_fwhm  = 2.35482
+        fwhm_to_sigma  = 1.0 / sigma_to_fwhm
+        max_iterations = 300
+        
+        # Threshold in number of sigma that fwhm_y must differ from
+        # fwhm_x in order to be counted as NOT being circular.
+        thresh = 3.0
+        
         # Extract data from main image, stores in _pixel_array.
         self._extract_cutouts()
+        
+        # Add extra columns to the output table for the fit results
+        self._prepare_fit_columns()
+        
+        self._logger.info(f'Starting to fit Const2D+XX models to {num_stars} star cutouts.')
+        perf_time_start = time.perf_counter() # highest res timer, counts sleeps
+
+        # X and Y pixel index grids needed by the fitter
+        x_grid, y_grid = np.mgrid[0:self._box_width_pix, 0:self._box_width_pix]
                 
+        # We initialize the 2-D Gaussians based on the initial FWHM
+        # but with a slight asymmetry sig_x/sig_y = 1.1, theta approx 30 degrees.
+        def_axrat = 1.1
+        sig_y     = self._init_fwhm * fwhm_to_sigma
+        sig_x     = def_axrat * sig_y
+        rotang    = 0.5 # radians, approx 30 degrees.
+        xpos      = self._box_width_pix/2
+        ypos      = self._box_width_pix/2
+        ampl      = 1
+
+        bg_mod    = models.Const2D(amplitude=self._init_bglvl)
+        star_mod  = models.Gaussian2D(amplitude=ampl,
+            x_mean=xpos,
+            y_mean=ypos,
+            x_stddev=sig_x,
+            y_stddev=sig_y,
+            theta=rotang)
+        comb_mod  = star_mod + bg_mod
+
+        fitter = fitting.LevMarLSQFitter()
+
+        # Iterate over stars, first updating initial values, then fitting,
+        # then storing the fit results.
+        for idx in range(num_stars):
+            # Get better estimate for initial parameters, in particular
+            # the amplitude.
+            # Note: you can set a Parameter object by value directly,
+            # (e.g. "bob=3") but to access it you must access its value
+            # attribute (e.g. "x = bob.value")
+            xpos = self._fit_table['xcenter'][idx] - self._fit_table['xmin'][idx]
+            ypos = self._fit_table['ycenter'][idx] - self._fit_table['ymin'][idx]
+            ampl = self._fit_table['peak_adu'][idx]
+            comb_mod[0].x_mean    = xpos
+            comb_mod[0].y_mean    = ypos
+            comb_mod[0].amplitude = ampl
+            
+            # TODO set up weights correctly.
+            
+            # Fit
+            fitted_mod = fitter(comb_mod, 
+                x=x_grid, 
+                y=y_grid, 
+                z=self._pixel_array[idx],
+                maxiter=max_iterations)
+            
+            # Check fit infomation to see if the fit completed successfully.
+            fit_status  = fitter.fit_info['ierr']
+            fit_message = fitter.fit_info['message']
+            fit_ok      = False
+            
+            if (fit_status > 0) and (fit_status <= 4):
+                # These may be bogus without correctly weighting the data.
+                # These are in the order of the model parameters, except that
+                # fixed parameters are excluded. See https://github.com/astropy/astropy/issues/7202
+                err_params = np.sqrt(np.diag(fitter.fit_info['param_cov']))
+                fit_ok     = True
+            else:
+                self._logger.warn(f'Non-nominal fit status {fit_status} for star {idx}')
+                self._logger.warn(f'Fitter info message was: [{fit_message}]')
+                err_param = np.zeros(10) # TODO fix arbitrary length
+                fit_ok    = False
+            
+            # Extract fit parameters
+            # Unfortunately we have to hardcode the parameter order. :(
+            # And which columns they should go into.
+            fit_par_dict = {'xc_fit': 1, # Not used.
+                'yc_fit':     2,
+                'ampl':       0,
+                'fwhm_x':     3,
+                'fwhm_y':     4,
+                'theta':      5}
+            err_par_dict = {'xc_err':     1,
+                'yc_err':     2,
+                'ampl_err':   0,
+                'fwhm_x_err': 3,
+                'fwhm_y_err': 4,
+                'theta_err':  5}
+            self._fit_table['ampl'][idx]   = fitted_mod[0].amplitude.value
+            self._fit_table['xc_fit'][idx] = fitted_mod[0].x_mean.value
+            self._fit_table['yc_fit'][idx] = fitted_mod[0].y_mean.value
+            self._fit_table['fwhm_x'][idx] = sigma_to_fwhm * fitted_mod[0].x_stddev.value
+            self._fit_table['fwhm_y'][idx] = sigma_to_fwhm * fitted_mod[0].y_stddev.value
+            self._fit_table['theta'][idx]  = fitted_mod[0].theta.value
+            self._fit_table['fit_ok'][idx] = fit_ok
+            
+            # Get the errors.
+            for col in err_par_dict:
+                paridx = err_par_dict[col]
+                if 'fwhm' in col:
+                    self._fit_table[col][idx] = sigma_to_fwhm * err_params[paridx]
+                else:
+                    self._fit_table[col][idx] = err_params[paridx]
+            
+            # Calculate axis ratio and circularity.
+            # Note this calculation is not quite right because the two
+            # parameters are NOT independent.
+            fwhm_x    = self._fit_table['fwhm_x'][idx]
+            fwhm_y    = self._fit_table['fwhm_y'][idx]
+            axrat     = max(fwhm_x, fwhm_y) / min(fwhm_x, fwhm_y)
+            axrat_err = 0
+            
+            if fit_ok:
+                fwhm_xerr = self._fit_table['fwhm_x_err'][idx]
+                fwhm_yerr = self._fit_table['fwhm_y_err'][idx]
+                axrat_err = axrat * math.sqrt( (fwhm_xerr/fwhm_x)**2 +
+                    (fwhm_yerr/fwhm_y)**2 )
+                
+                # Circularity is whether fwhm_y is within thresh sigma of fwhm_x
+                d_fwhm = math.fabs(fwhm_y - fwhm_x)
+                sigma  = d_fwhm / fwhm_yerr
+                if sigma > thresh:
+                    self._fit_table['circular'][idx] = False
+
+            self._fit_table['axrat'][idx]     = axrat
+            self._fit_table['axrat_err'][idx] = axrat_err
+
+        perf_time_end = time.perf_counter() # highest res timer, counts sleeps
+        perf_time     = perf_time_end - perf_time_start  # seconds
+        avg_time_ms   = 1000.0 * perf_time / num_stars   # milliseconds
+        self._logger.debug(f'Fitting completed in {perf_time:.3f} s (average {avg_time_ms:.1f} ms/star)')
+        if not self._quiet:
+            print('Fit results:')
+            print(self._fit_table)
+            print('')
         return
 
     def _extract_cutouts(self):
@@ -804,12 +1005,12 @@ class ApMeasureStars:
         """
         
         # TODO
-        fwhm_x      = 3.2
-        fwhm_y      = 4.1
-        symmetric   = True
+        fwhm_x      = self._fit_table['fwhm_x'][index]
+        fwhm_y      = self._fit_table['fwhm_y'][index]
+        symmetric   = self._fit_table['circular'][index]
         info_list   = [f'FWHM_X={fwhm_x:.1f}',
             f'FWHM_Y={fwhm_y:.1f}',
-            f'Symmetric={symmetric}']
+            f'Circular={symmetric}']
         fitinfo_str = '\n'.join(info_list)
         return fitinfo_str
         
@@ -855,15 +1056,24 @@ class ApMeasureStars:
         """Plot all the fits.
         """
 
+        # Make axis box stand out as viridis can be dark.
         matplotlib.rc('axes', edgecolor='r')
 
-        # Normally the range 0.5 percent to 99.5 percent clips off the
-        # outliers.
-        pct_interval = AsymmetricPercentileInterval(0.10, 99.9)
+        # Hand-tuning suggests a linear scale between the 
+        # min max of these stars is the best. Global limits or
+        # percentile limits tend to saturate out the stars.
+        ##pct_interval = AsymmetricPercentileInterval(0.10, 99.9)
+        valmin = self._init_bglvl
+        valmax = np.amax(self._fit_table['peak_adu'])
+        minmax_interval = ManualInterval(vmin=valmin,
+            vmax=valmax) 
         
-        norm_func    = ImageNormalize(self._img_data, 
-            interval=pct_interval, 
-            stretch=SqrtStretch())
+        norm_func = ImageNormalize(self._img_data, 
+            interval=minmax_interval, 
+            stretch=AsinhStretch())
+        ##norm_func    = ImageNormalize(self._img_data, 
+        ##    interval=pct_interval, 
+        ##    stretch=SqrtStretch())
 
         # May be overly agressive for subplots
         ##norm_func   = ImageNormalize(self._img_data,
@@ -958,6 +1168,41 @@ class ApMeasureStars:
         self._logger.info(f'Plotted star FWHM fit cut-outs to {self._fwhm_plot}')
         return
 
+    def _prepare_fit_columns(self):
+        """Utility function to add extra columns to the fit_table
+           that will be used for the best-fit parameters.
+        """
+        
+        # This adds a large number of columns, but we'll be storing the
+        # data in a file so it doesn't matter.
+        
+        new_col_dict = {'xc_fit': 0.0,
+            'xc_err':     0.0,
+            'yc_fit':     0.0,
+            'yc_err':     0.0,
+            'ampl':       0.0,
+            'ampl_err':   0.0,
+            'fwhm_x':     0.0,
+            'fwhm_x_err': 0.0,
+            'fwhm_y':     0.0,
+            'fwhm_y_err': 0.0,
+            'theta':      0.0,
+            'theta_err':  0.0,
+            'axrat':      0.0,
+            'axrat_err':  0.0,
+            'circular':   True,
+            'fit_ok':   True}
+        for newcol in new_col_dict:
+            self._fit_table[newcol] = new_col_dict[newcol]
+            if 'circular' in newcol:
+                pass
+            elif 'fit_ok' in newcol:
+                pass
+            elif ('fwhm' in newcol) or ('theta' in newcol):
+                self._fit_table[newcol].info.format = '%.3f' 
+            else:
+                self._fit_table[newcol].info.format = '%.2f' 
+        return
         
     def _select_candidates(self):
         """Select candidate stars in the center and four quadrants
@@ -1068,7 +1313,7 @@ class ApMeasureStars:
         for reg in ['CN', 'TL', 'TR', 'BR', 'BL']:
             row_select = srclist['region'] == reg
             cand_table = srclist[row_select]
-            cand_table.sort(['magnitude'], reverse=True)
+            cand_table.sort(['magnitude'], reverse=False) # want most negative first...
             num_cand   = len(cand_table)
             
             if num_cand == 0:
@@ -1104,11 +1349,29 @@ class ApMeasureStars:
         return candidate_table
         
     def median_fwhm(self):
-        """Returns the median fitted 1-D FWHM in pixels over the entire image.
+        """Returns the sigma-clipped median fitted FWHM over both X 
+           and Y in pixels over all stars that fitted successfully, 
+           along with median absolute deviation (MAD) standard deviation.
+           
+        Note that the deviation return is standard deviation based on
+        the MAD, not the MAD itself. See astropy.stats.mad_std
         """
         
-        fwhm_med = None 
-        return fwhm_med
+        # Clip values that are more than this number of sigma from the
+        # median.
+        numsig = 3.0
+        
+        # Select only cases where the fitting appeared to work correctly.
+        ok_x    = self._fit_table['fwhm_x'][self._fit_table['fit_ok']]
+        ok_y    = self._fit_table['fwhm_y'][self._fit_table['fit_ok']]
+                
+        ok_fwhm = np.concatenate((ok_x, ok_y)) # Note inputs as tuple
+        clipped = sigma_clip(ok_fwhm, sigma=numsig, masked=False)
+        self._logger.debug(f'Estimating median FWHM using {len(clipped)} FWHM measurements ({len(ok_fwhm)} OK fits before clipping).')
+        
+        median_fwhm = np.median(clipped)
+        madstd_fwhm = mad_std(clipped)
+        return median_fwhm, madstd_fwhm
         
     def results_table(self):
         """Return the fitting results as an astropy Table
