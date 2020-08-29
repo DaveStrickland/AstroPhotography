@@ -254,7 +254,6 @@ class ApFindStars:
     
         if self._plotfile is not None:
             self.plot_image(self._plotfile)
-
         return
         
     def trim(self, max_srcs):
@@ -375,19 +374,29 @@ class ApFindStars:
 
         if not self._quiet:
             print(sources)
+            
+        # Set official source list and number of sources detected
         self._sources = sources
+        self._nsrcs_detected = len(sources)
         return
 
     def write_source_list(self, output_fits_table):
         """Write the current source position and photometry data to
         a FITS table, overwriting any existing file
         """
+        
+        # Build or rebuild keyword list useful for the FITS table as well as the
+        # image quality report.
+        self._kw_dict = self._build_keyword_dictionary(self._fitsimg,
+            self._hdr,
+            self._bg_median,
+            self._bg_stddev)
+        
         self._write_source_list(output_fits_table, 
             self._fitsimg,
             self._max_sources, 
             self._hdr, 
-            self._bg_median, 
-            self._bg_stddev,
+            self._kw_dict,
             self._phot_table,
             self._psf_table)
         return
@@ -432,12 +441,16 @@ class ApFindStars:
         phot_table.sort(['adu_per_sec', 'xcenter', 'ycenter'], reverse=True)
         if not self._quiet:
             print(phot_table)
-            
+
+        # Set official photometry table
         self._phot_table = phot_table
         
         # Trim to the constructed value of max_sources
         if not dont_trim:
             self.trim(self._max_sources)
+            
+        # Number of sources with photometry
+        self._nsrcs_photom = len(self._phot_table)
         return phot_table
 
     def _initialize_logger(self, loglevel):
@@ -505,7 +518,10 @@ class ApFindStars:
             plot_title,
             self._loglevel,
             self._quiet)
-        self._psf_table         = measure_stars.results_table()
+        self._psf_table    = measure_stars.results_table()
+        self._nsrcs_fitted = len(self._psf_table)
+        
+        # Get global FWHM (median over both X and Y)
         median_fwhm, madstd_fwhm = measure_stars.median_fwhm() 
         self._logger.info(f'Median FWHM (over x and y) is {median_fwhm:.2f} +/- {madstd_fwhm:.2f} pixels.')
         self._median_fwhm = median_fwhm
@@ -555,6 +571,12 @@ class ApFindStars:
         if ndim == 3:
             self._loggererror('Error, 3-D handling has not been implemented yet.')
             sys.exit(1)
+            
+        # Get data absolute limits.
+        minval = np.amin(ext_data)
+        maxval = np.amax(ext_data)
+        medval = np.median(ext_data)
+        self._logger.debug(f'Raw data statistics are min={minval:.2f}, min={maxval:.2f}, median={medval:.2f}')
         return ext_data, ext_hdr
     
     def _write_source_list(self, 
@@ -562,8 +584,7 @@ class ApFindStars:
             p_fitsimg,      # Name of input FITS image that was processed
             p_max_sources,  # Max number of sources for output table
             hdr,            # FITS header of input image
-            bg_median,      # Estimated median BG level [ADU]
-            bg_stddev,      # Estimated BG level standard deviation [ADU]
+            kw_dict,        # Dictionary of keyword values to add to sourcelist header
             src_table,      # Astropy table of source photometry
             psf_table):     # None or Astropy table of source PSF fitting.   
         """Write detected source information to a FITS table with info on the
@@ -581,75 +602,8 @@ class ApFindStars:
         xy_table = QTable([x, y],
             names=('X', 'Y'))
     
-        # Get keywords we'll want to write for info purposes into
-        # the output FITS file, and added information about the original
-        # data file, the background, and the software used.
-        # TODO check for KW presence and handle...
         
-        kw_dict = {'IMG_FILE': (p_fitsimg, 'Name of image file searched for stars')}
-        
-        # These must exist by definition.
-        cols         = int(hdr['NAXIS1'])
-        rows         = int(hdr['NAXIS2'])
-        kw_dict['IMG_COLS'] = (cols, 'Number of columns in input image')
-        kw_dict['IMG_ROWS'] = (rows, 'Number of rows in input image')
-        kw_dict['BGMEDIAN'] = (bg_median, '[ADU] Median BG level in sigma clipped masked image')
-        kw_dict['BGSTDDEV'] = (bg_stddev, '[ADU] Std dev of BG level')
-        self._logger.info('Image is {} cols x {} rows'.format(cols, rows))
-        
-        # Add keywords that may or may not exist
-        # Each value of the dict is a (value, comment) tuple.
-        self._add_optional_keywords(hdr, kw_dict)
-            
-        # Coordinates
-        angl_ra  = None
-        angl_dec = None
-        if 'RA' in kw_dict:
-            raw_ra       = kw_dict['RA'][0]
-            angl_ra      = Angle(raw_ra, unit=u.hourangle)
-        if 'DEC' in hdr:
-            raw_dec      = kw_dict['DEC'][0]
-            angl_dec     = Angle(raw_dec, unit=u.deg)
-        if (angl_ra is not None) and (angl_dec is not None):
-            raw_coord    = SkyCoord(ra=angl_ra, dec=angl_dec)
-            self._logger.info('Approximate coordinates: ra={:.6f} hours, dec={:.6f} deg'.format(raw_coord.ra.hour, raw_coord.dec.degree))
-            kw_dict['APRX_RA']  = (raw_coord.ra.degree, '[deg] Approximate image center RA')
-            kw_dict['APRX_DEC'] = (raw_coord.dec.degree, '[deg] Approximate image center Dec')
-        
-        # Pixel and image size
-        if (('FOCALLEN' in kw_dict) and ('XPIXSZ' in kw_dict) and ('YPIXSZ' in kw_dict)):
-            focal_len_mm  = float(kw_dict['FOCALLEN'][0])                      # mm
-            pixsiz_x_um   = float(kw_dict['XPIXSZ'][0])                        # micrometers
-            pixsiz_x_rad  = (pixsiz_x_um*1.0e-6) / (focal_len_mm*1.0e-3) # radians
-            pixsiz_x_deg  = math.degrees(pixsiz_x_rad)
-            pixsiz_x_arcs = 3600.0 * pixsiz_x_deg
     
-            pixsiz_y_um   = float(kw_dict['YPIXSZ'][0])                        # micrometers
-            pixsiz_y_rad  = (pixsiz_y_um*1.0e-6) / (focal_len_mm*1.0e-3) # radians
-            pixsiz_y_deg  = math.degrees(pixsiz_y_rad)
-            pixsiz_y_arcs = 3600.0 * pixsiz_y_deg
-    
-            imgsiz_x_deg  = cols * pixsiz_x_deg
-            imgsiz_y_deg  = rows * pixsiz_y_deg
-            imgsiz_deg    = math.sqrt( (imgsiz_x_deg * imgsiz_x_deg) + (imgsiz_y_deg * imgsiz_y_deg) )
-        
-            self._logger.info('Approximate image field of view is {:.3f} degrees across.'.format(imgsiz_deg))
-            self._logger.info('Approximate pixel sizes (arcseconds) are x={:.3f}, y={:.3f}'.format(pixsiz_x_arcs, pixsiz_y_arcs))
-            
-            kw_dict['APRX_FOV'] = (imgsiz_deg, '[deg] Approximate diagonal size of image')
-            kw_dict['APRX_XSZ'] = (pixsiz_x_arcs, '[arcseconds] Approximate X-axis plate scale')
-            kw_dict['APRX_YSZ'] = (pixsiz_y_arcs, '[arcseconds] Approximate Y-axis plate scale')
-        
-        # If the FWHM and estimated error have been measured, add them to
-        # the info we write to the primary header.
-        if self._median_fwhm is not None:
-            kw_dict['AP_FWHM']  = (self._median_fwhm, '[pix] Median FWHM of fitted stars in image')
-            kw_dict['AP_EFWHM'] = (self._madstd_fwhm, '[pix] MAD standard deviation of fitted FWHM') 
-        
-        # Background levels are useful downstream
-        kw_dict['AP_BGMED'] = (self._bg_median, '[ADU] Median source-masked background level')
-        kw_dict['AP_BGSTD'] = (self._bg_stddev, '[ADU] Std dev of source-masked background level')
-        
         # Currently just write trimmed FITS-format XY pos and merged position/photomtry
         self._logger.info('Writing source list to FITS binary table {}'.format(p_sourcelist))
     
@@ -690,22 +644,30 @@ class ApFindStars:
         pri_hdr['HISTORY'] = 'Created by ApFindStars'
         return pri_hdr
         
-    def _add_optional_keywords(self, hdr, kw_dict):
-        """Add keywords to kw_dict from the FITS header hdr if present
+    def _read_optional_keywords(self, hdr, kw_dict):
+        """Read optional keywords from the image file FITS header hdr,
+           and add to the kw_dict dictionary if they are present.
         """
         
-        # The following may exist.
+        # The following may exist. We add comment values for them.
         kw_comment_dict = {'EXPOSURE': '[seconds] Image exposure time',
             'DATE-OBS': 'Observation date and time',
             'OBJECT':   'Target object', 
             'TELESCOP': 'Telescope used',
+            'INSTRUME': 'Detector used',
+            'CCD-TEMP': 'CCD temperature at start of exposure in C',
+            'APTDIA':   '[mm] Diameter of telescope aperture',
             'RA':       'Requested right ascension', 
             'DEC':      'Requested declination', 
             'XPIXSZ':   '[micrometers] X-axis pixel scale after binning',
             'YPIXSZ':   '[micrometers] Y-axis pixel scale after binning',
             'FOCALLEN': '[mm] Stated telescope focal length', 
             'FILTER':   'Filter used', 
-            'EGAIN':    '[e/ADU] Gain in electrons per ADU'}
+            'EGAIN':    '[e/ADU] Gain in electrons per ADU',
+            'LAT-OBS':  '[deg +N WGS84] Observatory Geodetic latitude',
+            'LONG-OBS': '[deg +E WGS84] Observatory Geodetic longitude',
+            'ALT-OBS':  '[metres] Observatort altitude above mean sea level',
+            'AIRMASS':  'Airmass (multiple of zenithal airmass)'}
         kw_missing_list = []
         for kw in kw_comment_dict:
             if kw in hdr:
@@ -716,6 +678,98 @@ class ApFindStars:
         self._logger.debug('FITS keywords found in image: {}'.format(kw_dict))
         self._logger.debug('FITS keywords missing from image: {}'.format(kw_missing_list))
         return
+    
+    def _build_keyword_dictionary(self, img_name, # Name of image
+            hdr,            # FITS header associated with image
+            bg_median,      # Estimated median BG level [ADU]
+            bg_stddev):     # Estimated BG level standard deviation [ADU]
+        """Build a dictionary of useful keywords and values to be
+           used in the output sourcelist and optional quality report.
+            
+        The dictionary is of the form key: (value, comment)
+        """
+        
+        # Get keywords we'll want to write for info purposes into
+        # the output FITS file, and added information about the original
+        # data file, the background, and the software used.
+        # TODO check for KW presence and handle...
+        
+        kw_dict = {'IMG_FILE': (img_name, 'Name of image file searched for stars')}
+        
+        # These must exist by definition.
+        cols         = int(hdr['NAXIS1'])
+        rows         = int(hdr['NAXIS2'])
+        kw_dict['IMG_COLS'] = (cols, 'Number of columns in input image')
+        kw_dict['IMG_ROWS'] = (rows, 'Number of rows in input image')
+        self._logger.info('Image is {} cols x {} rows'.format(cols, rows))
+        
+        # Background levels
+        kw_dict['AP_BGMED'] = (bg_median, '[ADU] Median BG level in sigma clipped masked image')
+        kw_dict['AP_BGSTD'] = (bg_stddev, '[ADU] Std dev of BG level')
+        
+        # Number of sources detected, that are in the final photometry
+        # and source lists, and were optionally used in estimating the
+        # stellar FWHM
+        kw_dict['AP_NDET']  = (self._nsrcs_detected, 'Number of sources detected in the image.')
+        kw_dict['AP_NPHOT'] = (self._nsrcs_photom,   'Number of sources final photometry.')
+        kw_dict['AP_NFIT']  = (self._nsrcs_fitted,   'Number of sources used in FWHM fitting.')
+                
+        # Add keywords that may or may not exist
+        # Each value of the dict is a (value, comment) tuple.
+        self._read_optional_keywords(hdr, kw_dict)
+            
+        # Coordinates
+        angl_ra  = None
+        angl_dec = None
+        if 'RA' in kw_dict:
+            raw_ra       = kw_dict['RA'][0]
+            angl_ra      = Angle(raw_ra, unit=u.hourangle)
+        if 'DEC' in hdr:
+            raw_dec      = kw_dict['DEC'][0]
+            angl_dec     = Angle(raw_dec, unit=u.deg)
+        if (angl_ra is not None) and (angl_dec is not None):
+            raw_coord    = SkyCoord(ra=angl_ra, dec=angl_dec)
+            self._logger.info('Approximate coordinates: ra={:.6f} hours, dec={:.6f} deg'.format(raw_coord.ra.hour, raw_coord.dec.degree))
+            kw_dict['APRX_RA']  = (raw_coord.ra.degree, '[deg] Approximate image center RA')
+            kw_dict['APRX_DEC'] = (raw_coord.dec.degree, '[deg] Approximate image center Dec')
+        
+        # Pixel and image size
+        if (('FOCALLEN' in kw_dict) and ('XPIXSZ' in kw_dict) and ('YPIXSZ' in kw_dict)):
+            focal_len_mm  = float(kw_dict['FOCALLEN'][0])                      # mm
+            pixsiz_x_um   = float(kw_dict['XPIXSZ'][0])                        # micrometers
+            pixsiz_x_rad  = (pixsiz_x_um*1.0e-6) / (focal_len_mm*1.0e-3) # radians
+            pixsiz_x_deg  = math.degrees(pixsiz_x_rad)
+            pixsiz_x_arcs = 3600.0 * pixsiz_x_deg
+    
+            pixsiz_y_um   = float(kw_dict['YPIXSZ'][0])                        # micrometers
+            pixsiz_y_rad  = (pixsiz_y_um*1.0e-6) / (focal_len_mm*1.0e-3) # radians
+            pixsiz_y_deg  = math.degrees(pixsiz_y_rad)
+            pixsiz_y_arcs = 3600.0 * pixsiz_y_deg
+    
+            imgsiz_x_deg  = cols * pixsiz_x_deg
+            imgsiz_y_deg  = rows * pixsiz_y_deg
+            imgsiz_deg    = math.sqrt( (imgsiz_x_deg * imgsiz_x_deg) + (imgsiz_y_deg * imgsiz_y_deg) )
+        
+            self._logger.info('Approximate image field of view is {:.3f} degrees across.'.format(imgsiz_deg))
+            self._logger.info('Approximate pixel sizes (arcseconds) are x={:.3f}, y={:.3f}'.format(pixsiz_x_arcs, pixsiz_y_arcs))
+            
+            kw_dict['APRX_FOV'] = (imgsiz_deg,    '[deg] Approximate diagonal size of image')
+            kw_dict['APRX_XWD'] = (imgsiz_x_deg,  '[deg] Approximate X-axis width of image')
+            kw_dict['APRX_YHG'] = (imgsiz_y_deg,  '[deg] Approximate Y-axis height of image')
+            kw_dict['APRX_XPS'] = (pixsiz_x_arcs, '[arcseconds] Approximate X-axis plate scale')
+            kw_dict['APRX_YPS'] = (pixsiz_y_arcs, '[arcseconds] Approximate Y-axis plate scale')
+        
+        # If the FWHM and estimated error have been measured, add them to
+        # the info we write to the primary header.
+        if self._median_fwhm is not None:
+            kw_dict['AP_FWHM']  = (self._median_fwhm, '[pix] Median FWHM of fitted stars in image')
+            kw_dict['AP_EFWHM'] = (self._madstd_fwhm, '[pix] MAD standard deviation of fitted FWHM') 
+        
+        # Background levels are useful downstream
+        kw_dict['AP_BGMED'] = (self._bg_median, '[ADU] Median source-masked background level')
+        kw_dict['AP_BGSTD'] = (self._bg_stddev, '[ADU] Std dev of source-masked background level')
+        
+        return kw_dict
     
     def _trim_table(self, src_table, max_sources):
         """Trims the table to contain at maximum max_sources if max_sources
@@ -748,6 +802,14 @@ class ApFindStars:
         """Write a summary of the input image source and background
            properties to a JSON file
         """
+        
+        # Build or rebuild keyword list useful for the FITS table as well as the
+        # image quality report.
+        self._kw_dict = self._build_keyword_dictionary(self._fitsimg,
+            self._hdr,
+            self._bg_median,
+            self._bg_stddev)
+    
         
         return
         

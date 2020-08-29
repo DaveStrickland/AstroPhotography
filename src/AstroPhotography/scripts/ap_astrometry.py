@@ -23,6 +23,7 @@
 #  
 
 # 2020-08-12 dks : Initial WIP
+# 2020-08-29 dks : Update to keywords read from source list
 
 import argparse
 import sys
@@ -209,9 +210,9 @@ class ApAstrometry:
         if 'APRX_FOV' in srclist_hdr:
             aprx_fov     = float( srclist_hdr['APRX_FOV'] )
         if 'APRX_XSZ' in srclist_hdr:
-            aprx_xpixsiz = float( srclist_hdr['APRX_XSZ'] )
+            aprx_xpixsiz = float( srclist_hdr['APRX_XPS'] )
         if 'APRX_YSZ' in srclist_hdr:
-            aprx_ypixsiz = float( srclist_hdr['APRX_YSZ'] )
+            aprx_ypixsiz = float( srclist_hdr['APRX_YPS'] )
             
         # center_ra, center_dec, radius: all must be supplied
         if (aprx_ra is not None) and (aprx_dec is not None):
