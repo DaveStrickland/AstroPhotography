@@ -38,8 +38,10 @@ import os.path
 import numpy as np
 import matplotlib                # for rc
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 import math
 import time
+import json
 
 from astropy.io import fits
 from astropy.table import QTable, Table, vstack
@@ -188,6 +190,12 @@ class ApFindStars:
         self._median_fwhm   = None
         self._madstd_fwhm   = None
 
+        # Number of sources detected, and number of sources that had
+        # photometry, and number of sources that had FWHM/PSFs fitted.
+        self._nsrcs_detected = 0
+        self._nsrcs_photom   = 0
+        self._nsrcs_fitted   = 0
+
         # Set up logging
         self._logger = self._initialize_logger(self._loglevel)
 
@@ -238,25 +246,39 @@ class ApFindStars:
             self._logger.debug(f'Retaining {num_sat_candidates} possibly saturated stars in source searching and photometry.')
         
         # Search for stars using the supplied FWHM and threshold.
-        self._sources = self.source_search(self._search_fwhm, self._search_nsigma)
-        self._apertures = self._make_apertures(self._sources['xcentroid'], 
-            self._sources['ycentroid'])
+        self.source_search(self._search_fwhm, self._search_nsigma)
         
-        # Use initial source list for aperture photometry
-        self._phot_table = self.aperature_photometry()
-    
-        # Trim and update apertures
-        self._phot_table = self._trim_table(self._phot_table, 
-            self._max_sources)
-        self._apertures  = self._make_apertures(self._phot_table['xcenter'], 
-            self._phot_table['ycenter'])
+        # Use initial source list for aperture photometry, generate
+        # self._phot_table
+        self.aperture_photometry()
     
         if self._plotfile is not None:
-            self._plot_image(self._plotfile)
+            self.plot_image(self._plotfile)
 
         return
         
-    def _plot_image(self, plotfile):
+    def trim(self, max_srcs):
+        """Reduce the size of the photometry and XY positions tables
+           to at most max_srcs of the brightest sources.
+           
+        This function is useful in restricting the number of sources
+        written to the output FITS source list. Supplying too many
+        stars to astrometry.net (via ap_astrometry) can slow or break
+        it.
+        
+        This function is called by aperture_photometry using the
+        constructed value of max_sources unless it aperture_photometry
+        was called with notrim=False.
+        """
+        
+        # Trim and update apertures
+        self._phot_table = self._trim_table(self._phot_table, 
+            max_srcs)
+        self._apertures  = self._make_apertures(self._phot_table['xcenter'], 
+            self._phot_table['ycenter'])
+        return
+        
+    def plot_image(self, plotfile):
         """Plot an asinh-stretched image with the current apertures to
            standard graphics bitmap-format file.
         """
@@ -353,7 +375,8 @@ class ApFindStars:
 
         if not self._quiet:
             print(sources)
-        return sources
+        self._sources = sources
+        return
 
     def write_source_list(self, output_fits_table):
         """Write the current source position and photometry data to
@@ -369,10 +392,24 @@ class ApFindStars:
             self._psf_table)
         return
 
-    def aperature_photometry(self):
+    def aperture_photometry(self, notrim=None):
         """Perform aperature photometry using the existing sources
            and apertures.
+           
+        If called with notrim=True then the number of sources
+        output will NOT be trimmed to the max_sources value
+        supplied in the constructor. This allows the user to override
+        trimming if they update the initial source searching and 
+        photometry.
         """
+        
+        # Whether to trim to the constructor self._max_sources value.
+        dont_trim = False
+        if notrim is not None:
+            dont_trim = notrim
+        
+        self._apertures = self._make_apertures(self._sources['xcentroid'], 
+            self._sources['ycentroid'])
         
         phot_table = aperture_photometry(self._data - self._bg_median, 
             self._apertures)
@@ -395,6 +432,12 @@ class ApFindStars:
         phot_table.sort(['adu_per_sec', 'xcenter', 'ycenter'], reverse=True)
         if not self._quiet:
             print(phot_table)
+            
+        self._phot_table = phot_table
+        
+        # Trim to the constructed value of max_sources
+        if not dont_trim:
+            self.trim(self._max_sources)
         return phot_table
 
     def _initialize_logger(self, loglevel):
@@ -447,6 +490,11 @@ class ApFindStars:
         Gaussians, is created.
         """
         
+        # Construct a meaningful title for the plot file based on the
+        # name of the original image file
+        fname = os.path.basename(self._fitsimg)
+        plot_title = f'Star FWHM measurements for:\n{fname}'
+        
         # Note: Cannot use the initial sources table as it lacks
         #   accurate brightness estimates.
         measure_stars   = ApMeasureStars(self._data,
@@ -454,6 +502,7 @@ class ApFindStars:
             self._search_fwhm,
             self._bg_median,
             fwhm_plot_file,
+            plot_title,
             self._loglevel,
             self._quiet)
         self._psf_table         = measure_stars.results_table()
@@ -695,6 +744,13 @@ class ApFindStars:
         print('Saturated position table:\n', saturated_positions)
         return saturated_positions
         
+    def write_quality_report(self, quality_report_name):
+        """Write a summary of the input image source and background
+           properties to a JSON file
+        """
+        
+        return
+        
 class ApMeasureStars:
     """Measures stellar PSF size and symmetry in selected stars across
        and input image.
@@ -725,6 +781,7 @@ class ApMeasureStars:
             init_fwhm,
             init_bglevel,
             fwhm_plot_file,
+            fwhm_plot_title,
             loglevel,
             quiet):
         """ApMeasureStars constructor
@@ -739,14 +796,22 @@ class ApMeasureStars:
         self._fit_table   = None            # Table to store fit results in.
         self._pixel_array = None            # 3-D array for star cut-outs
         self._fwhm_plot   = fwhm_plot_file  # None or PNG/JPG image file name.
-                
+        self._plot_title  = fwhm_plot_title # None or string to use in fwhm_plot_file
+            
         # Set up logging
         self._logger = self._initialize_logger(self._loglevel)
 
-        # Setting related to candidate selection.
+        # Settings related to candidate selection.
+        self._use_weights    = True
         self._num_per_reg    = 5           # Number of sources per region to fit
-        self._skip_brightest = 2           # Skip the brightest N stars in each region
+        self._skip_brightest = 0           # Skip the brightest N stars in each region
         self._logger.debug(f'Up to {self._num_per_reg} stars per sub-region will be fitted, excluding the brightest {self._skip_brightest} stars.')
+
+        # Settings related to source fitting.
+        self._use_weights    = True
+        self._fit_for_bg     = False
+        self._logger.debug(f'Count based weighting factors will used in fitting?: {self._use_weights}')
+        self._logger.debug(f'Will the background level be fitted for?           : {self._fit_for_bg}')
 
         # Slightly modify the input source list to exclude possibly
         # saturated stars, remove unneeded columns.
@@ -767,8 +832,25 @@ class ApMeasureStars:
         self._fit_table  = self._select_candidates()
         self._calculate_boxes()
         self._do_fitting()
-        self._plot_fits()
-        # TODO # self._adjust_fitted_positions()
+        
+        # Plot the fits
+        if self._fwhm_plot is not None:
+            self._plot_fits()
+        else:
+            self._logger.debug('Skipping plotting of star cutouts and best fits.')
+        
+        # Adjust the reported fitted positions back to image frame
+        # from cutout fram.
+        self._cutout_to_image_positions()
+        return
+        
+    def _cutout_to_image_positions(self):
+        """Convert the best fit positions from the cutout subimage frame
+           to the full image pixel frame.
+        """
+        
+        self._fit_table['xc_fit'] += self._fit_table['xmin']
+        self._fit_table['yc_fit'] += self._fit_table['ymin']
         return
         
     def _calculate_boxes(self):
@@ -800,16 +882,53 @@ class ApMeasureStars:
             print('')
         return
         
+    def _calculate_rchisq(self,
+            data_array,         # cutout image pixel data
+            x_grid,             # x-values used in model
+            y_grid,             # y-values used in model
+            stddev_arr,         # cutout image uncertainty values
+            fitted_mod,         # model to evaluate
+            num_fit_pars):      # number of free fit parameters.
+        """
+        """
+        
+        data_size  = data_array.size
+        dof        = data_size - num_fit_pars
+        data_fit   = fitted_mod(x_grid, y_grid)
+        deviations = (data_array - data_fit) / stddev_arr
+        chisq_arr  = np.square(deviations)
+        chisq_sum  = np.sum(chisq_arr)
+        rchisq     = chisq_sum / dof
+        
+        return rchisq
+        
     def _do_fitting(self):
         """Performs 1-D and 2-G gaussian fits to the stars in the
            internal fit_table.
+           
+        A 2-dimensional Gaussian plus flat background model is fit to
+        each cut-out image. The model is initialized with the global
+        background level, and source centroid and peak value from the
+        input photometry list. The Levenberg-Marquardt non-linear
+        least squares fitting algorithm is used to fit the data.
+        The data is assumed to have Gaussian errors that are the square
+        root of the pixel counts.
+           
+        There are some limitations to this at present:
+        - The reduced chi-squared values obtained are unrealistic. It is
+          not clear whether the errors are underestimated and/or the
+          fitting has trouble converging to the true solution.
         """
         
         # Setup
-        num_stars      = len(self._fit_table)
-        sigma_to_fwhm  = 2.35482
-        fwhm_to_sigma  = 1.0 / sigma_to_fwhm
-        max_iterations = 300
+        num_stars         = len(self._fit_table)
+        sigma_to_fwhm     = 2.35482
+        fwhm_to_sigma     = 1.0 / sigma_to_fwhm
+        max_iterations    = 300
+        
+        # Fit for x and y after initially just fitting for amplitude,
+        # fwhm, and theta?
+        is_pos_fitted_for = True
         
         # Threshold in number of sigma that fwhm_y must differ from
         # fwhm_x in order to be counted as NOT being circular.
@@ -832,18 +951,27 @@ class ApMeasureStars:
         def_axrat = 1.1
         sig_y     = self._init_fwhm * fwhm_to_sigma
         sig_x     = def_axrat * sig_y
-        rotang    = 0.5 # radians, approx 30 degrees.
+        rotang    = 1.1 # radians, approx 60 degrees.
         xpos      = self._box_width_pix/2
         ypos      = self._box_width_pix/2
         ampl      = 1
+        num_fit_pars = 0
 
         bg_mod    = models.Const2D(amplitude=self._init_bglvl)
+        if self._fit_for_bg is False:
+            bg_mod.amplitude.fixed = True
+        else:
+            num_fit_pars += 1
         star_mod  = models.Gaussian2D(amplitude=ampl,
             x_mean=xpos,
             y_mean=ypos,
             x_stddev=sig_x,
             y_stddev=sig_y,
             theta=rotang)
+        # Start fits at the initial centroid positions
+        star_mod.x_mean.fixed = True
+        star_mod.y_mean.fixed = True
+        num_fit_pars += 4            # 4 free fit parameters
         comb_mod  = star_mod + bg_mod
 
         fitter = fitting.LevMarLSQFitter()
@@ -856,38 +984,64 @@ class ApMeasureStars:
             # Note: you can set a Parameter object by value directly,
             # (e.g. "bob=3") but to access it you must access its value
             # attribute (e.g. "x = bob.value")
-            xpos = self._fit_table['xcenter'][idx] - self._fit_table['xmin'][idx]
-            ypos = self._fit_table['ycenter'][idx] - self._fit_table['ymin'][idx]
-            ampl = self._fit_table['peak_adu'][idx]
+            starid = self._fit_table['id'][idx]
+            xpos   = self._fit_table['xcenter'][idx] - self._fit_table['xmin'][idx]
+            ypos   = self._fit_table['ycenter'][idx] - self._fit_table['ymin'][idx]
+            ampl   = self._fit_table['peak_adu'][idx]
             comb_mod[0].x_mean    = xpos
             comb_mod[0].y_mean    = ypos
             comb_mod[0].amplitude = ampl
+            current_num_fit_pars  = num_fit_pars
             
-            # TODO set up weights correctly.
+            # Estimated standard devation of the data.
+            var_arr = np.where(self._pixel_array[idx] > 0,
+                    self._pixel_array[idx],
+                    1)
+            mean_variance = np.mean(var_arr[var_arr != 1])
+            rms_stddev    = math.sqrt(mean_variance)
+            std_arr = np.where(var_arr != 1,
+                np.sqrt(var_arr),
+                rms_stddev)
+            # If used, the weight array should have values of 1/sigma
+            if self._use_weights:
+                weights_arr = 1.0 / std_arr
+            else:
+                weights_arr = None
             
             # Fit
-            fitted_mod = fitter(comb_mod, 
-                x=x_grid, 
-                y=y_grid, 
-                z=self._pixel_array[idx],
-                maxiter=max_iterations)
+            self._logger.debug(f'Fitting star #{idx} (id={starid}) at fixed xpos={xpos:.2f}, ypos={ypos:.2f}')
             
-            # Check fit infomation to see if the fit completed successfully.
-            fit_status  = fitter.fit_info['ierr']
-            fit_message = fitter.fit_info['message']
-            fit_ok      = False
+            fitted_mod, fit_status, fit_message, fit_ok, uncert_vals = self._do_single_fit(fitter,
+                comb_mod,
+                self._pixel_array[idx],
+                weights_arr,
+                x_grid,
+                y_grid,
+                max_iterations,
+                current_num_fit_pars)
+             
+            # If the fit did NOT fail we can relax the constraints on the
+            # position of the gaussian.
+            if is_pos_fitted_for:
+                fitted_mod[0].x_mean.fixed = False
+                fitted_mod[0].y_mean.fixed = False
+                current_num_fit_pars += 2
+                fitted_mod, fit_status, fit_message, fit_ok, uncert_vals = self._do_single_fit(fitter,
+                    fitted_mod,
+                    self._pixel_array[idx],
+                    weights_arr,
+                    x_grid,
+                    y_grid,
+                    max_iterations,
+                    current_num_fit_pars)
             
-            if (fit_status > 0) and (fit_status <= 4):
-                # These may be bogus without correctly weighting the data.
-                # These are in the order of the model parameters, except that
-                # fixed parameters are excluded. See https://github.com/astropy/astropy/issues/7202
-                err_params = np.sqrt(np.diag(fitter.fit_info['param_cov']))
-                fit_ok     = True
-            else:
-                self._logger.warn(f'Non-nominal fit status {fit_status} for star {idx}')
-                self._logger.warn(f'Fitter info message was: [{fit_message}]')
-                err_param = np.zeros(10) # TODO fix arbitrary length
-                fit_ok    = False
+            # Calculate reduced chi squared.
+            rchisq = self._calculate_rchisq(self._pixel_array[idx],
+                x_grid,
+                y_grid,
+                std_arr,
+                fitted_mod,
+                current_num_fit_pars)
             
             # Extract fit parameters
             # Unfortunately we have to hardcode the parameter order. :(
@@ -898,12 +1052,21 @@ class ApMeasureStars:
                 'fwhm_x':     3,
                 'fwhm_y':     4,
                 'theta':      5}
-            err_par_dict = {'xc_err':     1,
-                'yc_err':     2,
-                'ampl_err':   0,
-                'fwhm_x_err': 3,
-                'fwhm_y_err': 4,
-                'theta_err':  5}
+            
+            if is_pos_fitted_for:
+            # Error par dict if xc and yc are fitted for
+                err_par_dict = {'xc_err':     1,
+                    'yc_err':     2,
+                    'ampl_err':   0,
+                    'fwhm_x_err': 3,
+                    'fwhm_y_err': 4,
+                    'theta_err':  5}
+            else:
+                # Error par dict if xc and yc are fixed
+                err_par_dict = {'ampl_err':   0,
+                    'fwhm_x_err': 1,
+                    'fwhm_y_err': 2,
+                    'theta_err':  3}
             self._fit_table['ampl'][idx]   = fitted_mod[0].amplitude.value
             self._fit_table['xc_fit'][idx] = fitted_mod[0].x_mean.value
             self._fit_table['yc_fit'][idx] = fitted_mod[0].y_mean.value
@@ -911,14 +1074,15 @@ class ApMeasureStars:
             self._fit_table['fwhm_y'][idx] = sigma_to_fwhm * fitted_mod[0].y_stddev.value
             self._fit_table['theta'][idx]  = fitted_mod[0].theta.value
             self._fit_table['fit_ok'][idx] = fit_ok
+            self._fit_table['rchisq'][idx] = rchisq
             
             # Get the errors.
             for col in err_par_dict:
                 paridx = err_par_dict[col]
                 if 'fwhm' in col:
-                    self._fit_table[col][idx] = sigma_to_fwhm * err_params[paridx]
+                    self._fit_table[col][idx] = sigma_to_fwhm * uncert_vals[paridx]
                 else:
-                    self._fit_table[col][idx] = err_params[paridx]
+                    self._fit_table[col][idx] = uncert_vals[paridx]
             
             # Calculate axis ratio and circularity.
             # Note this calculation is not quite right because the two
@@ -952,6 +1116,44 @@ class ApMeasureStars:
             print(self._fit_table)
             print('')
         return
+
+    def _do_single_fit(self, 
+        fitter, 
+        input_mod,
+        data_arr,
+        weights_arr,
+        x_grid,
+        y_grid,
+        max_iterations,
+        n_fit_pars):
+        """Utility to perform a single fit of a model to the data,
+           checking for error conditions along the way.
+        """
+        
+        fitted_mod = fitter(input_mod, 
+            x=x_grid, 
+            y=y_grid, 
+            z=data_arr,
+            weights=weights_arr,
+            maxiter=max_iterations)
+        
+        # Check fit infomation to see if the fit completed successfully.
+        fit_status  = fitter.fit_info['ierr']
+        fit_message = fitter.fit_info['message']
+        fit_ok      = False
+        
+        if (fit_status > 0) and (fit_status <= 4):
+            # These may be bogus without correctly weighting the data.
+            # These are in the order of the model parameters, except that
+            # fixed parameters are excluded. See https://github.com/astropy/astropy/issues/7202
+            err_param = np.sqrt(np.diag(fitter.fit_info['param_cov']))
+            fit_ok    = True
+        else:
+            self._logger.warn(f'Non-nominal fit status {fit_status} for star {idx}')
+            self._logger.warn(f'Fitter info message was: [{fit_message}]')
+            err_param = np.zeros(n_fit_pars) 
+            fit_ok    = False
+        return fitted_mod, fit_status, fit_message, fit_ok, err_param
 
     def _extract_cutouts(self):
         """Create 3-D data array to store N stars x MxM pixels
@@ -997,6 +1199,29 @@ class ApMeasureStars:
         self._logger.debug(f'Adopting a fit box width of {self._box_width_pix} pixels' + 
             f', edge exclusion of {self._edge_excl_pix} pixels.')
         return
+        
+    def _get_fit_artists(self, index):
+        """Returns a list of matplotlib artists to be added to a plot
+           based on the Gaussian fits
+        """
+        artist_list = []
+        
+        xc     = self._fit_table['xc_fit'][index]
+        yc     = self._fit_table['yc_fit'][index]
+        fwhm_x = self._fit_table['fwhm_x'][index]
+        fwhm_y = self._fit_table['fwhm_y'][index]
+        theta  = self._fit_table['theta'][index]
+        ellipse = Ellipse(xy=(xc, yc),
+                width=fwhm_x, 
+                height=fwhm_y,
+                angle=theta,
+                edgecolor='r',
+                facecolor=None,
+                fill=False,
+                linewidth=0.8)
+        artist_list.append( ellipse )
+        
+        return artist_list
         
     def _get_subplot_fitinfo(self, index):
         """Extract a short summary of the fit results for the star at
@@ -1126,8 +1351,14 @@ class ApMeasureStars:
             ncols=fig_cols,
             sharex=True, 
             sharey=True)
-            
-        fig.suptitle('Better title here', fontsize=8)
+        
+        median_fwhm, madstd_fwhm = self.median_fwhm()
+        
+        title = 'Star PSF measurements using 2-D Gaussian fits'
+        if self._plot_title is not None:
+            title = self._plot_title
+        title += f'\nMedian FWHM={median_fwhm:.2f} +/- {madstd_fwhm:.2f} (MAD stddev) pixels'
+        fig.suptitle(title, fontsize=7)
         
         for idx in range(num_stars):
             this_reg = self._fit_table['region'][idx]
@@ -1152,6 +1383,12 @@ class ApMeasureStars:
             #ax_arr[row_idx, col_idx].set_xlabel('X-axis (pixels)', fontsize=6)
             ax_arr[row_idx, col_idx].set_ylabel(this_reg,
                 fontsize=6)
+                
+            # Get artists related to best-fit parameters
+            artist_list = self._get_fit_artists(idx)
+            if len(artist_list) > 0:
+                for art in artist_list:
+                    ax_arr[row_idx, col_idx].add_artist(art)
         
         # Only show tick values on outer edge of grid.
         for ax in ax_arr.flat:
@@ -1191,7 +1428,8 @@ class ApMeasureStars:
             'axrat':      0.0,
             'axrat_err':  0.0,
             'circular':   True,
-            'fit_ok':   True}
+            'fit_ok':     True,
+            'rchisq':     0.0}
         for newcol in new_col_dict:
             self._fit_table[newcol] = new_col_dict[newcol]
             if 'circular' in newcol:
@@ -1410,17 +1648,17 @@ def main(args=None):
         p_plotfile, p_quiet)
     
     # Measure 2-Gaussian FWHM for select stars
-    p_new_fwhm = find_stars.measure_fwhm(p_fwhm_plot)
+    p_new_fwhm, p_madstd_fwhm = find_stars.measure_fwhm(p_fwhm_plot)
     
     # Refine source detection
-    #TODO#find_stars.source_search(p_new_fwhm, p_search_nsigma)
+    find_stars.source_search(p_new_fwhm, p_search_nsigma)
     
     # Re-run photometry
-    #TODO#find_stars.aperture_photmetry()
+    find_stars.aperture_photometry()
     
     # Write optional quality report
-    #TODO#if p_qual_rprt is not None:
-    #TODO#    find_stars.write_quality_report(p_qual_rprt)
+    if p_qual_rprt is not None:
+        find_stars.write_quality_report(p_qual_rprt)
 
     # Write optional ds9 format region file
     #TODO#if p_regfile is not None:
