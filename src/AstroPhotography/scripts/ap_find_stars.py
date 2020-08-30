@@ -42,6 +42,7 @@ from matplotlib.patches import Ellipse
 import math
 import time
 import json
+from datetime import datetime
 
 from astropy.io import fits
 from astropy.table import QTable, Table, vstack
@@ -192,9 +193,10 @@ class ApFindStars:
 
         # Number of sources detected, and number of sources that had
         # photometry, and number of sources that had FWHM/PSFs fitted.
-        self._nsrcs_detected = 0
-        self._nsrcs_photom   = 0
-        self._nsrcs_fitted   = 0
+        self._nsrcs_detected  = 0
+        self._nsrcs_photom    = 0
+        self._nsrcs_fitted    = 0
+        self._nsrcs_saturated = 0 
 
         # Set up logging
         self._logger = self._initialize_logger(self._loglevel)
@@ -244,6 +246,8 @@ class ApFindStars:
         else:
             # Leave possibly saturated stars in the image.
             self._logger.debug(f'Retaining {num_sat_candidates} possibly saturated stars in source searching and photometry.')
+        self._nsrcs_saturated = num_sat_candidates
+        
         
         # Search for stars using the supplied FWHM and threshold.
         self.source_search(self._search_fwhm, self._search_nsigma)
@@ -602,8 +606,6 @@ class ApFindStars:
         xy_table = QTable([x, y],
             names=('X', 'Y'))
     
-        
-    
         # Currently just write trimmed FITS-format XY pos and merged position/photomtry
         self._logger.info('Writing source list to FITS binary table {}'.format(p_sourcelist))
     
@@ -639,9 +641,10 @@ class ApFindStars:
         """
         
         pri_hdr = fits.Header()
+        tnow    = datetime.now().isoformat(timespec='milliseconds')
         for kw in kw_dict:
             pri_hdr[kw] = kw_dict[kw]
-        pri_hdr['HISTORY'] = 'Created by ApFindStars'
+        pri_hdr['HISTORY'] = f'Created by ApFindStars at {tnow}'
         return pri_hdr
         
     def _read_optional_keywords(self, hdr, kw_dict):
@@ -686,7 +689,8 @@ class ApFindStars:
         """Build a dictionary of useful keywords and values to be
            used in the output sourcelist and optional quality report.
             
-        The dictionary is of the form key: (value, comment)
+        The dictionary is of the form key: (value, comment). Numpy types
+        are converted to native float or int.
         """
         
         # Get keywords we'll want to write for info purposes into
@@ -702,11 +706,7 @@ class ApFindStars:
         kw_dict['IMG_COLS'] = (cols, 'Number of columns in input image')
         kw_dict['IMG_ROWS'] = (rows, 'Number of rows in input image')
         self._logger.info('Image is {} cols x {} rows'.format(cols, rows))
-        
-        # Background levels
-        kw_dict['AP_BGMED'] = (bg_median, '[ADU] Median BG level in sigma clipped masked image')
-        kw_dict['AP_BGSTD'] = (bg_stddev, '[ADU] Std dev of BG level')
-        
+                
         # Number of sources detected, that are in the final photometry
         # and source lists, and were optionally used in estimating the
         # stellar FWHM
@@ -766,8 +766,8 @@ class ApFindStars:
             kw_dict['AP_EFWHM'] = (self._madstd_fwhm, '[pix] MAD standard deviation of fitted FWHM') 
         
         # Background levels are useful downstream
-        kw_dict['AP_BGMED'] = (self._bg_median, '[ADU] Median source-masked background level')
-        kw_dict['AP_BGSTD'] = (self._bg_stddev, '[ADU] Std dev of source-masked background level')
+        kw_dict['AP_BGMED'] = (float( self._bg_median ), '[ADU] Median source-masked background level')
+        kw_dict['AP_BGSTD'] = (float( self._bg_stddev ), '[ADU] Std dev of source-masked background level')
         
         return kw_dict
     
@@ -801,7 +801,16 @@ class ApFindStars:
     def write_quality_report(self, quality_report_name):
         """Write a summary of the input image source and background
            properties to a JSON file
+           
+        The quality report is a dictionary of dictionaries, containing:
+        - basic input image properties
+        - background level statistics
+        - detected source information
+        - saturation related statistics
+        - FWHM statistics if present
         """
+        
+        # TODO maybe format the floating point outputs for easier reading?
         
         # Build or rebuild keyword list useful for the FITS table as well as the
         # image quality report.
@@ -809,8 +818,64 @@ class ApFindStars:
             self._hdr,
             self._bg_median,
             self._bg_stddev)
+            
+        # Note that:
+        # - Data within the kw_dict is key: (value, comment)
+        # - JSON stores tuples as lists, so you can't retrieve a tuple.
     
+        im_info_dict  = {}
+        bg_info_dict  = {}
+        src_info_dict = {}
+        sat_info_dict = {}
+        psf_info_dict = {}
         
+        # Image information
+        # TODO turn into dict kw to kw lookup plus iteration
+        im_info_dict['file']                = self._kw_dict['IMG_FILE'][0]
+        im_info_dict['ncols']               = self._kw_dict['IMG_COLS'][0]
+        im_info_dict['nrows']               = self._kw_dict['IMG_ROWS'][0]
+        im_info_dict['object']              = self._kw_dict['OBJECT'][0]
+        im_info_dict['telescope']           = self._kw_dict['TELESCOP'][0]
+        im_info_dict['filter']              = self._kw_dict['FILTER'][0]
+        im_info_dict['date-obs']            = self._kw_dict['DATE-OBS'][0]
+        im_info_dict['exposure']            = self._kw_dict['EXPOSURE'][0]
+        im_info_dict['ccd_temperature']     = self._kw_dict['CCD-TEMP'][0]
+        im_info_dict['electronic_gain']     = self._kw_dict['EGAIN'][0]
+        im_info_dict['airmass']             = self._kw_dict['AIRMASS'][0]
+        im_info_dict['approx_width_deg']    = self._kw_dict['APRX_XWD'][0]
+        im_info_dict['approx_height_deg']   = self._kw_dict['APRX_YHG'][0]
+        im_info_dict['approx_xpixsiz_arcs'] = self._kw_dict['APRX_XPS'][0]
+        im_info_dict['approx_ypixsiz_arcs'] = self._kw_dict['APRX_YPS'][0]
+        
+        # Background info
+        bg_info_dict['median'] = self._kw_dict['AP_BGMED'][0]
+        bg_info_dict['stddev'] = self._kw_dict['AP_BGSTD'][0]
+        
+        # Source information
+        src_info_dict['num_detected'] = self._kw_dict['AP_NDET'][0]
+        src_info_dict['num_with_photometry'] = self._kw_dict['AP_NPHOT'][0]
+        
+        # Saturation info
+        num_sat_in_phot = int( np.sum(self._phot_table['psbl_sat']==True) )
+        sat_info_dict['num_saturated_in_image']      = self._nsrcs_saturated
+        sat_info_dict['num_saturated_in_photometry'] = num_sat_in_phot
+                
+        # PSF aka star fitted FWHM info
+        psf_info_dict['num_fit'] = self._kw_dict['AP_NFIT'][0]
+        if self._psf_table is not None:
+            psf_info_dict['fwhm_pixels'] = self._kw_dict['AP_FWHM'][0]
+            psf_info_dict['fwhm_madstd'] = self._kw_dict['AP_EFWHM'][0]
+                
+        qual_dict = {}
+        qual_dict['image_info']      = im_info_dict
+        qual_dict['background_info'] = bg_info_dict
+        qual_dict['source_info']     = src_info_dict
+        qual_dict['saturation_info'] = sat_info_dict
+        qual_dict['psf_info']        = psf_info_dict
+        
+        with open(quality_report_name, 'w') as write_file:
+            json.dump(qual_dict, write_file, indent=4)
+        self._logger.info(f'Wrote image quality report to {quality_report_name}')
         return
         
 class ApMeasureStars:
@@ -1669,8 +1734,8 @@ class ApMeasureStars:
         clipped = sigma_clip(ok_fwhm, sigma=numsig, masked=False)
         self._logger.debug(f'Estimating median FWHM using {len(clipped)} FWHM measurements ({len(ok_fwhm)} OK fits before clipping).')
         
-        median_fwhm = np.median(clipped)
-        madstd_fwhm = mad_std(clipped)
+        median_fwhm = float( np.median(clipped) )
+        madstd_fwhm = float( mad_std(clipped) )
         return median_fwhm, madstd_fwhm
         
     def results_table(self):
