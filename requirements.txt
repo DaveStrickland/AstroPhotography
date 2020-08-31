@@ -15,3 +15,4 @@ astroquery>=0.4.1
 astroscrappy==1.0.7
 ccdproc>=2.1.0
 photutils>=0.7.2
+regions>=0.4

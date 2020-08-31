@@ -55,6 +55,8 @@ from astropy import units as u
 from astropy.modeling import models, fitting
 from astropy.stats import sigma_clip, mad_std
 
+from regions import PixCoord, CirclePixelRegion, ds9_objects_to_string
+
 from photutils import make_source_mask, find_peaks, DAOStarFinder
 from photutils import CircularAperture, aperture_photometry
 
@@ -198,6 +200,9 @@ class ApFindStars:
         self._nsrcs_fitted    = 0
         self._nsrcs_saturated = 0 
 
+        # Hard-wired constants
+        self._ap_fwhm_mult    = 2.0  # Aperture radius is this times search_fhwm
+
         # Set up logging
         self._logger = self._initialize_logger(self._loglevel)
 
@@ -335,7 +340,7 @@ class ApFindStars:
 
         # TODO better estimate of aperture to use
         positions = np.transpose((colpos, rowpos))
-        ap_radius = math.ceil(1.5 * self._search_fwhm)
+        ap_radius = math.ceil(self._ap_fwhm_mult * self._search_fwhm)
         self._logger.debug(f'Radius of circular aperture photometry is {ap_radius} pixels.')
         apertures = CircularAperture(positions, r=ap_radius)
         
@@ -424,8 +429,10 @@ class ApFindStars:
         self._apertures = self._make_apertures(self._sources['xcentroid'], 
             self._sources['ycentroid'])
         
-        phot_table = aperture_photometry(self._data - self._bg_median, 
-            self._apertures)
+        # Perform photometry but get rid of quantities, as they complicate
+        # life.
+        phot_table = Table( aperture_photometry(self._data - self._bg_median, 
+            self._apertures) )
         phot_table['aperture_sum'].info.format = '%.4f'  # for consistent table output
         
         # Copy over peak ADU and possibly saturated flag from initial
@@ -603,7 +610,7 @@ class ApFindStars:
         self._logger.debug('Converting python 0-based coordinates to FITS 1-based pixel coordinates for XY table.')
         x = src_table['xcenter'] + 1.0 * u.Unit('pix')
         y = src_table['ycenter'] + 1.0 * u.Unit('pix')
-        xy_table = QTable([x, y],
+        xy_table = Table([x, y],
             names=('X', 'Y'))
     
         # Currently just write trimmed FITS-format XY pos and merged position/photomtry
@@ -798,6 +805,44 @@ class ApFindStars:
         print('Saturated position table:\n', saturated_positions)
         return saturated_positions
         
+    def write_ds9_region_file(self, region_file):
+        """Write a ds9-format region file (image coordinates) of
+           the stars within the photometry table.
+           
+        """
+        
+        # TODO pick color based on Filter
+        reg_color = 'red'
+        pix_fmt   =  '.2f' # 0.01 pixels (for degrees use .6f)
+        
+        num_stars = len(self._phot_table)
+        ap_radius = math.ceil(self._ap_fwhm_mult * self._search_fwhm)
+        regions = []
+        for x,y,id in zip(self._phot_table['xcenter'], 
+            self._phot_table['ycenter'],
+            self._phot_table['id']):
+            # There is no need to convert from python 0-based to FITS
+            # 1-based as the region class(es) do this for us.
+            xpos      = x
+            ypos      = y
+            meta_dict = {'name': id}
+            vis_dict  = {'color': reg_color}
+            cpr       = CirclePixelRegion(center=PixCoord(xpos, ypos), 
+                radius=ap_radius, 
+                meta=meta_dict, 
+                visual=vis_dict)
+            regions.append( cpr )
+        
+        reg_str = ds9_objects_to_string(regions, 
+            coordsys='image',
+            fmt=pix_fmt,
+            radunit='pix')
+        with open(region_file, 'w', encoding='utf-8') as f_out:
+            f_out.write(reg_str)
+            
+        self._logger.debug(f'Wrote ds9-format region file to {region_file}')
+        return    
+    
     def write_quality_report(self, quality_report_name):
         """Write a summary of the input image source and background
            properties to a JSON file
@@ -1314,7 +1359,7 @@ class ApMeasureStars:
         # We want the fit box to be at least 2x the initial estimated
         # FWHM, and also an even number of pixels. We also pad a bit 
         # in case the initial FWHM estimate is an underestimate.
-        pad_frac            = 2.5
+        pad_frac            = 3.0
         min_width           = 12
         self._box_width_pix = 2 * int(pad_frac * self._init_fwhm)
         if self._box_width_pix < min_width:
@@ -1788,8 +1833,8 @@ def main(args=None):
         find_stars.write_quality_report(p_qual_rprt)
 
     # Write optional ds9 format region file
-    #TODO#if p_regfile is not None:
-    #TODO#    find_stars.write_ds9_region_file(p_regfile)
+    if p_regfile is not None:
+        find_stars.write_ds9_region_file(p_regfile)
     
     # Write final sourcelist with photometry.
     find_stars.write_source_list(p_fitstbl)
