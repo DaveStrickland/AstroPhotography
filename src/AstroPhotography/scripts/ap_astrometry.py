@@ -34,6 +34,7 @@ import os.path
 import warnings
 
 from astropy.io import fits
+from astropy import wcs
 from astropy.table import QTable, Table
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import Angle
@@ -85,6 +86,10 @@ class ApAstrometry:
     """Uses astrometry.net and a list of valid stars to calculate an
        astrometric solution to a given FITS image, writing a copy of
        the image with valid WCS keywords.
+       
+       If the astrometric solution is obtained the photometry table
+       in the input sourcelist will also be updated with source RA
+       and Dec values.
     """
     
     NOMINAL     = 0 # Nominal or WCS solution obtained
@@ -144,7 +149,9 @@ class ApAstrometry:
         # image and add parts of the WCS header data to it.
         self._out_fname  = out_img_fname
         if len(self._wcs) > 0:
-            self._write_fits_image(self._wcs)
+            self._write_fits_image(self._wcs)        # Creates _out_fname
+            self._update_sourcelist(self._src_fname, 
+                self._out_fname)
         else:
             self._logger.warn(f'No output as no WCS found. Output image {out_img_fname} NOT created.')
             self._status = ApAstrometry.NO_SOLUTION
@@ -380,6 +387,47 @@ class ApAstrometry:
             msg = f'Source list file lacks {key} keyword. Cannot assess if it was produced from {image_filename}'
         self._logger.warn(msg)
         self._logger.warn('Proceding, but WCS may be incorrect.')
+        return
+    
+    def _update_sourcelist(self, srclist, wcs_image):
+        """Update the photometric table with positions from the WCS
+           in an image.
+        
+        This function uses the WCS coordinates in the header of wcs_image
+        to update the photometry table in the srclist file.
+        """
+        
+        self._logger.info(f'Updating photometry in {srclist} with WCS soluton.')
+        
+        # Hardwired extension name
+        ext_name = 'AP_L1MAG'
+        
+        with fits.open(wcs_image, mode='readonly') as im_hdulist:
+            # Parse the WCS keywords in the primary HDU
+            w = wcs.WCS(im_hdulist[self._inp_extnum].header)
+            
+            with fits.open(srclist, mode='update') as src_hdulist:
+                # Search for the srclist_extname and read the data.
+                if ext_name in src_hdulist:
+                    phot_table = Table.read( src_hdulist[ext_name] )
+                    
+                    ra_dec_tupl = w.all_pix2world(phot_table['xcenter'], 
+                        phot_table['ycenter'], 
+                        0, # origin, zero=based 
+                        ra_dec_order=True)
+                        
+                    phot_table['ra']  = ra_dec_tupl[0]
+                    phot_table['dec'] = ra_dec_tupl[1]
+                    
+                    # Flush changes to 
+                    src_hdulist[ext_name] = fits.table_to_hdu(phot_table)
+                    src_hdulist.flush()
+                else:
+                    err_msg = f'{srclist} does not contain the expected {ext_name} extension.'
+                    self._logger.error(err_msg)
+                    raise RuntimeError(err_msg)
+    
+
         return
     
     def _write_fits_image(self, wcs):
