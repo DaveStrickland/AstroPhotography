@@ -1217,7 +1217,8 @@ class ApMeasureStars:
                 x_grid,
                 y_grid,
                 max_iterations,
-                current_num_fit_pars)
+                current_num_fit_pars,
+                idx)
              
             # If the fit did NOT fail we can relax the constraints on the
             # position of the gaussian.
@@ -1232,7 +1233,8 @@ class ApMeasureStars:
                     x_grid,
                     y_grid,
                     max_iterations,
-                    current_num_fit_pars)
+                    current_num_fit_pars,
+                    idx)
             
             # Calculate reduced chi squared.
             rchisq = self._calculate_rchisq(self._pixel_array[idx],
@@ -1324,7 +1326,8 @@ class ApMeasureStars:
         x_grid,
         y_grid,
         max_iterations,
-        n_fit_pars):
+        n_fit_pars,
+        index):
         """Utility to perform a single fit of a model to the data,
            checking for error conditions along the way.
         """
@@ -1348,7 +1351,7 @@ class ApMeasureStars:
             err_param = np.sqrt(np.diag(fitter.fit_info['param_cov']))
             fit_ok    = True
         else:
-            self._logger.warn(f'Non-nominal fit status {fit_status} for star {idx}')
+            self._logger.warn(f'Non-nominal fit status {fit_status} for star {index}')
             self._logger.warn(f'Fitter info message was: [{fit_message}]')
             err_param = np.zeros(n_fit_pars) 
             fit_ok    = False
