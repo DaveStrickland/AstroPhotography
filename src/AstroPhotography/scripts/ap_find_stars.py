@@ -30,6 +30,7 @@
 # 2020-08-20 dks : Refactor into ApFindStars
 # 2020-08-22 dks : Implemented plotfile bitmapped image with sources.
 # 2020-08-23 dks : Add stellar FWHM fitting and plotting class.
+# 2020-09-01 dks : Switch to yaml from json as json float formatting is bad.
 
 import argparse
 import sys
@@ -41,7 +42,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import math
 import time
-import json
+import yaml
 from datetime import datetime
 
 from astropy.io import fits
@@ -125,7 +126,7 @@ def command_line_opts(argv):
     parser.add_argument('--quality_report',
         default=None,
         metavar='QUALITY_REPORT.TXT',
-        help="If specified, an ASCII file summarizing the image's source" +
+        help="If specified, an YaML file summarizing the image's source" +
         " and background properties will be written to disk.")
     parser.add_argument('--fwhm_plot',
         default=None,
@@ -147,6 +148,14 @@ def command_line_opts(argv):
             
     args = parser.parse_args(argv)
     return args
+    
+def yaml_float_representer(dumper, value):
+    """Change default yaml float representation.
+    
+    From: https://stackoverflow.com/questions/33944299/how-to-round-numeric-output-from-yaml-dump-in-python
+    """
+    text = '{0:.6f}'.format(value)
+    return dumper.represent_scalar(u'tag:yaml.org,2002:float', text)
 
 class ApFindStars:
     """Find and characterize stars within a FITS image
@@ -842,10 +851,10 @@ class ApFindStars:
             
         self._logger.debug(f'Wrote ds9-format region file to {region_file}')
         return    
-    
+            
     def write_quality_report(self, quality_report_name):
         """Write a summary of the input image source and background
-           properties to a JSON file
+           properties to a YaML file
            
         The quality report is a dictionary of dictionaries, containing:
         - basic input image properties
@@ -855,8 +864,9 @@ class ApFindStars:
         - FWHM statistics if present
         """
         
-        # TODO maybe format the floating point outputs for easier reading?
-        
+        # Slightly better than the default float representation
+        yaml.add_representer(float, yaml_float_representer)
+                
         # Build or rebuild keyword list useful for the FITS table as well as the
         # image quality report.
         self._kw_dict = self._build_keyword_dictionary(self._fitsimg,
@@ -875,26 +885,34 @@ class ApFindStars:
         psf_info_dict = {}
         
         # Image information
-        # TODO turn into dict kw to kw lookup plus iteration
-        im_info_dict['file']                = self._kw_dict['IMG_FILE'][0]
-        im_info_dict['ncols']               = self._kw_dict['IMG_COLS'][0]
-        im_info_dict['nrows']               = self._kw_dict['IMG_ROWS'][0]
-        im_info_dict['object']              = self._kw_dict['OBJECT'][0]
-        im_info_dict['telescope']           = self._kw_dict['TELESCOP'][0]
-        im_info_dict['filter']              = self._kw_dict['FILTER'][0]
-        im_info_dict['date-obs']            = self._kw_dict['DATE-OBS'][0]
-        im_info_dict['exposure']            = self._kw_dict['EXPOSURE'][0]
-        im_info_dict['ccd_temperature']     = self._kw_dict['CCD-TEMP'][0]
-        im_info_dict['electronic_gain']     = self._kw_dict['EGAIN'][0]
-        im_info_dict['airmass']             = self._kw_dict['AIRMASS'][0]
-        im_info_dict['approx_width_deg']    = self._kw_dict['APRX_XWD'][0]
-        im_info_dict['approx_height_deg']   = self._kw_dict['APRX_YHG'][0]
-        im_info_dict['approx_xpixsiz_arcs'] = self._kw_dict['APRX_XPS'][0]
-        im_info_dict['approx_ypixsiz_arcs'] = self._kw_dict['APRX_YPS'][0]
+        im_info_dict = {'file':     {'kw': 'IMG_FILE', 'fmt': 's'},
+            'ncols':                {'kw': 'IMG_COLS', 'fmt': 'd'},
+            'nrows':                {'kw': 'IMG_ROWS', 'fmt': 'd'},
+            'object':               {'kw': 'OBJECT',   'fmt': 's'},
+            'telescope':            {'kw': 'TELESCOP', 'fmt': 's'},
+            'filter':               {'kw': 'FILTER',   'fmt': 's'},
+            'date-obs':             {'kw': 'DATE-OBS', 'fmt': 's'},
+            'exposure':             {'kw': 'EXPOSURE', 'fmt': '.2f'},
+            'ccd_temperature':      {'kw': 'CCD-TEMP', 'fmt': '.2f'},
+            'electronic_gain':      {'kw': 'EGAIN',    'fmt': '.4f'},
+            'airmass':              {'kw': 'AIRMASS',  'fmt': '.2f'},
+            'approx_width_deg':     {'kw': 'APRX_XWD', 'fmt': '.3f'},
+            'approx_height_deg':    {'kw': 'APRX_YHG', 'fmt': '.3f'},
+            'approx_xpixsiz_arcs':  {'kw': 'APRX_XPS', 'fmt': '.3f'},
+            'approx_ypixsiz_arcs':  {'kw': 'APRX_YPS', 'fmt': '.3f'}}
         
+        for okey in im_info_dict:
+            fkw = im_info_dict[okey]['kw']
+            fmt = im_info_dict[okey]['fmt']
+            val = self._kw_dict[fkw][0] 
+            # Skip using the fmt as yaml_float_representer does a decent job. 
+            im_info_dict[okey] = val
+                
         # Background info
-        bg_info_dict['median'] = self._kw_dict['AP_BGMED'][0]
-        bg_info_dict['stddev'] = self._kw_dict['AP_BGSTD'][0]
+        bgmed = self._kw_dict['AP_BGMED'][0]
+        bgstd = self._kw_dict['AP_BGSTD'][0]
+        bg_info_dict['median'] = bgmed
+        bg_info_dict['stddev'] = bgstd
         
         # Source information
         src_info_dict['num_detected'] = self._kw_dict['AP_NDET'][0]
@@ -905,11 +923,20 @@ class ApFindStars:
         sat_info_dict['num_saturated_in_image']      = self._nsrcs_saturated
         sat_info_dict['num_saturated_in_photometry'] = num_sat_in_phot
                 
-        # PSF aka star fitted FWHM info
+        # PSF aka star fitted FWHM info in units of pixels and arcseconds
         psf_info_dict['num_fit'] = self._kw_dict['AP_NFIT'][0]
         if self._psf_table is not None:
-            psf_info_dict['fwhm_pixels'] = self._kw_dict['AP_FWHM'][0]
-            psf_info_dict['fwhm_madstd'] = self._kw_dict['AP_EFWHM'][0]
+            aprx_xpixsize = self._kw_dict['APRX_XPS'][0]
+            aprx_ypixsize = self._kw_dict['APRX_YPS'][0]
+            avg_pixsize   = math.sqrt(aprx_xpixsize**2 + aprx_ypixsize**2)
+            fwhm_pix      = self._kw_dict['AP_FWHM'][0]
+            fwhm_err      = self._kw_dict['AP_EFWHM'][0]
+            fwhm_val_arcs = fwhm_pix * avg_pixsize
+            fwhm_err_arcs = fwhm_err * avg_pixsize
+            psf_info_dict['fwhm_val_pix']  = fwhm_pix
+            psf_info_dict['fwhm_err_pix']  = fwhm_err
+            psf_info_dict['fwhm_val_arcs'] = fwhm_val_arcs
+            psf_info_dict['fwhm_err_arcs'] = fwhm_err_arcs
                 
         qual_dict = {}
         qual_dict['image_info']      = im_info_dict
@@ -919,7 +946,7 @@ class ApFindStars:
         qual_dict['psf_info']        = psf_info_dict
         
         with open(quality_report_name, 'w') as write_file:
-            json.dump(qual_dict, write_file, indent=4)
+            yaml.dump(qual_dict, write_file, indent=4, sort_keys=False)
         self._logger.info(f'Wrote image quality report to {quality_report_name}')
         return
         
