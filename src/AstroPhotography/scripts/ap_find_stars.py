@@ -1343,12 +1343,15 @@ class ApMeasureStars:
         fit_status  = fitter.fit_info['ierr']
         fit_message = fitter.fit_info['message']
         fit_ok      = False
-        
-        if (fit_status > 0) and (fit_status <= 4):
+        cov_arr     = fitter.fit_info['param_cov']
+        is_array    = isinstance(cov_arr, np.ndarray)
+                    
+        if (fit_status > 0) and (fit_status <= 4) and is_array:
             # These may be bogus without correctly weighting the data.
             # These are in the order of the model parameters, except that
             # fixed parameters are excluded. See https://github.com/astropy/astropy/issues/7202
-            err_param = np.sqrt(np.diag(fitter.fit_info['param_cov']))
+            
+            err_param = np.sqrt(np.diag(cov_arr))
             fit_ok    = True
         else:
             self._logger.warn(f'Non-nominal fit status {fit_status} for star {index}')
