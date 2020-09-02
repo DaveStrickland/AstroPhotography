@@ -505,7 +505,7 @@ class ApFindStars:
         logger.addHandler(ch)
         return logger
         
-    def measure_fwhm(self, fwhm_plot_file):
+    def measure_fwhm(self, fwhm_plot_file, direction=None):
         """Fit gaussians to a sub-selection of identified stars in the
            center of the image and four outer quadrants, returning the
            median 1-D full width half maximum in pixels.
@@ -527,7 +527,36 @@ class ApFindStars:
         If fwhm_plot_file is not None then a plot of image cut-outs
         around each selected star, along with the 2-D and 1-D best fit
         Gaussians, is created.
+        
+        Although the fitting always performs fitting along X and Y 
+        rotated by an angle of theta, the direction
+        parameter can be used to control the returned values.
+        If direction = None or 'both' reports the values over both axes.
+        This is the default as it has the clearest meaning.
+        If direction = 'x' then only the median, error and number of points
+        over the X-axis are reported.
+        If direction is 'y' then only the median, error and number of points
+        over the Y-axis are reported.
+        Note that theta is not controlled, so 'x' and 'y' do not mean the same
+        thing as the row/column axis of the image, rendering the returned
+        values somewhat ambiguous.
         """
+        
+        if direction is not None:
+            if direction == 'both':
+                pass
+            elif direction == 'x':
+                pass
+            elif direction == 'y':
+                pass
+            else:
+                err_msg = (
+                    f'Error, unexpected direction={direction} passed to measure_fwhm.'
+                    f' Expecting one of "None", "both", "x" or "y".'
+                    )
+                self._logger.error(err_msg)
+        else:
+            direction = 'both'
         
         # Construct a meaningful title for the plot file based on the
         # name of the original image file
@@ -1137,7 +1166,7 @@ class ApMeasureStars:
         num_stars         = len(self._fit_table)
         sigma_to_fwhm     = 2.35482
         fwhm_to_sigma     = 1.0 / sigma_to_fwhm
-        max_iterations    = 300
+        max_iterations    = 500
         
         # Fit for x and y after initially just fitting for amplitude,
         # fwhm, and theta?
@@ -1181,6 +1210,12 @@ class ApMeasureStars:
             x_stddev=sig_x,
             y_stddev=sig_y,
             theta=rotang)
+            
+        # Constraint theta to -pi/2 to pi/2
+        # NOTE Disabled as it results in the fitter failing very often
+        ##half_pi               = 0.5 * math.pi
+        ##star_mod.theta.bounds = (-half_pi, half_pi)
+            
         # Start fits at the initial centroid positions
         star_mod.x_mean.fixed = True
         star_mod.y_mean.fixed = True
