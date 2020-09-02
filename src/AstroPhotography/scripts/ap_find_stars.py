@@ -31,6 +31,7 @@
 # 2020-08-22 dks : Implemented plotfile bitmapped image with sources.
 # 2020-08-23 dks : Add stellar FWHM fitting and plotting class.
 # 2020-09-01 dks : Switch to yaml from json as json float formatting is bad.
+# 2020-09-02 dks : Select candidates with no nearby stars using a kdtree.
 
 import argparse
 import sys
@@ -44,6 +45,8 @@ import math
 import time
 import yaml
 from datetime import datetime
+
+from scipy import spatial
 
 from astropy.io import fits
 from astropy.table import QTable, Table, vstack
@@ -197,7 +200,7 @@ class ApFindStars:
         self._sat_thresh    = math.floor(sat_frac * self._max_adu)
         self._quiet         = quiet
         
-        # Not calculated by deafult, only if a user calls measure_fwhm
+        # Not calculated by default, only if a user calls measure_fwhm
         self._psf_table     = None
         self._median_fwhm   = None
         self._madstd_fwhm   = None
@@ -235,7 +238,9 @@ class ApFindStars:
         saturated_locations = self._find_saturated(self._data, 
             self._sat_thresh, 
             self._search_fwhm)
-        num_sat_candidates  = len(saturated_locations)
+        num_sat_candidates = 0
+        if saturated_locations is not None:
+            num_sat_candidates = len(saturated_locations)
         if not self._nosatmask:
             # Find possibly saturated stars and exclude them from source
             # detection and photometry.
@@ -466,6 +471,7 @@ class ApFindStars:
         self._phot_table = phot_table
         
         # Trim to the constructed value of max_sources
+        self._full_srclist = phot_table.copy()
         if not dont_trim:
             self.trim(self._max_sources)
             
@@ -534,6 +540,7 @@ class ApFindStars:
             self._phot_table,
             self._search_fwhm,
             self._bg_median,
+            self._full_srclist,
             fwhm_plot_file,
             plot_title,
             self._loglevel,
@@ -979,6 +986,7 @@ class ApMeasureStars:
             srclist,
             init_fwhm,
             init_bglevel,
+            full_srclist,
             fwhm_plot_file,
             fwhm_plot_title,
             loglevel,
@@ -1012,14 +1020,20 @@ class ApMeasureStars:
         self._logger.debug(f'Count based weighting factors will used in fitting?: {self._use_weights}')
         self._logger.debug(f'Will the background level be fitted for?           : {self._fit_for_bg}')
 
+        # POsitions for all possible sources in the image
+        self._full_srcs = full_srclist
+
         # Slightly modify the input source list to exclude possibly
         # saturated stars, remove unneeded columns.
         self._init_srcs  = Table(srclist[srclist['psbl_sat']==False])         # Initial sourclist from ApFindStars
         self._init_srcs.remove_columns(['aperture_sum', 'psbl_sat', 'adu_per_sec'])
+        self._full_srcs.remove_columns(['aperture_sum', 'psbl_sat', 'adu_per_sec'])
         if not self._quiet:
             print('Input table supplied to ApMeasureStars after saturated star filtering:')
             print(self._init_srcs)
             print('')
+        self._logger.info(f'Size of input trimmed source list (filtered): {len(self._init_srcs)}')
+        self._logger.info(f'Size of full source list used for neighbor removal: {len(self._full_srcs)}')
 
         self._cols       = img_data.shape[1]
         self._rows       = img_data.shape[0]
@@ -1354,8 +1368,8 @@ class ApMeasureStars:
             err_param = np.sqrt(np.diag(cov_arr))
             fit_ok    = True
         else:
-            self._logger.warn(f'Non-nominal fit status {fit_status} for star {index}')
-            self._logger.warn(f'Fitter info message was: [{fit_message}]')
+            self._logger.warning(f'Non-nominal fit status {fit_status} for star {index}')
+            self._logger.warning(f'Fitter info message was: [{fit_message}]')
             err_param = np.zeros(n_fit_pars) 
             fit_ok    = False
         return fitted_mod, fit_status, fit_message, fit_ok, err_param
@@ -1434,12 +1448,16 @@ class ApMeasureStars:
            subplots.
         """
         
-        # TODO
+        # Get info from fit
         fwhm_x      = self._fit_table['fwhm_x'][index]
         fwhm_y      = self._fit_table['fwhm_y'][index]
+        fit_ok      = self._fit_table['fit_ok'][index]
         symmetric   = self._fit_table['circular'][index]
+        if not fit_ok:
+            symmetric = 'N/A'
         info_list   = [f'FWHM_X={fwhm_x:.1f}',
             f'FWHM_Y={fwhm_y:.1f}',
+            f'FitOK={fit_ok}',
             f'Circular={symmetric}']
         fitinfo_str = '\n'.join(info_list)
         return fitinfo_str
@@ -1584,7 +1602,7 @@ class ApMeasureStars:
                 pad=3)
             ax_arr[row_idx, col_idx].text(text_x, 
                 text_y, 
-                fitinfo_str, fontsize=4, color='w')
+                fitinfo_str, fontsize=3, color='w')
             #ax_arr[row_idx, col_idx].set_xlabel('X-axis (pixels)', fontsize=6)
             ax_arr[row_idx, col_idx].set_ylabel(this_reg,
                 fontsize=6)
@@ -1689,10 +1707,24 @@ class ApMeasureStars:
         Candidate stars should not be too close to the edge of the 
         detector. Stars with centroids within _edge_excl_pix of the 
         edge are not selected as candidates.
+        
+        Source Confusion:
+        It is also important that candidate stars should not have another
+        star withing the image cutout used for fitting. Source confusion
+        is problematic in that the input estimated magnitudes will be
+        incorrect and fitting will be compromized. A kdtree is used to
+        find the nearest neighbor of each source in the trimmed _init_srcs
+        list, based on the full set of sources. The trimmed list is further
+        filtered to remove all stars having neighbors within a radius of
+        _box_width.
         """
         
         # Algorithm:
-        # Iterate over each source i in the input source list
+        #
+        # Identify nearest neighbors and trim the input source list of
+        # star that have neighbors within a radius of _box_width.
+        #
+        # Iterate over each source i in the trimmed source list
         #   If not saturated, calculate dx = x_i - x_c, dy = y_i - y_c, r_i
         #   If r_i < H/2, add source id, mag to center list
         #   else if dx < 0, dy > 0 add to TL list, etc
@@ -1701,6 +1733,9 @@ class ApMeasureStars:
         # The table forms the basis for self._fit_table
         
         candidate_table = None
+        
+        self._trim_neighbors()
+        
         num_srcs        = len(self._init_srcs)
         self._logger.info(f'Selecting candidate stars for fitting out of {num_srcs} stars in {self._rows} row x {self._cols} column image.')
 
@@ -1791,6 +1826,59 @@ class ApMeasureStars:
             
         return candidate_table
         
+    def _trim_neighbors(self):
+        """Remove stars from _init_srcs that have a neighbor from 
+           _full_srcs within a radius of _box_width pixels.
+           
+        This uses a kdtree to identify the nearest neighbors.
+        
+        Note: This algorithm can fail to identify some close neighbors
+        if the input "full" sourclist has excluded saturated stars. 
+        """
+        
+        rad       = self._box_width_pix
+        init_size = len(self._init_srcs)
+        self._logger.info(f'Preparing to trim the input source list of stars within neighbors within {rad} pixels.')
+        
+        x      = self._full_srcs['xcenter']
+        y      = self._full_srcs['ycenter']
+        xy_pts = np.column_stack((x,y))
+        tree   = spatial.KDTree(xy_pts)
+        self._logger.debug(f'Constructed a kdtree with {len(x)} data points.')
+        
+        # Add  a column to _init_srcs for the nn_dist
+        self._init_srcs['nn_dist']  = 0.0
+        self._init_srcs['nn_dist'].info.format = '%.2f' 
+        
+        for idx in range(init_size):
+            # The nearest point to a point in the tree is itself, so we
+            # are interested in k=2 (2 nearest points).
+            # A euclidean distance metric is p=2
+            xypos = [self._init_srcs['xcenter'][idx],
+                self._init_srcs['ycenter'][idx] ]
+            
+            # d is a list with k elements, the distance to each of the 
+            # k'th nearest neighbors.
+            # i is a list with k elements, the indices of the neighbors
+            # within the original data points.
+            d, i = tree.query(xypos, k=2, p=2)
+            
+            nn_dist = d[1]
+            self._init_srcs['nn_dist'][idx] = nn_dist
+
+        print('Initial sources with nearest neighbor distance\n', 
+            self._init_srcs)
+            
+        # Create trutch mask for nn_dist greater than exclusion radius
+        mask            = self._init_srcs['nn_dist'] >= rad
+        self._init_srcs = self._init_srcs[mask]
+            
+        final_size  = len(self._init_srcs)
+        num_removed = init_size - final_size
+        self._logger.info(f'Nearest neighbor filtering removed {num_removed} stars from consideration.')
+        return
+        
+        
     def median_fwhm(self):
         """Returns the sigma-clipped median fitted FWHM over both X 
            and Y in pixels over all stars that fitted successfully, 
@@ -1798,6 +1886,10 @@ class ApMeasureStars:
            
         Note that the deviation return is standard deviation based on
         the MAD, not the MAD itself. See astropy.stats.mad_std
+        
+        TODO:
+        - return number of values used
+        - allow x-only, y-only or both modes
         """
         
         # Clip values that are more than this number of sigma from the
@@ -1808,9 +1900,10 @@ class ApMeasureStars:
         ok_x    = self._fit_table['fwhm_x'][self._fit_table['fit_ok']]
         ok_y    = self._fit_table['fwhm_y'][self._fit_table['fit_ok']]
                 
-        ok_fwhm = np.concatenate((ok_x, ok_y)) # Note inputs as tuple
-        clipped = sigma_clip(ok_fwhm, sigma=numsig, masked=False)
-        self._logger.debug(f'Estimating median FWHM using {len(clipped)} FWHM measurements ({len(ok_fwhm)} OK fits before clipping).')
+        ok_fwhm  = np.concatenate((ok_x, ok_y)) # Note inputs as tuple
+        clipped  = sigma_clip(ok_fwhm, sigma=numsig, masked=False)
+        num_used = len(clipped)
+        self._logger.debug(f'Estimating median FWHM using {num_used} FWHM measurements ({len(ok_fwhm)} OK fits before clipping).')
         
         median_fwhm = float( np.median(clipped) )
         madstd_fwhm = float( mad_std(clipped) )
