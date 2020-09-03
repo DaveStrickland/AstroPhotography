@@ -202,8 +202,9 @@ class ApFindStars:
         
         # Not calculated by default, only if a user calls measure_fwhm
         self._psf_table     = None
-        self._median_fwhm   = None
-        self._madstd_fwhm   = None
+        self._fwhm_both     = None
+        self._fwhm_x        = None
+        self._fwhm_y        = None
 
         # Number of sources detected, and number of sources that had
         # photometry, and number of sources that had FWHM/PSFs fitted.
@@ -542,22 +543,6 @@ class ApFindStars:
         values somewhat ambiguous.
         """
         
-        if direction is not None:
-            if direction == 'both':
-                pass
-            elif direction == 'x':
-                pass
-            elif direction == 'y':
-                pass
-            else:
-                err_msg = (
-                    f'Error, unexpected direction={direction} passed to measure_fwhm.'
-                    f' Expecting one of "None", "both", "x" or "y".'
-                    )
-                self._logger.error(err_msg)
-        else:
-            direction = 'both'
-        
         # Construct a meaningful title for the plot file based on the
         # name of the original image file
         fname = os.path.basename(self._fitsimg)
@@ -578,11 +563,29 @@ class ApFindStars:
         self._nsrcs_fitted = len(self._psf_table)
         
         # Get global FWHM (median over both X and Y)
-        median_fwhm, madstd_fwhm = measure_stars.median_fwhm() 
-        self._logger.info(f'Median FWHM (over x and y) is {median_fwhm:.2f} +/- {madstd_fwhm:.2f} pixels.')
-        self._median_fwhm = median_fwhm
-        self._madstd_fwhm = madstd_fwhm
-        return median_fwhm, madstd_fwhm
+        self._fwhm_both = measure_stars.median_fwhm('both') 
+        self._fwhm_x    = measure_stars.median_fwhm('x') 
+        self._fwhm_y    = measure_stars.median_fwhm('y') 
+        
+        self._logger.info(f'Median FWHM (over x and y) is {self._fwhm_both[0]:.2f} +/- {self._fwhm_both[1]:.2f} pixels using {self._fwhm_both[2]} data points')
+        
+        if direction is not None:
+            if direction == 'both':
+                result = self._fwhm_both
+            elif direction == 'x':
+                result = self._fwhm_x
+            elif direction == 'y':
+                result = self._fwhm_y
+            else:
+                err_msg = (
+                    f'Error, unexpected direction={direction} passed to measure_fwhm.'
+                    f' Expecting one of "None", "both", "x" or "y".'
+                    )
+                self._logger.error(err_msg)
+        else:
+            direction = 'both'
+            result    = self._fwhm_both
+        return result
         
     def _check_file_exists(self, filename):
         if not os.path.isfile(filename):
@@ -813,9 +816,9 @@ class ApFindStars:
         
         # If the FWHM and estimated error have been measured, add them to
         # the info we write to the primary header.
-        if self._median_fwhm is not None:
-            kw_dict['AP_FWHM']  = (self._median_fwhm, '[pix] Median FWHM of fitted stars in image')
-            kw_dict['AP_EFWHM'] = (self._madstd_fwhm, '[pix] MAD standard deviation of fitted FWHM') 
+        if self._fwhm_both is not None:
+            kw_dict['AP_FWHM']  = (self._fwhm_both[0], '[pix] Median FWHM of fitted stars in image')
+            kw_dict['AP_EFWHM'] = (self._fwhm_both[1], '[pix] MAD standard deviation of fitted FWHM') 
         
         # Background levels are useful downstream
         kw_dict['AP_BGMED'] = (float( self._bg_median ), '[ADU] Median source-masked background level')
@@ -964,15 +967,44 @@ class ApFindStars:
         if self._psf_table is not None:
             aprx_xpixsize = self._kw_dict['APRX_XPS'][0]
             aprx_ypixsize = self._kw_dict['APRX_YPS'][0]
-            avg_pixsize   = math.sqrt(aprx_xpixsize**2 + aprx_ypixsize**2)
-            fwhm_pix      = self._kw_dict['AP_FWHM'][0]
-            fwhm_err      = self._kw_dict['AP_EFWHM'][0]
-            fwhm_val_arcs = fwhm_pix * avg_pixsize
-            fwhm_err_arcs = fwhm_err * avg_pixsize
-            psf_info_dict['fwhm_val_pix']  = fwhm_pix
-            psf_info_dict['fwhm_err_pix']  = fwhm_err
-            psf_info_dict['fwhm_val_arcs'] = fwhm_val_arcs
-            psf_info_dict['fwhm_err_arcs'] = fwhm_err_arcs
+            avg_pixsize   = math.sqrt(0.5 * 
+                (aprx_xpixsize**2 + aprx_ypixsize**2) )
+            
+            # Is fwhm_x within 3 sigma of fwhm_y
+            fwhm_x    = self._fwhm_x[0]
+            fwhm_xerr = self._fwhm_x[1]
+            fwhm_y    = self._fwhm_y[0]
+            fwhm_yerr = self._fwhm_y[1]
+            circular  = ApMeasureStars.is_circular(fwhm_x, fwhm_y,
+                fwhm_xerr, fwhm_yerr)
+            psf_info_dict['circular_psf'] = circular
+            
+            # Now create three dictionaries for both x&y, x and y
+            for direction in ['both', 'x', 'y']:
+                if 'both' in direction:
+                    result_tuple = self._fwhm_both
+                    dict_name    = 'fwhm_xandy'
+                    pixsiz_arcs  = avg_pixsize
+                elif 'x' in direction:
+                    result_tuple = self._fwhm_x
+                    dict_name    = 'fwhm_x'
+                    pixsiz_arcs  = aprx_xpixsize
+                elif 'y' in direction:
+                    result_tuple = self._fwhm_y
+                    dict_name    = 'fwhm_y'
+                    pixsiz_arcs  = aprx_ypixsize
+                
+                psf_dir_dict = {}
+                fwhm_pix      = result_tuple[0]
+                fwhm_err      = result_tuple[1]
+                fwhm_val_arcs = fwhm_pix * pixsiz_arcs
+                fwhm_err_arcs = fwhm_err * pixsiz_arcs
+                psf_dir_dict['fwhm_val_pix']  = fwhm_pix
+                psf_dir_dict['fwhm_err_pix']  = fwhm_err
+                psf_dir_dict['fwhm_val_arcs'] = fwhm_val_arcs
+                psf_dir_dict['fwhm_err_arcs'] = fwhm_err_arcs
+                psf_dir_dict['num_data_pts']  = result_tuple[2]
+                psf_info_dict[dict_name] = psf_dir_dict
                 
         qual_dict = {}
         qual_dict['image_info']      = im_info_dict
@@ -1009,6 +1041,10 @@ class ApMeasureStars:
     has a very limited capability of expressing or investigating fit
     uncertainties.
     """
+    
+    # Threshold in number of sigma that fwhm_y must differ from
+    # fwhm_x in order to be counted as NOT being circular.
+    _circ_thresh_sigma = 3.0
     
     def __init__(self,
             img_data,
@@ -1171,11 +1207,7 @@ class ApMeasureStars:
         # Fit for x and y after initially just fitting for amplitude,
         # fwhm, and theta?
         is_pos_fitted_for = True
-        
-        # Threshold in number of sigma that fwhm_y must differ from
-        # fwhm_x in order to be counted as NOT being circular.
-        thresh = 3.0
-        
+                
         # Extract data from main image, stores in _pixel_array.
         self._extract_cutouts()
         
@@ -1348,11 +1380,9 @@ class ApMeasureStars:
                 axrat_err = axrat * math.sqrt( (fwhm_xerr/fwhm_x)**2 +
                     (fwhm_yerr/fwhm_y)**2 )
                 
-                # Circularity is whether fwhm_y is within thresh sigma of fwhm_x
-                d_fwhm = math.fabs(fwhm_y - fwhm_x)
-                sigma  = d_fwhm / fwhm_yerr
-                if sigma > thresh:
-                    self._fit_table['circular'][idx] = False
+                circular = self.is_circular(fwhm_x, fwhm_y, 
+                    fwhm_xerr, fwhm_yerr)
+                self._fit_table['circular'][idx] = circular
 
             self._fit_table['axrat'][idx]     = axrat
             self._fit_table['axrat_err'][idx] = axrat_err
@@ -1366,6 +1396,20 @@ class ApMeasureStars:
             print(self._fit_table)
             print('')
         return
+        
+    @classmethod
+    def is_circular(cls, fwhm_x, fwhm_y, fwhm_xerr, fwhm_yerr):
+        """Returns True if fwhm_y is within _circ_thresh_sigma
+           standard deviations of fwhm_x, otherwise False
+        """
+        circular = True
+        # Circularity is whether fwhm_y is within _circ_thresh_sigma
+        # standard devaitions of fwhm_x
+        d_fwhm = math.fabs(fwhm_y - fwhm_x)
+        sigma  = d_fwhm / fwhm_yerr
+        if sigma > ApMeasureStars._circ_thresh_sigma:
+            circular = False
+        return circular
 
     def _do_single_fit(self, 
         fitter, 
@@ -1610,7 +1654,7 @@ class ApMeasureStars:
             sharex=True, 
             sharey=True)
         
-        median_fwhm, madstd_fwhm = self.median_fwhm()
+        (median_fwhm, madstd_fwhm, npts) = self.median_fwhm('both')
         
         title = 'Star PSF measurements using 2-D Gaussian fits'
         if self._plot_title is not None:
@@ -1914,7 +1958,7 @@ class ApMeasureStars:
         return
         
         
-    def median_fwhm(self):
+    def median_fwhm(self, direction):
         """Returns the sigma-clipped median fitted FWHM over both X 
            and Y in pixels over all stars that fitted successfully, 
            along with median absolute deviation (MAD) standard deviation.
@@ -1922,9 +1966,7 @@ class ApMeasureStars:
         Note that the deviation return is standard deviation based on
         the MAD, not the MAD itself. See astropy.stats.mad_std
         
-        TODO:
-        - return number of values used
-        - allow x-only, y-only or both modes
+        Direction must be one of 'both', 'x', or  'y'
         """
         
         # Clip values that are more than this number of sigma from the
@@ -1934,15 +1976,21 @@ class ApMeasureStars:
         # Select only cases where the fitting appeared to work correctly.
         ok_x    = self._fit_table['fwhm_x'][self._fit_table['fit_ok']]
         ok_y    = self._fit_table['fwhm_y'][self._fit_table['fit_ok']]
-                
-        ok_fwhm  = np.concatenate((ok_x, ok_y)) # Note inputs as tuple
+        
+        if 'both' in direction:        
+            ok_fwhm = np.concatenate((ok_x, ok_y)) # Note inputs as tuple
+        elif 'x' in direction:
+            ok_fwhm = ok_x 
+        elif 'y' in direction:
+            ok_fwhm = ok_y
+        
         clipped  = sigma_clip(ok_fwhm, sigma=numsig, masked=False)
         num_used = len(clipped)
-        self._logger.debug(f'Estimating median FWHM using {num_used} FWHM measurements ({len(ok_fwhm)} OK fits before clipping).')
+        self._logger.debug(f'Estimating median FWHM (direction={direction}) using {num_used} FWHM measurements ({len(ok_fwhm)} OK fits before clipping).')
         
         median_fwhm = float( np.median(clipped) )
         madstd_fwhm = float( mad_std(clipped) )
-        return median_fwhm, madstd_fwhm
+        return (median_fwhm, madstd_fwhm, num_used)
         
     def results_table(self):
         """Return the fitting results as an astropy Table
@@ -1980,8 +2028,8 @@ def main(args=None):
         p_max_sources, p_nosatmask, p_sat_frac, p_loglevel,
         p_plotfile, p_quiet)
     
-    # Measure 2-Gaussian FWHM for select stars
-    p_new_fwhm, p_madstd_fwhm = find_stars.measure_fwhm(p_fwhm_plot)
+    # Measure 2-Gaussian FWHM for select stars, get average over x and y
+    (p_new_fwhm, p_madstd_fwhm, p_npts) = find_stars.measure_fwhm(p_fwhm_plot, 'both')
     
     # Refine source detection
     find_stars.source_search(p_new_fwhm, p_search_nsigma)
