@@ -32,6 +32,9 @@ import logging
 from pathlib import Path
 import yaml
 
+import numpy as np
+from astropy.table import Table
+
 def command_line_opts(argv):
     """ Parse command line arguments.
 
@@ -101,8 +104,124 @@ class ApQualitySummarizer:
         # Read the data
         self._read_files()
         
+        # Build the astropy data table
+        self._build_summary_table()
+        
+        # Write out to the summary file.
+        self._write_summary_table()
+        
         return
         
+    def _build_summary_table(self):
+        """Build an astrtopy table containing the summmary of all the
+           quality files, ordered by target:telescope:filter group.
+        """
+        
+        # Columns and their mapping to data items
+        # The format of the dictionary is the Table column name
+        # followed by a dictionary containing the Table dtype to use (fmt),
+        # the subsection of the yaml structure (subsec) and the key within
+        # that subsection.
+        col_def_dict = {
+            'targ:tel:filter':  {'fmt': 'S64', 'subsec':  None, 'kw': None},
+            }
+        
+        # Run through one file to generate extra keys
+        tmp_data = self._data_list[0]
+        for subsec, subsec_data in tmp_data.items():
+            for key, val in subsec_data.items():
+                # Special handling for FWHM data
+                if 'fwhm_xandy' in key:
+                    for subkey in val:
+                        if 'num_data' in subkey:
+                            fmt = 'i4'
+                        else:
+                            fmt = 'f8'
+                        col_def_dict[subkey] = {'fmt': fmt, 'subsec': subsec, 'kw': subkey}
+                elif 'fwhm_x' in key:
+                    pass
+                elif 'fwhm_y' in key:
+                    pass
+                else:
+                    # Determine type of item
+                    if isinstance(val, str):
+                        if 'file' in key:
+                            fmt='S128'
+                        else:
+                            fmt='S32'
+                    elif isinstance(val, float):
+                        fmt='f8'
+                    elif isinstance(val, int):
+                        fmt='i4'
+                    elif isinstance(val, bool):
+                        fmt='bool'
+                    else:
+                        err_msg = (
+                            f'Error, unexpected type={type(val)} for'
+                            f' key={key} in subsection={subsec}'
+                            )
+                        self._logger.error(err_msg)
+                    col_def_dict[key] = {'fmt': fmt, 'subsec': subsec, 'kw': key}
+        
+        # Create empty table.
+        nrows = len(self._data_list)
+        dtype_list=[]
+        for key, val in col_def_dict.items():
+            dtype_list.append( (key, val['fmt']) )
+            
+        sum_table = Table(data=np.zeros(nrows, dtype=dtype_list))
+        
+        # Fill table, processing by index_dict key
+        # This seems like it will be slow. There is probably a better way
+        # of doing this.
+        rowidx = 0
+        for ttfkey, ttfval in self._index_dict.items():
+            ndata = len(ttfval)
+            self._logger.debug(f'Processing target:telescope:filter {ttfkey} with {ndata} datatsets.')
+
+            # Loop over the data_list indices stored in the ttfval
+            for idx in ttfval:
+                data = self._data_list[idx]
+                values_dict = self._extract_values(data, col_def_dict)
+                values_dict['targ:tel:filter'] = ttfkey
+        
+                for odkey, odval in values_dict.items():
+                    sum_table[odkey][rowidx] = odval
+        
+                # Update row index
+                rowidx += 1
+        
+        self._summary_table = sum_table.copy()
+        return    
+        
+    def _extract_values(self, idata, icol_data_dict):
+        """Extract the data values named in the input column data 
+           dictionary from the yaml input data structure.
+          
+        There is a bit of a hardwired hack to handle the FWHM data.
+        """
+        
+        # keywords that require special handling
+        special_kws=['fwhm_val_pix', 'fwhm_val_arcs', 
+            'fwhm_err_pix', 'fwhm_err_arcs', 
+            'num_data_pts']
+        
+        out_dict = {}
+        for key, valdict in icol_data_dict.items():
+            subsec = valdict['subsec']
+            kw     = valdict['kw']
+            
+            # Skip the targ:tel:filter master keyword
+            if subsec is None:
+                continue
+            
+            if kw in special_kws:
+                out_dict[kw] = idata[subsec]['fwhm_xandy'][kw]
+            else:    
+                out_dict[kw] = idata[subsec][kw]
+        
+        return out_dict
+    
     def _find_files(self):
         """Find all quality files in the specified directory or 
            directory tree.
@@ -202,14 +321,19 @@ class ApQualitySummarizer:
         key_str = ', '.join(key_list)
         self._logger.info(f'There are {num_groups} unique target/telescope/filter groupings: {key_str}')
         return
+
+    def _write_summary_table(self):
+        """Write out a summary of the quality data to a spreadsheet format.
+        """
         
-    def _check_file_exists(self, filename):
-        if not os.path.isfile(filename):
-            err_msg = f'Cannot find {filename}. Not a valid path or file.'
-            self._logger.error(err_msg)
-            self._status = ApAstrometry.INPUT_ERROR
-
-
+        ofmt = 'ascii.csv'
+        over = True
+        self._summary_table.write(self._sumfile, 
+            format=ofmt,
+            overwrite=over)
+        self._logger.info(f'Wrote quality summary to {self._sumfile}')
+        return
+        
 def main(args=None):
     p_args      = command_line_opts(args)
     p_qualdir   = p_args.qualfile_dir
