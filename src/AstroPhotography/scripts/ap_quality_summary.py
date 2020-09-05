@@ -30,6 +30,7 @@ import argparse
 import sys
 import logging
 from pathlib import Path
+import yaml
 
 def command_line_opts(argv):
     """ Parse command line arguments.
@@ -93,15 +94,21 @@ class ApQualitySummarizer:
         self._qual_pref = qual_pref
         self._qual_suff = qual_suff
         
-        # Generate a list of all the files.
-        self._file_list = []
+        # Generate a list of all the files as pathlib Paths.
+        self._path_list = []
         self._find_files()
+        
+        # Read the data
+        self._read_files()
         
         return
         
     def _find_files(self):
         """Find all quality files in the specified directory or 
            directory tree.
+           
+        This function builds a list of pathlib Path objects, not file
+        name strings.
         """
         
         # File pattern to look for
@@ -116,12 +123,12 @@ class ApQualitySummarizer:
         # If walktree is True use rglob, otherwise glob
         if self._walktree:
             for globbed in Path(self._qualdir).rglob(file_pattern):
-                self._file_list.append( globbed.name )
+                self._path_list.append( globbed )
         else:
             for globbed in Path(self._qualdir).glob(file_pattern):
-                self._file_list.append( globbed.name )
+                self._path_list.append( globbed )
         
-        num_files = len(self._file_list)
+        num_files = len(self._path_list)
         self._logger.debug(f'Found {num_files} matching path and pattern.')
         return
         
@@ -149,6 +156,51 @@ class ApQualitySummarizer:
     
         # add ch to logger
         self._logger.addHandler(ch)
+        return
+        
+    def _read_files(self):
+        """Read all the yaml files"""
+        
+        # This creates several dictionaries, storing the main yaml
+        # data in a list.
+      
+        # List of yaml dictionaries stored by index.
+        self._data_list = []
+        
+        # Dictionary of unique target/telescope/filter combo with a list
+        # of the index/indices within self._data_list at which the yaml
+        # data can be found.
+        self._index_dict = {}
+        
+        num_paths = len(self._path_list)
+        for idx in range(num_paths):
+            path_obj = self._path_list[idx]
+            with path_obj.open(mode='r') as f_handle:
+                data = yaml.load(f_handle, Loader=yaml.FullLoader)
+                if 'image_info' in data:
+                    a_target    = data['image_info']['object'].strip()
+                    a_telescope = data['image_info']['telescope'].strip()
+                    a_filter    = data['image_info']['filter'].strip()
+                    
+                    # Create key for target/telescope/filter combo
+                    key = f'{a_target}:{a_telescope}:{a_filter}'.replace(' ', '_')
+                    self._data_list.append( data )
+                    if key in self._index_dict:
+                        # Key already exists, add to list
+                        self._index_dict[key].append( idx )
+                    else:
+                        # Key does not exist, create key/value pair
+                        self._index_dict[key] = [ idx ]
+                else:
+                    self._logger.warning(f'Input file {str(path_obj)} lacks image_info data. Skipping this file.')
+                    
+        # Report the number of unique target/telescope/filter groups
+        num_groups = len(self._index_dict)
+        key_list = []
+        for key in self._index_dict:
+            key_list.append(key)
+        key_str = ', '.join(key_list)
+        self._logger.info(f'There are {num_groups} unique target/telescope/filter groupings: {key_str}')
         return
         
     def _check_file_exists(self, filename):
