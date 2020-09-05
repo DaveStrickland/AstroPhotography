@@ -635,7 +635,20 @@ class ApFindStars:
         minval = np.amin(ext_data)
         maxval = np.amax(ext_data)
         medval = np.median(ext_data)
-        self._logger.debug(f'Raw data statistics are min={minval:.2f}, min={maxval:.2f}, median={medval:.2f}')
+        self._logger.debug(f'Raw data statistics are min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
+        
+        # Is there a PEDESTAL value? MaximDL likes to add an offset, and
+        # the PEDESTAL value is the value to ADD to the data to remove the
+        # pedestal.
+        if 'PEDESTAL' in ext_hdr:
+            pedestal = float( ext_hdr['PEDESTAL'] )
+            self._logger.debug(f'Removing a PEDESTAL value of {pedestal} ADU.')
+            ext_data += pedestal
+            minval = np.amin(ext_data)
+            maxval = np.amax(ext_data)
+            medval = np.median(ext_data)
+            self._logger.debug(f'After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
+        
         return ext_data, ext_hdr
     
     def _write_source_list(self, 
@@ -765,9 +778,10 @@ class ApFindStars:
         # Number of sources detected, that are in the final photometry
         # and source lists, and were optionally used in estimating the
         # stellar FWHM
-        kw_dict['AP_NDET']  = (self._nsrcs_detected, 'Number of sources detected in the image.')
-        kw_dict['AP_NPHOT'] = (self._nsrcs_photom,   'Number of sources final photometry.')
-        kw_dict['AP_NFIT']  = (self._nsrcs_fitted,   'Number of sources used in FWHM fitting.')
+        kw_dict['AP_NDET']   = (self._nsrcs_detected, 'Number of sources detected in the image.')
+        kw_dict['AP_NPHOT']  = (self._nsrcs_photom,   'Number of sources final photometry.')
+        kw_dict['AP_NFIT']   = (self._nsrcs_fitted,   'Number of sources used in FWHM fitting.')
+        kw_dict['AP_NSIGMA'] = (self._search_nsigma,  'Source searching threshold (sigma above background)')
                 
         # Add keywords that may or may not exist
         # Each value of the dict is a (value, comment) tuple.
@@ -954,8 +968,9 @@ class ApFindStars:
         bg_info_dict['stddev'] = bgstd
         
         # Source information
-        src_info_dict['num_detected'] = self._kw_dict['AP_NDET'][0]
+        src_info_dict['num_detected']        = self._kw_dict['AP_NDET'][0]
         src_info_dict['num_with_photometry'] = self._kw_dict['AP_NPHOT'][0]
+        src_info_dict['search_nsigma']       = self._kw_dict['AP_NSIGMA'][0]
         
         # Saturation info
         num_sat_in_phot = int( np.sum(self._phot_table['psbl_sat']==True) )
