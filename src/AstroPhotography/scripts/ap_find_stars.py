@@ -471,8 +471,12 @@ class ApFindStars:
         # Set official photometry table
         self._phot_table = phot_table
         
-        # Trim to the constructed value of max_sources
+        # Create a copy of the full set of sources, also used to
+        # get source statistics
         self._full_srclist = phot_table.copy()
+        self._create_photometry_statistics()
+                
+        # Trim to the constructed value of max_sources
         if not dont_trim:
             self.trim(self._max_sources)
             
@@ -702,6 +706,38 @@ class ApFindStars:
         hdu_list = fits.HDUList(hdus_to_append)
         hdu_list.writeto(p_sourcelist, overwrite=True)
     
+        return
+    
+    def _create_photometry_statistics(self):
+        """Calculates and stores the brightness (adu_per_sec) of the
+           brightest, faintest, and median source from the full 
+           photometric data table. 
+           
+        These values are written to the quality report.
+        """
+        
+        # As the list is sorted by brightness, the source with index (N/2)
+        # is the median, the index 0 zource the brightest, and the N-1
+        # source the faintest.
+        num_srcs = len(self._full_srclist)
+        idx_bright = 0
+        idx_median = int(num_srcs/2)
+        idx_faint  = num_srcs - 1
+        
+        adups_bright = float( self._full_srclist['adu_per_sec'][idx_bright] )
+        adups_median = float( self._full_srclist['adu_per_sec'][idx_median] )
+        adups_faint  = float( self._full_srclist['adu_per_sec'][idx_faint]  )
+
+        self._logger.debug(f'Brightest source (idx={idx_bright}) generates {adups_bright:.2f} ADU/s.')
+        self._logger.debug(f'Median source (idx={idx_median}) generates {adups_median:.2f} ADU/s.')
+        self._logger.debug(f'Faintest source (idx={idx_faint}) generates {adups_faint:.2f} ADU/s.')
+        
+        # The format of the stored info is a tuple of tuples 
+        # ((adups_bright, idx_bright), (adups_median, idx_median), (adups_faint, idx_faint))
+
+        self._phot_stats = ((adups_bright, idx_bright), 
+            (adups_median, idx_median), 
+            (adups_faint, idx_faint))
         return
     
     def _create_primary_header(self, kw_dict):
@@ -971,6 +1007,10 @@ class ApFindStars:
         src_info_dict['num_detected']        = self._kw_dict['AP_NDET'][0]
         src_info_dict['num_with_photometry'] = self._kw_dict['AP_NPHOT'][0]
         src_info_dict['search_nsigma']       = self._kw_dict['AP_NSIGMA'][0]
+        src_info_dict['adups_brightest']     = self._phot_stats[0][0]
+        src_info_dict['adups_median']        = self._phot_stats[1][0]
+        src_info_dict['adups_faintest']      = self._phot_stats[2][0]
+        
         
         # Saturation info
         num_sat_in_phot = int( np.sum(self._phot_table['psbl_sat']==True) )
