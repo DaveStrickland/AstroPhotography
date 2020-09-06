@@ -62,7 +62,7 @@ from astropy.stats import sigma_clip, mad_std
 from regions import PixCoord, CirclePixelRegion, ds9_objects_to_string
 
 from photutils import make_source_mask, find_peaks, DAOStarFinder
-from photutils import CircularAperture, aperture_photometry
+from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 
 def command_line_opts(argv):
     """ Parse command line arguments.
@@ -297,7 +297,7 @@ class ApFindStars:
         # Trim and update apertures
         self._phot_table = self._trim_table(self._phot_table, 
             max_srcs)
-        self._apertures  = self._make_apertures(self._phot_table['xcenter'], 
+        self._apertures, _, _  = self._make_apertures(self._phot_table['xcenter'], 
             self._phot_table['ycenter'])
         return
         
@@ -350,16 +350,31 @@ class ApFindStars:
         return
         
     def _make_apertures(self, colpos, rowpos):
-        """Create an apertures object for aperture photometry
+        """Create an apertures, bg annular, and annular mask object for 
+           aperture photometry.
+           
+        See https://photutils.readthedocs.io/en/stable/aperture.html#sigma-clipped-median-within-a-circular-annulus
         """
 
-        # TODO better estimate of aperture to use
         positions = np.transpose((colpos, rowpos))
-        ap_radius = math.ceil(self._ap_fwhm_mult * self._search_fwhm)
-        self._logger.debug(f'Radius of circular aperture photometry is {ap_radius} pixels.')
-        apertures = CircularAperture(positions, r=ap_radius)
         
-        return apertures
+        # Radius of circular source region radius
+        ap_radius = math.ceil(self._ap_fwhm_mult * self._search_fwhm)
+        
+        # BG outer annulus radius. By making this 1.5 times ap_radius
+        # the BG annulus has an area 1.25 times the inner circle, so
+        # we should get decent sampling.
+        outer_radius = math.ceil(1.5 * ap_radius) 
+        
+        self._logger.debug(f'Radius of circular aperture photometry is {ap_radius} pixels.')
+        self._logger.debug(f'Local BG estimation in annulus outer radius {outer_radius} pixels, inner radius {ap_radius} pixels.')
+        
+        apertures         = CircularAperture(positions, r=ap_radius)
+        bg_apertures      = CircularAnnulus(positions, r_in=ap_radius, 
+            r_out=outer_radius)
+        bg_aperture_masks = bg_apertures.to_mask(method='center')
+        
+        return apertures, bg_apertures, bg_aperture_masks
 
     def source_search(self, search_fwhm, search_nsigma):
         """Search for star-like objects with the given FWHM that have
@@ -441,20 +456,35 @@ class ApFindStars:
         if notrim is not None:
             dont_trim = notrim
         
-        self._apertures = self._make_apertures(self._sources['xcentroid'], 
+        self._apertures, bg_apertures, bg_aperture_masks = self._make_apertures(self._sources['xcentroid'], 
             self._sources['ycentroid'])
+        
+        # Find the median BG level in the background annuli
+        bkg_median = []
+        for mask in bg_aperture_masks:
+            annulus_data         = mask.multiply(self._data)
+            annulus_data_1d      = annulus_data[mask.data > 0]
+            _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d)
+            bkg_median.append(median_sigclip)
+        bkg_median = np.array(bkg_median)
         
         # Perform photometry but get rid of quantities, as they complicate
         # life.
-        phot_table = Table( aperture_photometry(self._data - self._bg_median, 
+        phot_table = Table( aperture_photometry(self._data, 
             self._apertures) )
+            
+        # Expected background counts in source aperture
+        bg_in_src_ap = bkg_median * self._apertures.area
+        
+        # Correct the current aperture sum for the expected BG
+        phot_table['aperture_sum'] = phot_table['aperture_sum'] - bg_in_src_ap            
         phot_table['aperture_sum'].info.format = '%.4f'  # for consistent table output
         
         # Copy over peak ADU and possibly saturated flag from initial
         # sourcelist 
         phot_table['peak_adu'] = self._sources['peak']
         phot_table['psbl_sat'] = self._sources['psbl_sat']
-        phot_table['local_bg'] = self._bg_median # TODO change
+        phot_table['bgmed_per_pix'] = bkg_median
         
         exposure = float(self._hdr['EXPOSURE'])
         phot_table['adu_per_sec'] = phot_table['aperture_sum'] / exposure
@@ -464,7 +494,7 @@ class ApFindStars:
         phot_table['magnitude'].info.format   = '%.4f'
         phot_table['xcenter'].info.format     = '%.2f'
         phot_table['ycenter'].info.format     = '%.2f'
-        phot_table['local_bg'].info.format    = '%.2f'
+        phot_table['bgmed_per_pix'].info.format    = '%.2f'
     
         phot_table.sort(['adu_per_sec', 'xcenter', 'ycenter'], reverse=True)
         if not self._quiet:
@@ -1325,7 +1355,7 @@ class ApMeasureStars:
             xpos   = self._fit_table['xcenter'][idx] - self._fit_table['xmin'][idx]
             ypos   = self._fit_table['ycenter'][idx] - self._fit_table['ymin'][idx]
             ampl   = self._fit_table['peak_adu'][idx]
-            bglvl  = self._fit_table['local_bg'][idx]
+            bglvl  = self._fit_table['bgmed_per_pix'][idx]
             comb_mod[0].x_mean    = xpos
             comb_mod[0].y_mean    = ypos
             comb_mod[0].amplitude = ampl
