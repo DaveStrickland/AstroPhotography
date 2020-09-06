@@ -1462,12 +1462,13 @@ class ApMeasureStars:
             self._fit_table['rchisq'][idx] = rchisq
             
             # Get the errors.
-            for col in err_par_dict:
-                paridx = err_par_dict[col]
-                if 'fwhm' in col:
-                    self._fit_table[col][idx] = sigma_to_fwhm * uncert_vals[paridx]
-                else:
-                    self._fit_table[col][idx] = uncert_vals[paridx]
+            if fit_ok:
+                for col in err_par_dict:
+                    paridx = err_par_dict[col]
+                    if 'fwhm' in col:
+                        self._fit_table[col][idx] = sigma_to_fwhm * uncert_vals[paridx]
+                    else:
+                        self._fit_table[col][idx] = uncert_vals[paridx]
             
             # Calculate axis ratio and circularity.
             # Note this calculation is not quite right because the two
