@@ -819,7 +819,7 @@ class ApFindStars:
         kw_dict['AP_NDET']   = (self._nsrcs_detected, 'Number of sources detected in the image.')
         kw_dict['AP_NPHOT']  = (self._nsrcs_photom,   'Number of sources final photometry.')
         kw_dict['AP_NFIT']   = (self._nsrcs_fitted,   'Number of sources used in FWHM fitting.')
-        kw_dict['AP_NSIGMA'] = (self._search_nsigma,  'Source searching threshold (sigma above background)')
+        kw_dict['AP_NSIGM'] = (self._search_nsigma,  'Source searching threshold (sigma above background)')
                 
         # Add keywords that may or may not exist
         # Each value of the dict is a (value, comment) tuple.
@@ -1008,7 +1008,7 @@ class ApFindStars:
         # Source information
         src_info_dict['num_detected']        = self._kw_dict['AP_NDET'][0]
         src_info_dict['num_with_photometry'] = self._kw_dict['AP_NPHOT'][0]
-        src_info_dict['search_nsigma']       = self._kw_dict['AP_NSIGMA'][0]
+        src_info_dict['search_nsigma']       = self._kw_dict['AP_NSIGM'][0]
         src_info_dict['adups_brightest']     = self._phot_stats[0][0]
         src_info_dict['adups_median']        = self._phot_stats[1][0]
         src_info_dict['adups_faintest']      = self._phot_stats[2][0]
