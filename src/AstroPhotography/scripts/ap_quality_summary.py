@@ -100,6 +100,9 @@ class ApQualitySummarizer:
         # Generate a list of all the files as pathlib Paths.
         self._path_list = []
         self._find_files()
+        if len(self._path_list) == 0:
+            self._logger.warning(f'Found zero quality files under {qualdir}. Nothing to do.')
+            return
         
         # Read the data
         self._read_files()
@@ -229,6 +232,8 @@ class ApQualitySummarizer:
         This function builds a list of pathlib Path objects, not file
         name strings.
         """
+        
+        # TODO check that qualdir is a valid directory path
         
         # File pattern to look for
         file_pattern = f'{self._qual_pref}*{self._qual_suff}'
