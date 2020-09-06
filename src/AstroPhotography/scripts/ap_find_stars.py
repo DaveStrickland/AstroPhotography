@@ -454,6 +454,7 @@ class ApFindStars:
         # sourcelist 
         phot_table['peak_adu'] = self._sources['peak']
         phot_table['psbl_sat'] = self._sources['psbl_sat']
+        phot_table['local_bg'] = self._bg_median # TODO change
         
         exposure = float(self._hdr['EXPOSURE'])
         phot_table['adu_per_sec'] = phot_table['aperture_sum'] / exposure
@@ -463,6 +464,7 @@ class ApFindStars:
         phot_table['magnitude'].info.format   = '%.4f'
         phot_table['xcenter'].info.format     = '%.2f'
         phot_table['ycenter'].info.format     = '%.2f'
+        phot_table['local_bg'].info.format    = '%.2f'
     
         phot_table.sort(['adu_per_sec', 'xcenter', 'ycenter'], reverse=True)
         if not self._quiet:
@@ -1136,7 +1138,7 @@ class ApMeasureStars:
 
         # Settings related to source fitting.
         self._use_weights    = True
-        self._fit_for_bg     = False
+        self._fit_for_bg     = True
         self._logger.debug(f'Count based weighting factors will used in fitting?: {self._use_weights}')
         self._logger.debug(f'Will the background level be fitted for?           : {self._fit_for_bg}')
 
@@ -1277,7 +1279,7 @@ class ApMeasureStars:
                 
         # We initialize the 2-D Gaussians based on the initial FWHM
         # but with a slight asymmetry sig_x/sig_y = 1.1, theta approx 30 degrees.
-        def_axrat = 1.1
+        def_axrat = 1.05
         sig_y     = self._init_fwhm * fwhm_to_sigma
         sig_x     = def_axrat * sig_y
         rotang    = 1.1 # radians, approx 60 degrees.
@@ -1286,11 +1288,11 @@ class ApMeasureStars:
         ampl      = 1
         num_fit_pars = 0
 
+        # The background model starts off fixed.
         bg_mod    = models.Const2D(amplitude=self._init_bglvl)
-        if self._fit_for_bg is False:
-            bg_mod.amplitude.fixed = True
-        else:
-            num_fit_pars += 1
+        bg_mod.amplitude.fixed = True        
+            
+        # 2-D gaussian model for the star.
         star_mod  = models.Gaussian2D(amplitude=ampl,
             x_mean=xpos,
             y_mean=ypos,
@@ -1323,9 +1325,11 @@ class ApMeasureStars:
             xpos   = self._fit_table['xcenter'][idx] - self._fit_table['xmin'][idx]
             ypos   = self._fit_table['ycenter'][idx] - self._fit_table['ymin'][idx]
             ampl   = self._fit_table['peak_adu'][idx]
+            bglvl  = self._fit_table['local_bg'][idx]
             comb_mod[0].x_mean    = xpos
             comb_mod[0].y_mean    = ypos
             comb_mod[0].amplitude = ampl
+            comb_mod[1].amplitude = bglvl
             current_num_fit_pars  = num_fit_pars
             
             # Estimated standard devation of the data.
@@ -1356,9 +1360,23 @@ class ApMeasureStars:
                 current_num_fit_pars,
                 idx)
              
+            # If the ift is OK, and fit_for_bg is true, then fit for the BG level.
+            if (fit_ok) and (self._fit_for_bg is True):
+                fitted_mod[1].amplitude.fixed = False
+                current_num_fit_pars += 1
+                fitted_mod, fit_status, fit_message, fit_ok, uncert_vals = self._do_single_fit(fitter,
+                    fitted_mod,
+                    self._pixel_array[idx],
+                    weights_arr,
+                    x_grid,
+                    y_grid,
+                    max_iterations,
+                    current_num_fit_pars,
+                    idx)
+             
             # If the fit did NOT fail we can relax the constraints on the
             # position of the gaussian.
-            if is_pos_fitted_for:
+            if fit_ok and is_pos_fitted_for:
                 fitted_mod[0].x_mean.fixed = False
                 fitted_mod[0].y_mean.fixed = False
                 current_num_fit_pars += 2
@@ -2091,6 +2109,10 @@ def main(args=None):
     
     # Re-run photometry
     find_stars.aperture_photometry()
+    
+    # As the source searching and photometry was redone, we should redo
+    # the plotting.
+    find_stars.plot_image(p_plotfile)
     
     # Write optional quality report
     if p_qual_rprt is not None:
