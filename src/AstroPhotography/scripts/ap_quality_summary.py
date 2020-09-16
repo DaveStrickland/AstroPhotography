@@ -23,7 +23,7 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 #  
-#  2020-09-04 dks 
+#  2020-09-04 dks : Initial coding.
 # 
 
 import argparse
