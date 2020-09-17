@@ -62,7 +62,7 @@ def command_line_opts(argv):
         ' within the first bias file, OR the numerical value of the'
         f' gain to use. Default: {p_gain}'))
     parser.add_argument('--noclip',
-        dest='sigma_clip',
+        dest='sigmaclip',
         action='store_false',
         default=True,
         help='If specified, extreme values of the bias pixel-to-pixel' +
@@ -117,9 +117,99 @@ class ApImageDifference:
         # add ch to logger
         self._logger.addHandler(ch)
         return
+        
+class ApCalcReadNoise:
+    """Calculates an estimate of detector read noise (e/pixel) given
+       two raw bias files and the electronic gain (e/ADU).
+       
+    Given two bias frames, B1 and B2, and the difference between them
+    B1-B2, the standard deviation of the difference image is related
+    to the read noise of the detector by
+    
+    Read Noise = Gain * (sigma_(b1-b2)) / sqrt(2)
+       
+    See section 4.3 of "Handbook of CCD Astronomy", Howell, S.B.,
+    2000 (Cambridge University Press, Cambridge UK)
+    """
+    
+    def __init__(self,
+        biasfile1,
+        biasfile2,
+        gain,
+        loglevel):
+        """The constructor stores the names of the files and gain
+           keyword or value, and initializes the logger, but does not
+           perform any file IO or perform calculations.
+           
+           The actual file IO and calculations are only performed when
+           the user calls estimate_rn.
+        """
+    
+        # Initialize logging
+        self._loglevel = loglevel
+        self._initialize_logger(self._loglevel)
+        
+        return
+                
+    def _initialize_logger(self, loglevel):
+        """Initialize and return the logger
+        """
+        
+        self._logger = logging.getLogger('ApImageDifference')
+        
+        # Check that the input log level is legal
+        numeric_level = getattr(logging, loglevel.upper(), None)
+        if not isinstance(numeric_level, int):
+            raise ValueError('Invalid log level: {}'.format(loglevel))
+        self._logger.setLevel(numeric_level)
+    
+        # create console handler and set level to debug
+        ch = logging.StreamHandler()
+        ch.setLevel(numeric_level)
+    
+        # create formatter
+        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    
+        # add formatter to ch
+        ch.setFormatter(formatter)
+    
+        # add ch to logger
+        self._logger.addHandler(ch)
+        return
+        
+    def estimate_rn(self, sigmaclip, histplot=None):
+        """Estimate the read noise from the files, and optionally
+           produce a histograme plot of the pixel-to-pixel ADU
+           differences. 
+        
+        If sigmaclip is true pixels with outlier values in either
+        bias image will be excluded from the pixel-to-pixel differencing.
+        Note that outliers are identified in each bias file separately
+        in terms of absolute intensity, and the resulting bad pixel maps
+        are combined.
+        """
+        
+        
+        
+        return
+
+        
                 
 def main(args=None):
     p_args      = command_line_opts(args)
+    p_biasfile1 = p_args.biasfile1
+    p_biasfile2 = p_args.biasfile2
+    p_gain      = p_args.gain
+    p_sigmaclip = p_args.sigmaclip
+    p_histplot  = p_args.histplot
+    p_loglevel  = p_args.loglevel
+    
+    read_noise_calculator = ApCalcReadNoise(p_biasfile1,
+        p_biasfile2,
+        p_gain,
+        p_loglevel)
+    
+    rn1 = read_noise_calculator.estimate_rn(p_sigmaclip, p_histplot)
     return 0
 
 if __name__ == '__main__':
