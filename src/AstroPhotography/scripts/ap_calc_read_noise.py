@@ -29,7 +29,8 @@
 import argparse
 import sys
 import logging
-from pathlib import Path
+import os.path
+import math
 
 import numpy as np
 from astropy.io import fits
@@ -80,7 +81,13 @@ def command_line_opts(argv):
     return args
 
 class ApImageDifference:
-    """TODO
+    """Takes the difference between two images of the same shape, with
+       optional internal sigma clipping-based masking or using externally
+       supplied mask arrays. 
+       
+    The difference array, masks, and difference statistics can be 
+    returned using accessors. An optional plot of the difference 
+    histogram can be generated.
     """
     
     def __init__(self,
@@ -146,9 +153,14 @@ class ApCalcReadNoise:
         """
     
         # Initialize logging
-        self._loglevel = loglevel
+        self._loglevel  = loglevel
+        self._biasfile1 = biasfile1
+        self._biasfile2 = biasfile2
+        self._gaininfo  = gain
         self._initialize_logger(self._loglevel)
-        
+        self._logger.debug( ( 'Initialized an ApCalcReadNoise instance with'
+            f' biasfile1={biasfile1}, biasfile1={biasfile2}, gain={gain},'
+            f' and loglevel={loglevel}' ) )
         return
                 
     def _initialize_logger(self, loglevel):
@@ -177,6 +189,71 @@ class ApCalcReadNoise:
         self._logger.addHandler(ch)
         return
         
+    def _check_file_exists(self, filename):
+        if not os.path.isfile(filename):
+            err_msg = f'Cannot find {filename}. Not a valid path or file.'
+            self._logger.error(err_msg)
+            raise RuntimeError(err_msg)
+        return
+    
+    def _read_fits(self, image_filename, image_extension):
+        """Read a single extension's data and header from a FITS file
+        """
+        
+        self._check_file_exists(image_filename)
+        self._logger.info('Loading extension {} of FITS file {}'.format(image_extension, image_filename))
+            
+        # open() parameters that can be important.
+        # Default values used here.
+        # See https://docs.astropy.org/en/stable/io/fits/api/files.html#astropy.io.fits.open
+        uint_handling = True
+        image_scaling = False
+            
+        with fits.open(image_filename, 
+            uint=uint_handling, 
+            do_not_scale_image_data=image_scaling) as hdu_list:
+            ext_hdr  = hdu_list[image_extension].header
+            ext_data = hdu_list[image_extension].data
+            
+        ndim     = ext_hdr['NAXIS']
+        cols     = ext_hdr['NAXIS1']
+        rows     = ext_hdr['NAXIS2']
+        bitpix   = ext_hdr['BITPIX']
+        bzero    = ext_hdr['BZERO']
+        bscale   = ext_hdr['BSCALE']
+        info_str = '{}-D BITPIX={} image with {} columns, {} rows, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, bscale, bzero)
+        
+        if ndim == 3:
+            layers = ext_hdr['NAXIS3']
+            info_str = '{}-D BITPIX={} image with {} columns, {} rows, {} layers, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, layers, bscale, bzero)
+            
+        self._logger.debug(info_str)
+        if ndim == 3:
+            self._loggererror('Error, 3-D handling has not been implemented yet.')
+            sys.exit(1)
+            
+        # Get data absolute limits.
+        minval = np.amin(ext_data)
+        maxval = np.amax(ext_data)
+        medval = np.median(ext_data)
+        self._logger.debug(f'Raw data statistics are min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
+        
+        # Is there a PEDESTAL value? MaximDL likes to add an offset, and
+        # the PEDESTAL value is the value to ADD to the data to remove the
+        # pedestal.
+        if 'PEDESTAL' in ext_hdr:
+            pedestal = float( ext_hdr['PEDESTAL'] )
+            if pedestal != 0:
+                self._logger.debug(f'Removing a PEDESTAL value of {pedestal} ADU.')
+                ext_data += pedestal
+                minval = np.amin(ext_data)
+                maxval = np.amax(ext_data)
+                medval = np.median(ext_data)
+                self._logger.debug(f'After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
+        
+        return ext_data, ext_hdr
+        
+        
     def estimate_rn(self, sigmaclip, histplot=None):
         """Estimate the read noise from the files, and optionally
            produce a histograme plot of the pixel-to-pixel ADU
@@ -189,9 +266,28 @@ class ApCalcReadNoise:
         are combined.
         """
         
+        # Read the files files, assuming data is in primary.
+        data1, hdr1 = self._read_fits(self._biasfile1, 0)
+        data2, hdr2 = self._read_fits(self._biasfile2, 0)
+        if data1.shape != data2.shape:
+            err_msg = ('Error, data array shapes do not match:'
+                f' First file={data1.shape},'
+                f' second file={data2.shape}')
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
         
         
-        return
+        # Work out the gain (e/ADU)
+        self._gain = 0 # TODO
+        
+        # Calculate the difference with or without sigma clipping and
+        # histogram plotting, get the standard deviation (ADU)
+        stddev = 0 # TODO
+        
+        # Calculate read noise estimate in e/pixel
+        read_noise = self._gain * stddev / math.sqrt(2)
+        
+        return read_noise
 
         
                 
@@ -210,6 +306,7 @@ def main(args=None):
         p_loglevel)
     
     rn1 = read_noise_calculator.estimate_rn(p_sigmaclip, p_histplot)
+    print(f'Estimated read noise is {rn1:.2f} electrons/pixel.')
     return 0
 
 if __name__ == '__main__':
