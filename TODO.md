@@ -9,6 +9,14 @@
 - [ ] Write basic FITS files (Correct metadata is separate item)
 - [X] Remove hello command stub provided by cookiecutter.
 
+## General FITS Processing Tools
+
+Also see doc/iTelescope_processing.md
+
+- [ ] Move classes out of ap_ scripts and into core
+- [ ] Reorganize so scripts can be run using core classes without running setup.py
+- [ ] Have ap_ scripts installed properly if setup.py is run
+
 ## RAW Conversion Sub Tools
 
 - [X] whitebalance: options to select camera, daylight, auto, region, user-specified
