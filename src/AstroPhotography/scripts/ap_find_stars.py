@@ -678,12 +678,13 @@ class ApFindStars:
         # pedestal.
         if 'PEDESTAL' in ext_hdr:
             pedestal = float( ext_hdr['PEDESTAL'] )
-            self._logger.debug(f'Removing a PEDESTAL value of {pedestal} ADU.')
-            ext_data += pedestal
-            minval = np.amin(ext_data)
-            maxval = np.amax(ext_data)
-            medval = np.median(ext_data)
-            self._logger.debug(f'After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
+            if pedestal != 0:
+                self._logger.debug(f'Removing a PEDESTAL value of {pedestal} ADU.')
+                ext_data += pedestal
+                minval = np.amin(ext_data)
+                maxval = np.amax(ext_data)
+                medval = np.median(ext_data)
+                self._logger.debug(f'After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
         
         return ext_data, ext_hdr
     
