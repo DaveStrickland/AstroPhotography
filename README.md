@@ -1,18 +1,35 @@
 # AstroPhotography
 
-The AstroPhotography python package provides python classes and command line 
-applications for quick and convenient processing amateur astronomical images
-from RAW digital camera format to common graphical image formats (e.g. PNG)
-and astronomical FITS format.
+The aim of the AstroPhotography python package is to provides python 
+classes and command line applications for amateur astronomy, specifically:
 
-The provided command line application `dksraw` provides a simple method of
-quickly converting RAW files into useful images without the user having 
-to mess around with `dcraw`, `gimp`, `photoshop` or the equivalent.
+- quick inspection and conversion of RAW digital camera format to common 
+  graphical image formats (e.g. PNG) and astronomical FITS format.
+- reduction and combination of multiple FITS images, including calibration,
+  artifact removal, star detection, and astrometry.
 
 FITS images can then be viewed with the powerful features SAO `ds9`
-provides.
+provides, and/or within python using `astropy`.
+
+*Current status:* This is still very much a work in progress. RAW to 
+image/FITS conversion is partially implemented, but development stalled
+when I became dissatified with the clunky nature of the unit tests. I've
+been putting more effort into the FITS data reduction side of the project,
+but still have a long way to go.
 
 ## Command Line Functionality
+
+The command line python program `dksraw` will provide a simple method of
+quickly converting RAW files into useful images or FITS files without 
+the user having to mess around with `dcraw`, `gimp`, `photoshop` or 
+the equivalent.
+
+A series of python scripts, all beginning with the prefix `ap_`, will 
+perform separate stages of traditional astronomical image data reduction
+given FITS files generated either by `dksraw` or obtained directly
+from some other sources (e.g. iTelescope, an archive, etc).
+
+### dksraw
 
 **Note** Planned, only some are partially implemented at this stage. 
 See TODO.md for plan and implementation status.
@@ -20,27 +37,27 @@ See TODO.md for plan and implementation status.
 The command line `dksraw` application will provide the following subcommands:
 - grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
         FITS file using one of several methods. **Partially implemented.**
-- rgb: Convert a RAW file into an RGB PNG image. 
-- hist: Calculate and plot RGB or greyscale levels from a RAW image. 
+- rgb: Convert a RAW file into an RGB PNG image. **Not yet implemented.**
+- hist: Calculate and plot RGB or greyscale levels from a RAW image.  **Not yet implemented.** 
 - split: Splits the input RAW file into separate 16-bit PNG files for each
          of the R, G, B and G channel in the Bayer mask. **Implemented.**
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
                 of several ways. **Partially implemented as part of `grey`.**
-- info: Print metadata about the input RAW file to stdout.
+- info: Print metadata about the input RAW file to stdout.  **Not yet implemented.**
 - features: Performs image segmentation on the input RAW image and outputs a
             list of the coordinates and sizes of features thus found, along
-            with an indexed image that can be used to view them.
+            with an indexed image that can be used to view them.  **Not yet implemented.**
+
+### ap_ scripts
+
+(To be described)
 
 # Installation Instructions
 
 ## Minimum Requirements
 
-See `requirements.txt` for full dependency list.
-- Python 3.5+
-- `numpy` and `matplotlib`
-- `PyYAML`
-- `rawpy` (python binding and interface to libraw)
-
+See `requirements.txt` for full dependency list. This is a Python 3 
+project, with no intention to support Python 2.
 
 ## Optional Requirements
 
