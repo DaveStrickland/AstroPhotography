@@ -140,9 +140,9 @@ class ApCalcReadNoise:
     """
     
     def __init__(self,
-        biasfile1,
-        biasfile2,
-        gain,
+        biasfile1,      # Name/path of first bias file.
+        biasfile2,      # Name/path of second bias file.
+        gain,           # Gain value or gain FITS keyword to use.
         loglevel):
         """The constructor stores the names of the files and gain
            keyword or value, and initializes the logger, but does not
@@ -276,9 +276,9 @@ class ApCalcReadNoise:
             self._logger.error(err_msg)
             raise RunTimeError(err_msg)
         
-        
-        # Work out the gain (e/ADU)
-        self._gain = 0 # TODO
+        # Work out the gain value to use (e/ADU)
+        self._gain = self._select_gain(hdr1, hdr2)
+        self._logger.info(f'Adopted gain is {self._gain:.2f} electrons/ADU.')
         
         # Calculate the difference with or without sigma clipping and
         # histogram plotting, get the standard deviation (ADU)
@@ -288,7 +288,47 @@ class ApCalcReadNoise:
         read_noise = self._gain * stddev / math.sqrt(2)
         
         return read_noise
+        
+    def _isfloat(self, value_str):
+        """Returns True if value_str can be converted to a numeric float
+           value.
+        
+        Will also return True for booleans and NaNs.
+        """
+        
+        try:
+            float(value_str)
+            return True
+        except ValueError:
+            return False
 
+    def _select_gain(self, hdr1, hdr2):
+        """Determines what gain value to use, based on the two file headers
+           and the gaininfo supplied at object construction.
+           
+        At construction a gain value (string representation of a floating
+        point number) or the name of a FITS primary header keyword was
+        supplied, and is stored as _gaininfo.
+        - If a string representation of a floating point number was 
+          supplied then we should use that.
+        - If _gaininfo is not convertable to float, treat it as a FITS
+          keyword.
+          - If the keyword not present in both FITS headers then this
+            is treated as an error.
+          - If the value associated with the keyword is different beyond
+            a numerical tolerance this is an error.
+        
+        If no gain information can be found then this function raises
+        an exception.
+        """
+        
+        if self._isfloat(self._gaininfo):
+            # Use the value given instead of looking in the FITS files.
+            return float(self._gaininfo)
+        
+        # Otherwise treat _gaininfo as a FITS header keyword
+        
+        return
         
                 
 def main(args=None):
