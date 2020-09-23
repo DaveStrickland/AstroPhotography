@@ -313,7 +313,7 @@ class ApCalcReadNoise:
           supplied then we should use that.
         - If _gaininfo is not convertable to float, treat it as a FITS
           keyword.
-          - If the keyword not present in both FITS headers then this
+          - If the keyword is NOT present in both FITS headers then this
             is treated as an error.
           - If the value associated with the keyword is different beyond
             a numerical tolerance this is an error.
@@ -327,8 +327,35 @@ class ApCalcReadNoise:
             return float(self._gaininfo)
         
         # Otherwise treat _gaininfo as a FITS header keyword
+        gain1 = None
+        if self._gaininfo in hdr1:
+            gain1 = float( hdr1[self._gaininfo] )
+        gain2 = None
+        if self._gaininfo in hdr2:
+            gain2 = float( hdr2[self._gaininfo] )
         
-        return
+        # If we can't find either or both this is a fatal error.
+        if (gain1 is None) or (gain2 is None):
+            err_msg = f'Error, {self._gaininfo} gain keyword not found in'
+            if (gain1 is None) and (gain2 is None):
+                err_msg += ' both FITS files.'
+            elif gain1 is None:
+                err_msg += ' the first FITS file.'
+            else:                                       # gain2 is None
+                err_msg += ' the second FITS file.'
+            
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+
+        # Now check the gains are the same to within a tolerance.
+        # Gains can differ by this much and be OK (e/ADU)
+        tolerance = 0.001
+        if math.fabs(gain1-gain2) > tolerance:
+            err_msg = f'Error, gains differ by more than {tolerance:.3f} e/ADU, where gain1={gain1:.3f}, gain2={gain2:.3f}.'
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+        
+        return gain1
         
                 
 def main(args=None):
