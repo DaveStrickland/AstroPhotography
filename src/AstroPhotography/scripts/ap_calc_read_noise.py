@@ -91,13 +91,47 @@ class ApImageDifference:
     """
     
     def __init__(self,
-        loglevel):
+        imdata1, 
+        imdata2, 
+        sigmaclip,
+        loglevel, 
+        mask1=None, 
+        mask2=None):
     
         # Initialize logging
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
+        # Check input images and perform differencing
+        self._check_input_images(imdata1, imdata2)
+        self._diff_img = imdata1 - imdata2
+        
+        # Perform masking prior to statistical calculations 
+        ## TODO
+        ## TODO
         return
+        
+    def _check_input_images(self, imdata1, imdata2):
+        """Check that the input images match each other in shape
+           and data type
+        """
+        
+        if imdata1.shape != imdata2.shape:
+            err_msg = ('Error, data array shapes do not match:'
+                f' First file={imdata1.shape},'
+                f' second file={imdata2.shape}')
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+        
+        if imdata1.dtype != imdata2.dtype:
+            err_msg = ('Error, data types do not match:'
+                f' First file={imdata1.dtype},'
+                f' second file={imdata2.dtype}')
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+
+        return
+
                 
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
@@ -124,6 +158,36 @@ class ApImageDifference:
         # add ch to logger
         self._logger.addHandler(ch)
         return
+        
+    def stddev(self):
+        """
+        """
+        
+        ## TODO
+        return 0
+    
+    def min(self):
+        """
+        """
+        
+        ## TODO
+        return 0
+        
+    def max(self):
+        """
+        """
+        
+        ## TODO
+        return 0
+        
+    def numpix(self):
+        """
+        """
+        
+        ## TODO
+        num_good  = 0
+        num_total = 100
+        return num_good, num_total
         
 class ApCalcReadNoise:
     """Calculates an estimate of detector read noise (e/pixel) given
@@ -167,7 +231,7 @@ class ApCalcReadNoise:
         """Initialize and return the logger
         """
         
-        self._logger = logging.getLogger('ApImageDifference')
+        self._logger = logging.getLogger('ApCalcReadNoise')
         
         # Check that the input log level is legal
         numeric_level = getattr(logging, loglevel.upper(), None)
@@ -282,7 +346,21 @@ class ApCalcReadNoise:
         
         # Calculate the difference with or without sigma clipping and
         # histogram plotting, get the standard deviation (ADU)
-        stddev = 0 # TODO
+        im_diff               = ApImageDifference(data1, 
+            data2, 
+            sigmaclip, 
+            self._loglevel,
+            mask1=None, 
+            mask2=None)
+        stddev                = im_diff.stddev()
+        mindiff               = im_diff.min()
+        maxdiff               = im_diff.max()
+        npix_good, npix_total = im_diff.numpix()
+        pct_bad               = 100 * (npix_total - npix_good)/npix_total
+        self._logger.info(f'Standard deviation={stddev:.2f} ADU using {npix_good}/{npix_total} pixels ({pct_bad:.3f} % bad).')
+        
+        # Generate plot
+        ## TODO
         
         # Calculate read noise estimate in e/pixel
         read_noise = self._gain * stddev / math.sqrt(2)
