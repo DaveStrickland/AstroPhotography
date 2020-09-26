@@ -34,6 +34,7 @@ import math
 
 import numpy as np
 from astropy.io import fits
+from astropy.stats import sigma_clipped_stats
 
 def command_line_opts(argv):
     """ Parse command line arguments.
@@ -97,18 +98,29 @@ class ApImageDifference:
         loglevel, 
         mask1=None, 
         mask2=None):
+        """Take the difference of two images and calculate its statistical
+           properties, after optionally masking the input images in one
+           of two ways.
+        
+        :param imdata1:
+        :param imdata2:
+        :param sigmaclip:
+        :param loglevel:
+        :param mask1:
+        :param mask2:
+        """
     
         # Initialize logging
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
-        # Check input images and perform differencing
+        # Check input images and perform differencing. Note that we
+        # must convert to a type than won't have underflow/overflow issues.
         self._check_input_images(imdata1, imdata2)
-        self._diff_img = imdata1 - imdata2
+        self._diff_img = imdata1.astype(float) - imdata2.astype(float)
         
-        # Perform masking prior to statistical calculations 
-        ## TODO
-        ## TODO
+        # Generate the mask
+        self._generate_mask(imdata1, imdata2, sigmaclip, mask1, mask2)
         return
         
     def _check_input_images(self, imdata1, imdata2):
@@ -131,7 +143,145 @@ class ApImageDifference:
             raise RunTimeError(err_msg)
 
         return
+        
+    def _combine_existing_bad_masks(self, mask1, mask2):
+        """Combine one or more existing bad pixel masks into a good 
+           pixel mask
+           
+        Note that the output good pixel mask is True where the pixels are
+        good.
+        
+        :param mask1: None or array like with non-zero values denoting
+          bad pixels.
+        :param mask2: None or array like with non-zero values denoting
+          bad pixels.
+        """
+        
+        self._logger.debug('Using existing image masks.')
+        if (mask1 is None) and (mask2 is None):
+            err_msg = 'Error, no input masks were passed to _combine_existing_bad_masks'
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+        elif (mask1 is not None) and (mask2 is not None):
+            # Check the shapes are the same.
+            if mask1.shape != mask2.shape:
+                err_msg = f'Error, mask shapes do not match. mask1 is {mask1.shape}, while mask2 is {mask2.shape}'
+                self._logger.error(err_msg)
+                raise RunTimeError(err_msg)
+            good1 = mask1 == 0
+            good2 = mask2 == 0
+        else:
+            # Only one mask suuplied.
+            # Generate an all-good mask to replace the missing mask.
+            if mask1 is not None:
+                good1 = mask1 == 0
+                good2 = np.ones(mask1.shape, dtype=bool)
+            else:                                   # mask2 is not None
+                good2 = mask2 == 0
+                good1 = np.ones(mask2.shape, dtype=bool)
+            
+        self._good_pixel_mask = np.logical_and(good1, good2)
+        return
 
+    def _generate_mask(self, data1, data2, sigmaclip, mask1, mask2):
+        """Generate a mask to be used to select pixels when calculating
+           the image difference statistics.
+           
+        There are two exclusive modes of masking, with the first being
+        more appropriate where each image is largely uniform with a few
+        outliers (e.g. a bias image or dark):
+        - If sigmaclip is True then outliers in each input image (not
+          the difference) are detected by sigma clipping. The final mask
+          excludes outliers in either input image.
+        - If sigmaclip is None or False and either of mask1 or mask2
+          is not None, then non-zero pixels in the input mask are 
+          assumed to denote bad pixels. The two masks are combined to
+          generate a final mask.
+        - If sigmaclip is None or False, and mask1 and mask2 are None,
+          then all pixels in the difference image are assumed to be good.
+
+        Note that:
+        - The input masks should be non-zero where the data is
+          to be excluded, i.e. zero is good data.
+        - Specifying sigmaclip as True will override and thus ignore any
+          input masks.
+        
+        Masking (excluding pixels from statistics) can be disabled by
+        setting all inputs to None.
+        
+        :param data1: First input image.
+        :param data2: Second input image.
+        :param sigmaclip: None or boolean.
+        :param mask1: None, or array like with non-zero values denoting
+          a bad pixel. If None then the first input image is assumed
+          to be all good. 
+        :param mask2: None, or array like with non-zero values denoting
+          a bad pixel. If None then the second input image is assumed
+          to be all good. 
+        """
+        
+        if sigmaclip is None:
+            sigmaclip = False
+            
+        if sigmaclip is True:
+            self._generate_sigmaclip_mask(data1, data2)
+        else:
+            if (mask1 is not None) or (mask2 is not None):
+                # Check that the shapes match.
+                ## TODO
+                self._combine_existing_bad_masks(mask1, mask2)
+            else:
+                self._good_pixel_mask = np.ones(data1.shape, dtype=bool)
+            
+        # Report mask statistics. Note the mask we use is True where
+        # pixels are good and False where they are bad.
+        self._numpix  = self._good_pixel_mask.size
+        self._numgood = np.sum(self._good_pixel_mask)
+        numbad        = self._numpix - self._numgood
+        self._logger.debug(f'Final good pixel mask has {self._numgood} good pixels out of {self._numpix} pixels ({numbad} bad).')
+        
+        return
+        
+    def _generate_sigmaclip_mask(self, data1, data2):
+        """Creates a good pixel mask based on sigma-clipped statistics
+           of each input image data array.
+           
+        This routine is most appropriate for images that expected to
+        be relaitively uniform, but with a small number of highly 
+        discrepant values.
+        
+        The generated mask is True when pixels are good and False where
+        pixels are bad. If a pixel is bad in either input image it is
+        considered bad in the combined mask.
+           
+        :param data1: First input image
+        :param data2: Second input image
+        """
+        
+        sigma             = 3.0
+        self._logger.debug(f'Generating a good pixel mask using sigma={sigma} clipping on input image data values.')
+        
+        # Clip first input image
+        mean1, med1, std1 = sigma_clipped_stats(data1, sigma=sigma)
+        lo1               = med1 - (sigma * std1)
+        hi1               = med1 + (sigma * std1)
+        good1_lo          = data1 >= lo1
+        good1_hi          = data1 <= hi1
+        good1             = np.logical_and(good1_lo, good1_hi)
+        
+        # Clip second input image
+        mean2, med2, std2 = sigma_clipped_stats(data2, sigma=sigma)
+        lo2               = med2 - (sigma * std2)
+        hi2               = med2 + (sigma * std2)
+        good2_lo          = data2 >= lo2
+        good2_hi          = data2 <= hi2
+        good2             = np.logical_and(good2_lo, good2_hi)
+        
+        self._logger.debug(f'Good pixels in the first image have pixel values between {lo1:.2f} and {hi1:.2f} ADU.')
+        self._logger.debug(f'Good pixels in the second image have pixel values between {lo2:.2f} and {hi2:.2f} ADU.')
+        
+        self._good_pixel_mask = np.logical_and(good1, good2)
+        return
                 
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
@@ -160,34 +310,31 @@ class ApImageDifference:
         return
         
     def stddev(self):
+        """Return the standard deviation ofthe masked image difference.
         """
-        """
-        
-        ## TODO
-        return 0
+                
+        stddev = np.std(self._diff_img[self._good_pixel_mask])
+        return stddev
     
     def min(self):
-        """
+        """Return the minimum value in the masked image difference.
         """
         
-        ## TODO
-        return 0
+        minval = np.amin(self._diff_img[self._good_pixel_mask])
+        return minval
         
     def max(self):
-        """
+        """Return the maximum value in the masked image difference.
         """
         
-        ## TODO
-        return 0
+        maxval = np.amax(self._diff_img[self._good_pixel_mask])
+        return maxval
         
     def numpix(self):
+        """Returns the number of good pixels and the total number of 
+           pixels.
         """
-        """
-        
-        ## TODO
-        num_good  = 0
-        num_total = 100
-        return num_good, num_total
+        return self._numgood, self._numpix
         
 class ApCalcReadNoise:
     """Calculates an estimate of detector read noise (e/pixel) given
