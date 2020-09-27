@@ -24,7 +24,7 @@
 #  MA 02110-1301, USA.
 #  
 #  2020-09-16 dks : Initial coding. 
-# 
+#  2020-09-27 dks : Added plotting.
 
 import argparse
 import sys
@@ -33,6 +33,8 @@ import os.path
 import math
 
 import numpy as np
+import matplotlib                # for rc
+import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
 
@@ -308,6 +310,22 @@ class ApImageDifference:
         # add ch to logger
         self._logger.addHandler(ch)
         return
+
+    def data(self):
+        """Return the image difference array
+        
+        Note that the returned array always has a floating point data type.
+        """
+        
+        return self._diff_img
+
+    def good_pixel_mask(self):
+        """Return the good pixel mask
+        
+        Note that the returned boolean array is True where pixels are good.
+        """
+        
+        return self._good_pixel_mask
         
     def stddev(self):
         """Return the standard deviation ofthe masked image difference.
@@ -329,7 +347,21 @@ class ApImageDifference:
         
         maxval = np.amax(self._diff_img[self._good_pixel_mask])
         return maxval
+
+    def mean(self):
+        """Return the mean value in the masked image difference.
+        """
         
+        meanval = np.mean(self._diff_img[self._good_pixel_mask])
+        return meanval
+        
+    def median(self):
+        """Return the median value in the masked image difference.
+        """
+        
+        medval = np.median(self._diff_img[self._good_pixel_mask])
+        return medval
+
     def numpix(self):
         """Returns the number of good pixels and the total number of 
            pixels.
@@ -507,10 +539,12 @@ class ApCalcReadNoise:
         self._logger.info(f'Standard deviation={stddev:.2f} ADU using {npix_good}/{npix_total} pixels ({pct_bad:.3f} % bad).')
         
         # Generate plot
-        ## TODO
+        if histplot is not None:
+            self._plot_difference_histogram(im_diff, histplot)
         
         # Calculate read noise estimate in e/pixel
         read_noise = self._gain * stddev / math.sqrt(2)
+        self._logger.info(f'Estimated resd noise is {read_noise:.2f} e/ADU')
         
         return read_noise
         
@@ -526,6 +560,69 @@ class ApCalcReadNoise:
             return True
         except ValueError:
             return False
+
+    def _plot_difference_histogram(self, im_diff, histplot):
+        """Generate a figure showing a histogram of the image differences.
+        """
+        
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=True)
+        ax1.tick_params(axis='both', labelsize=6)
+        ax2.tick_params(axis='both', labelsize=6)
+        title_fsize  = 7
+        axis_fsize   = 6
+        legend_fsize = 5
+        title_str = ('Histogram of pixel-to-pixel differences:\n' 
+            f'  First image: {self._biasfile1}\n' 
+            f'  Second image: {self._biasfile2}')
+        
+        # Get min and max values to use for histogram.
+        minval  = im_diff.min()
+        maxval  = im_diff.max()
+        stddev  = im_diff.stddev()
+        meanval = im_diff.mean()
+        medval  = im_diff.median()
+        bins    = np.arange(minval, maxval+1) - 0.5
+        
+        # Get the data and apply the mask.
+        rawdata  = im_diff.data()
+        rawmask  = im_diff.good_pixel_mask()
+        gooddata = rawdata[rawmask].copy()
+        
+        for ax in [ax1, ax2]:
+            plt.sca(ax)
+            nperbin, outbins, patches = plt.hist(gooddata.ravel(), 
+                bins=bins, 
+                density=False, 
+                weights=None,
+                label='Masked difference',
+                alpha=0.6)
+            nperbin, outbins, patches = plt.hist(rawdata.ravel(), 
+                bins=bins, 
+                density=False, 
+                weights=None,
+                label='Raw image difference',
+                alpha=0.3)
+
+            if ax == ax2:
+                ax.set_yscale('log')
+                
+            # Get plotted axis limits for plot.
+            ymin, ymax = ax.get_ylim()
+            ax.vlines(meanval, ymin, ymax, 
+                linestyles='dashed', linewidth=0.8, label='Masked data mean')
+            ax.vlines(medval, ymin, ymax, 
+                linestyles='dotted', linewidth=0.8, label='Masked data median')
+                
+            ax.set_xlabel('Pixel difference (ADU)', fontsize=axis_fsize)
+            ax.set_ylabel('Number of pixels', fontsize=axis_fsize)
+            ax.legend(fontsize=legend_fsize, loc='center right')
+        
+        
+        fig.suptitle(title_str, fontsize=title_fsize)
+        fig.savefig(histplot, dpi=200, bbox_inches='tight')
+        self._logger.info(f'Wrote histogram plot to {histplot}')
+        
+        return
 
     def _select_gain(self, hdr1, hdr2):
         """Determines what gain value to use, based on the two file headers
