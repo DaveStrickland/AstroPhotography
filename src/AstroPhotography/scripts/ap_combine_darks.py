@@ -36,7 +36,12 @@ import math
 import numpy as np
 import matplotlib                # for rc
 import matplotlib.pyplot as plt
+
 from astropy.io import fits
+from astropy.nddata import CCDData
+from astropy.stats import mad_std
+
+import ccdproc as ccdp
 
 def command_line_opts(argv):
     """ Parse command line arguments.
@@ -56,10 +61,25 @@ def command_line_opts(argv):
         metavar='MASTER_CAL_FILENAME',
         help='Output file name for master calibration file.')
         
+    # Default values
+    p_temptol = 0.5 # 0.5 degree C
+        
     # Optional
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
+    parser.add_argument('--telescop',
+        default=None,
+        metavar='TELESCOPE_NAME',
+        help='If the input files TELESCOP keyword is missing or empty,' +
+        ' write this string as TELESCOP in the output master calibration' +
+        ' file. (E.g. "iTelescope 5")')
+    parser.add_argument('--temptol',
+        default=p_temptol,
+        metavar='DEGREES_C',
+        help=('Allowable temperature tolerance up to which the CCDTEMP'
+            ' can vary from the SET-TEMP and still be considered as'
+            f' representing that temperature. Default: {p_temptol} C.'))
                 
     args = parser.parse_args(argv)
     return args
@@ -69,6 +89,22 @@ def main(args=None):
     p_root       = p_args.rawcaldir
     p_masterfile = p_args.master_filename
     p_loglevel   = p_args.loglevel
+    p_telescop   = p_args.telescop
+    p_temptol    = p_args.temptol
+    
+    data_dir = Path(p_root)
+    
+    summary_kw = ['file', 'telescop', 
+        'imagetyp', 'filter', 
+        'exptime', 'set-temp', 
+        'ccd-temp', 'naxis1', 'naxis2']
+    files = ccdp.ImageFileCollection(data_dir, keywords=summary_kw)
+
+
+    print(files.summary)
+
+    
+    
     return 0
 
 if __name__ == '__main__':
