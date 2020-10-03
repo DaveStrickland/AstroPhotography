@@ -62,18 +62,29 @@ def command_line_opts(argv):
         help='Output file name for master calibration file.')
         
     # Default values
-    p_temptol = 0.5 # 0.5 degree C
+    p_temptol  = 0.5 # 0.5 degree C
+    p_telescop = 'UNKNOWN'
+    p_exclude  = 'master*'
         
     # Optional
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
+    parser.add_argument('--exclude',
+        dest='exclude_pattern',
+        default=p_exclude,
+        metavar='FILE_PATTERN',
+        help=('A unix-style file pattern that may be used to exclude'
+            ' files in the target directory from being processed by this'
+            ' command. Usually this is used to exclude any master'
+            ' calibration files from being processed.'
+            f' Default: "{p_exclude}"'))
     parser.add_argument('--telescop',
         default=None,
         metavar='TELESCOPE_NAME',
-        help='If the input files TELESCOP keyword is missing or empty,' +
-        ' write this string as TELESCOP in the output master calibration' +
-        ' file. (E.g. "iTelescope 5")')
+        help=('If the input files TELESCOP keyword is missing or empty,' +
+            ' write this string as TELESCOP in the output master calibration' +
+            f' file, e.g. "iTelescope 5". Default: {p_telescop}'))
     parser.add_argument('--temptol',
         default=p_temptol,
         metavar='DEGREES_C',
@@ -83,6 +94,85 @@ def command_line_opts(argv):
                 
     args = parser.parse_args(argv)
     return args
+             
+class ApMasterCal:
+    """Combines a series of darks, bias or flats into a master dark,
+       master bias, or master flat.
+    """
+    
+    def __init__(self, rootdir, 
+        exclude_pattern,
+        telescop, 
+        temptol,
+        loglevel):
+        """Construct and fully initialize an instance of ApMasterCal
+        """
+
+        # Initialize logging
+        self._loglevel = loglevel
+        self._initialize_logger(loglevel)
+
+        # Set keywords that will be used to sort and check files.
+        self._summary_kw = ['file', 'date-obs',
+            'telescop', 'imagetyp', 
+            'filter', 'exptime', 
+            'set-temp', 'ccd-temp', 
+            'naxis1', 'naxis2']
+
+        # Generate raw ImageFileCollection
+        self._rootdir  = rootdir
+        self._data_dir = Path(rootdir)        
+        self._files = ccdp.ImageFileCollection(self._data_dir, 
+            keywords=self._summary_kw,
+            glob_exclude=exclude_pattern)
+    
+        self._logger.info(f'Found {len(self._files.summary)} files in {rootdir} matching pattern.')
+        print(self._files.summary)
+
+
+        for kw in self._summary_kw:
+            if 'file' not in kw:
+                uniq_val_list = self._files.values(kw, unique=True)
+                msg = f'For keyword {kw} there are {len(uniq_val_list)} values: {uniq_val_list}'
+                self._logger.debug(msg)                
+    
+    
+        # Check and filter files
+        self._telescop = telescop
+        self._temptol  = temptol
+    
+        return
+             
+    def _initialize_logger(self, loglevel):
+        """Initialize and return the logger
+        """
+        
+        self._logger = logging.getLogger('ApMasterCal')
+        
+        # Check that the input log level is legal
+        numeric_level = getattr(logging, loglevel.upper(), None)
+        if not isinstance(numeric_level, int):
+            raise ValueError('Invalid log level: {}'.format(loglevel))
+        self._logger.setLevel(numeric_level)
+    
+        # create console handler and set level to debug
+        ch = logging.StreamHandler()
+        ch.setLevel(numeric_level)
+    
+        # create formatter
+        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    
+        # add formatter to ch
+        ch.setFormatter(formatter)
+    
+        # add ch to logger
+        if not self._logger.handlers:
+            self._logger.addHandler(ch)
+        
+        # Used in cases where we get the same message twice or more
+        # See https://stackoverflow.com/a/44426266
+        self._logger.propagate = False
+        return
                 
 def main(args=None):
     p_args       = command_line_opts(args)
@@ -91,19 +181,13 @@ def main(args=None):
     p_loglevel   = p_args.loglevel
     p_telescop   = p_args.telescop
     p_temptol    = p_args.temptol
-    
-    data_dir = Path(p_root)
-    
-    summary_kw = ['file', 'telescop', 
-        'imagetyp', 'filter', 
-        'exptime', 'set-temp', 
-        'ccd-temp', 'naxis1', 'naxis2']
-    files = ccdp.ImageFileCollection(data_dir, keywords=summary_kw)
+    p_exclude    = p_args.exclude_pattern
 
-
-    print(files.summary)
-
-    
+    mkcal = ApMasterCal(p_root, 
+        p_exclude,
+        p_telescop, 
+        p_temptol,
+        p_loglevel)
     
     return 0
 
