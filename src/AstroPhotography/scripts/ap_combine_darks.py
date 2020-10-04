@@ -91,13 +91,20 @@ def command_line_opts(argv):
         help=('Allowable temperature tolerance up to which the CCDTEMP'
             ' can vary from the SET-TEMP and still be considered as'
             f' representing that temperature. Default: {p_temptol} C.'))
-                
+    
     args = parser.parse_args(argv)
     return args
              
 class ApMasterCal:
     """Combines a series of darks, bias or flats into a master dark,
        master bias, or master flat.
+       
+       This class is currently limited in that it cannot handle the 
+       presence of different types of file (e.g. a directory containing
+       both darks and biases, or darks of different exposure time or
+       binning). If the input directory does contain different types of
+       FITS file this class will log it and throw a RunTimeError
+       exception.
     """
     
     def __init__(self, rootdir, 
@@ -112,6 +119,10 @@ class ApMasterCal:
         self._loglevel = loglevel
         self._initialize_logger(loglevel)
 
+        self._rootdir   = rootdir
+        self._telescop = telescop
+        self._temptol  = temptol
+
         # Set keywords that will be used to sort and check files.
         self._summary_kw = ['file', 'date-obs',
             'telescop', 'imagetyp', 
@@ -119,29 +130,95 @@ class ApMasterCal:
             'set-temp', 'ccd-temp', 
             'naxis1', 'naxis2']
 
-        # Generate raw ImageFileCollection
-        self._rootdir  = rootdir
-        self._data_dir = Path(rootdir)        
-        self._files = ccdp.ImageFileCollection(self._data_dir, 
-            keywords=self._summary_kw,
-            glob_exclude=exclude_pattern)
+        # Generate initial ImageFileCollection
+        self._data_dir  = Path(self._rootdir)
+        self._file_list = None
+        self._files     = self._create_file_collection(self._data_dir,
+            exclude_pattern, self._file_list)
+            
+        # Check files, reread file collection
+        self._file_list = self._check_files()
+        self._files     = self._create_file_collection(self._data_dir,
+            exclude_pattern, self._file_list)
+            
     
-        self._logger.info(f'Found {len(self._files.summary)} files in {rootdir} matching pattern.')
-        print(self._files.summary)
+        self._logger.debug('Finished')
+        return
 
-
+    def _check_files(self):
+        """Check the file collection for type, exposure, size, and 
+           temperature consistency, generating a final file_list for
+           inclusion.
+        
+        This function checks the files in the existing image file collection
+        and returns a list of file names to use in a second call to
+        _create_file_collection, unless files of a different type, size
+        or exposure are detected.
+        
+        These checks are of two types, one that will result in program
+        termination if files do not match, and one that will result in
+        the file being excluding from the file list used in the second
+        call to _create_file_collection.
+        
+        - File type, size, exposure differences: All files must have the
+          same exposure time, size (naxis1 and naxis2), and imagetyp. If
+          not an exception will be thrown, as we can't programmatically
+          decide what the user wants when confronted with (for example)
+          a directory of five bias frames and five differently size darks. 
+          If some files have `set-temp` or `ccd-temp` but others don't this
+          also counts as a fatal inconsistency.
+        - CCD temperature: Files not outside the temperature tolerance 
+          will be excluded from final file list. If there is a unique 
+          `set-temp` then each `ccd-temp` is compared to it, otherwise
+          the median `ccd-temp` is computed and each file is compared to
+          that.
+        """
+        
+        good_file_list = []
+        raw_file_list = self._files.values('file')
+        
         for kw in self._summary_kw:
             if 'file' not in kw:
                 uniq_val_list = self._files.values(kw, unique=True)
                 msg = f'For keyword {kw} there are {len(uniq_val_list)} values: {uniq_val_list}'
                 self._logger.debug(msg)                
-    
-    
-        # Check and filter files
-        self._telescop = telescop
-        self._temptol  = temptol
-    
-        return
+        
+        ## TODO, fix
+        good_file_list = raw_file_list
+        
+        self._logger.info(f'Updated file list contains {len(good_file_list)} files ({len(raw_file_list)} before filtering).')
+        return good_file_list
+
+    def _create_file_collection(self, data_dir, 
+        exclude_pattern,
+        file_list):
+        """Create a FITS ImageFileCollection for a directory, optionally
+           including only the files named in fname_list.
+           
+        :param data_dir: Path to the directory containing the files.
+        :param exclude_pattern: Pattern used to exclude certain files.
+        :param file_list: None, or list of file names to read instead
+          of reading all files in the data_dir (excluding files that
+          match the exclude_pattern).
+        """
+        
+        if file_list is not None:
+            msg = (f'Looking for FITS files in {data_dir},'
+                f' including only files in the list: {file_list}')
+        else:
+            msg = (f'Looking for FITS files in {data_dir},'
+                f' excluding files matching the pattern "{exclude_pattern}"')
+        self._logger.info(msg)
+
+        file_collection = ccdp.ImageFileCollection(data_dir, 
+            keywords=self._summary_kw,
+            glob_exclude=exclude_pattern,
+            filenames=file_list)
+
+        self._logger.info(f'Found {len(file_collection.summary)} FITS files matching the constraints.')
+
+
+        return file_collection
              
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
@@ -188,6 +265,7 @@ def main(args=None):
         p_telescop, 
         p_temptol,
         p_loglevel)
+    ##mkcal.make_master(p_masterfile)
     
     return 0
 
