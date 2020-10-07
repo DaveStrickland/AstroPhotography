@@ -137,7 +137,8 @@ class ApMasterCal:
             exclude_pattern, self._file_list)
             
         # Check files, reread file collection
-        self._file_list = self._check_files()
+        list_all        = True
+        self._file_list = self._check_files(list_all)
         self._files     = self._create_file_collection(self._data_dir,
             exclude_pattern, self._file_list)
             
@@ -145,7 +146,7 @@ class ApMasterCal:
         self._logger.debug('Finished')
         return
 
-    def _check_files(self):
+    def _check_files(self, list_all=None):
         """Check the file collection for type, exposure, size, and 
            temperature consistency, generating a final file_list for
            inclusion.
@@ -165,26 +166,106 @@ class ApMasterCal:
           not an exception will be thrown, as we can't programmatically
           decide what the user wants when confronted with (for example)
           a directory of five bias frames and five differently size darks. 
-          If some files have `set-temp` or `ccd-temp` but others don't this
+          If some files have `set-temp` but others don't this
           also counts as a fatal inconsistency.
         - CCD temperature: Files not outside the temperature tolerance 
           will be excluded from final file list. If there is a unique 
           `set-temp` then each `ccd-temp` is compared to it, otherwise
           the median `ccd-temp` is computed and each file is compared to
           that.
+          
+        :param list_all: If True then the unique values of all keywords
+          within the _summary_kw list will be logged at DEBUG level
+          for diagnostic purposes.
         """
+        
+        if list_all is not None:
+            diag = list_all
+        else:
+            diag = False
         
         good_file_list = []
         raw_file_list = self._files.values('file')
         
+        # Get unique values of all keywords, also logging them for 
+        # diagnostic purposes if diag is True
+        uniq_dict = {}
         for kw in self._summary_kw:
-            if 'file' not in kw:
-                uniq_val_list = self._files.values(kw, unique=True)
+            uniq_val_list = self._files.values(kw, unique=True)
+            uniq_dict[kw] = uniq_val_list
+            if diag and ('file' not in kw):
                 msg = f'For keyword {kw} there are {len(uniq_val_list)} values: {uniq_val_list}'
                 self._logger.debug(msg)                
+
+        # Check the number of unique values of:
+        # - imgtype
+        # - size naxis1 and naxis2
+        # - exposure
+        # - set-temp
+        # If the number of unique values is > 1 then this is an error
+        for kw in ['imagetyp', 'naxis1', 'naxis2', 'exptime', 'set-temp']:
+            nuniq = len(uniq_dict[kw])
+            if nuniq > 1:
+                msg = f'Error, there are {nuniq} unique values of {kw} in the files being processed: {uniq_dict[kw]}'
+                self._logger.error(msg)
+                raise RuntimeError(msg)
         
-        ## TODO, fix
-        good_file_list = raw_file_list
+        # Check set-temp has a value, if so, use it.
+        set_temp_is_set = False
+        set_temperature = None
+        val = uniq_dict['set-temp'][0]  # Know list has a single value
+        if isinstance(val, str): 
+            # Is it an empty string?
+            if not bool(val.strip()):
+                msg = 'No numeric value found for SET-TEMP. Will use median of CCD-TEMP instead.'
+                self._logger.warning(msg)
+        else:
+            try:
+                set_temperature = float(val)
+                set_temp_is_set = True
+                self._logger.debug(f'Using SET-TEMP value of {set_temperature} degrees C.')
+            except Exception as e:
+                msg = f'Error, could not convert SET-TEMP value of {val} to a float. Will use median of CCD-TEMP instead.'
+                self._logger.error(msg)
+                self._logger.error(f'The exception that was caught is: {e}')
+        
+        # Check ccd-temp, convert values to float.
+        # - If there is one unique value and its an empty string this
+        #   is not ideal but we can assume the data is from a device
+        #   such as a camera, and proceed.
+        # - Otherwise we'll check each file's temperature individually using
+        #   the summary table.
+        uniq_temps = []
+        nuniq = len(uniq_dict['ccd-temp'])
+        if nuniq == 1:
+            val = uniq_dict['ccd-temp'][0]
+            # An empty string evaluates to False
+            if not bool(val.strip()):
+                msg = ('No files contain CCD-TEMP metadata. Continuing'
+                    ' assuming all files obtained at the same temperature.')
+                self._logger.warning(msg)
+                return raw_file_list
+            
+        # Do we need to calculate set_temperature from ccd-temp?
+        if not set_temp_is_set:
+            set_temperature = np.median(self._files.summary['ccd-temp'])
+            self._logger.debug(f'Using median of CCD-TEMP value: {set_temperature} degrees C.')
+
+        # Temperature limits:
+        temp_min = set_temperature - self._temptol
+        temp_max = set_temperature + self._temptol
+        self._logger.info(f'Selecting only files with CCD-TEMP between {temp_min:.2f} and {temp_max:.2f} degrees C.')
+            
+        # Number of files:
+        nfiles = len(self._files.summary)
+        good_file_list = []
+        for idx in range(nfiles):
+            fname = self._files.summary['file'][idx]
+            temp  = self._files.summary['ccd-temp'][idx]
+            if (temp >= temp_min) and (temp <= temp_max):
+                good_file_list.append(fname)
+            else:
+                self.logger.warning(f'Excluding {fname} as CCD-TEMP={temp:2.f} outside allowed range.')
         
         self._logger.info(f'Updated file list contains {len(good_file_list)} files ({len(raw_file_list)} before filtering).')
         return good_file_list
@@ -260,12 +341,18 @@ def main(args=None):
     p_temptol    = p_args.temptol
     p_exclude    = p_args.exclude_pattern
 
-    mkcal = ApMasterCal(p_root, 
-        p_exclude,
-        p_telescop, 
-        p_temptol,
-        p_loglevel)
-    ##mkcal.make_master(p_masterfile)
+    logger = logging.getLogger(__name__)
+
+    try:
+        mkcal = ApMasterCal(p_root, 
+            p_exclude,
+            p_telescop, 
+            p_temptol,
+            p_loglevel)
+        ##mkcal.make_master(p_masterfile)
+    except RuntimeError as rte:
+        logger.error(f'Shutting down due to exception raised by ApMasterCal: {rte}')
+        return 1
     
     return 0
 
