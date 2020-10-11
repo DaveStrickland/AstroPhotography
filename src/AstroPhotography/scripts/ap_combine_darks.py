@@ -26,12 +26,14 @@
 #  MA 02110-1301, USA.
 #  
 #  2020-10-01 dks : Initial coding begun. 
+#  2020-10-11 dks : Working version (astropy still spams logger).
 
 import argparse
 import sys
 import logging
 from pathlib import Path
 import math
+from datetime import datetime, timezone
 
 import numpy as np
 import matplotlib                # for rc
@@ -141,9 +143,8 @@ class ApMasterCal:
         self._file_list = self._check_files(list_all)
         self._files     = self._create_file_collection(self._data_dir,
             exclude_pattern, self._file_list)
-            
     
-        self._logger.debug('Finished')
+        self._logger.debug('ApMasterCal constructor completed.')
         return
 
     def _check_files(self, list_all=None):
@@ -209,6 +210,11 @@ class ApMasterCal:
                 msg = f'Error, there are {nuniq} unique values of {kw} in the files being processed: {uniq_dict[kw]}'
                 self._logger.error(msg)
                 raise RuntimeError(msg)
+                
+            if 'imagetyp' in kw:
+                self._imgtype = uniq_dict[kw][0]
+            elif 'exptime' in kw:
+                self._exptime = uniq_dict[kw][0]
         
         # Check set-temp has a value, if so, use it.
         set_temp_is_set = False
@@ -255,6 +261,7 @@ class ApMasterCal:
         temp_min = set_temperature - self._temptol
         temp_max = set_temperature + self._temptol
         self._logger.info(f'Selecting only files with CCD-TEMP between {temp_min:.2f} and {temp_max:.2f} degrees C.')
+        self._set_temperature = set_temperature
             
         # Number of files:
         nfiles = len(self._files.summary)
@@ -297,9 +304,44 @@ class ApMasterCal:
             filenames=file_list)
 
         self._logger.info(f'Found {len(file_collection.summary)} FITS files matching the constraints.')
-
-
         return file_collection
+        
+    def _generate_final_keywords(self):
+        """Generate FITS header keywords for the master file based on
+           the input files.
+        """
+        
+        # Current UTC date/time
+        creation_date = datetime.now(timezone.utc)
+        creation_datestr = creation_date.isoformat(timespec='seconds')
+        
+        # Image type
+        raw_imgtype = self._imgtype.lower()
+        if 'bias' in raw_imgtype:
+            imgtype = 'MASTER BIAS'
+        elif 'dark' in raw_imgtype:
+            imgtype = 'MASTER DARK'
+        elif 'flat' in raw_imgtype:
+            imgtype = 'MASTER FLAT'
+        else:
+            self._logger.warning(f'Unexpected input image type: {raw_imgtype}')
+            imgtype = raw_imgtype
+        
+        kw_dict = {}
+        kw_dict['IMGTYPE']  = (imgtype, 'Type of file')
+        kw_dict['CREATOR']  = ('ApMasterCal', 'Software that generated this file.')
+        kw_dict['SET-TEMP'] = (self._set_temperature, '[Celsius] Desired CCD temperature')
+        kw_dict['CCD-TEMP'] = kw_dict['SET-TEMP']
+        kw_dict['DATE']     = (creation_datestr, 'Date/time file was created.')
+        
+        # Input files
+        file_list = self._files.values('file')
+        for idx, fname in enumerate(file_list):
+            kw = f'IFILE{idx:03d}'
+            kw_dict[kw] = fname, 'Raw file used in generated this master file.'
+            
+            
+        return kw_dict
              
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
@@ -331,6 +373,61 @@ class ApMasterCal:
         # See https://stackoverflow.com/a/44426266
         self._logger.propagate = False
         return
+        
+        
+    def make_master(self, output_master_file):
+        """Combine the raw calibration files into a master file and
+           write it to the specified file name.
+        """
+        
+        # Recommended settings
+        comb_method       = 'average'
+        do_sig_clip       = True
+        sig_clip_lothresh = 5
+        sig_clip_hithresh = 5
+        max_ram_bytes     = 5e8
+        data_units        = 'adu'
+
+        # Calculate the header keywords to update
+        kw_dict   = self._generate_final_keywords()
+        cal_type  = kw_dict['IMGTYPE'][0]
+        nfiles    = len(self._files.summary)
+        
+        # Combine files
+        msg = (f'About to combine {nfiles} {cal_type} files, method={comb_method}'
+            f' sigma_clip={do_sig_clip} sig_clip_lothresh={sig_clip_lothresh}'
+            f' sig_clip_hithresh={sig_clip_hithresh} max_ram_bytes={max_ram_bytes:.3e}.')
+        self._logger.debug(msg)        
+        master = ccdp.combine(self._files.files_filtered(include_path=True),
+             method=comb_method,
+             sigma_clip=do_sig_clip, 
+             sigma_clip_low_thresh=sig_clip_lothresh, 
+             sigma_clip_high_thresh=sig_clip_hithresh,
+             sigma_clip_func=np.ma.median, 
+             sigma_clip_dev_func=mad_std,
+             mem_limit=max_ram_bytes,
+             unit=data_units,
+             output_verify='ignore')
+        
+        # Calculate the header keywords to update, and update them
+        master.meta['combined'] = True
+        master.unit             = 'adu'
+        # Remove...
+        kw_to_remove_list = ['UT', 'TIME-OBS', 'SWOWNER',
+            'SWCREATE', 'SBSTDVER']
+        for kw in kw_to_remove_list:
+            del master.header[kw]
+        
+        # Update/add
+        for kw, val in kw_dict.items():
+            master.header[kw] = val
+
+        # Write file
+        master.write(output_master_file, 
+            overwrite=True, 
+            output_verify='ignore')
+        self._logger.info(f'Wrote combined calibration file: {output_master_file}')
+        return
                 
 def main(args=None):
     p_args       = command_line_opts(args)
@@ -349,7 +446,7 @@ def main(args=None):
             p_telescop, 
             p_temptol,
             p_loglevel)
-        ##mkcal.make_master(p_masterfile)
+        mkcal.make_master(p_masterfile)
     except RuntimeError as rte:
         logger.error(f'Shutting down due to exception raised by ApMasterCal: {rte}')
         return 1
