@@ -338,7 +338,7 @@ class ApMasterCal:
         file_list = self._files.values('file')
         for idx, fname in enumerate(file_list):
             kw = f'IFILE{idx:03d}'
-            kw_dict[kw] = fname, 'Raw file used in generated this master file.'
+            kw_dict[kw] = fname
             
             
         return kw_dict
@@ -416,7 +416,8 @@ class ApMasterCal:
         kw_to_remove_list = ['UT', 'TIME-OBS', 'SWOWNER',
             'SWCREATE', 'SBSTDVER']
         for kw in kw_to_remove_list:
-            del master.header[kw]
+            if kw in master.header:
+                del master.header[kw]
         
         # Update/add
         for kw, val in kw_dict.items():
