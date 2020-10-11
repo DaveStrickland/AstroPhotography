@@ -43,7 +43,7 @@ def command_line_opts(argv):
 
     :param argv: argument list to parse
     """
-    parser = argparse.ArgumentParser(prog='ap_calc_rread_noise',
+    parser = argparse.ArgumentParser(prog='ap_calc_read_noise',
         description='Calculates an estimate of the detector read noise' + 
         ' (e/pixel) given two raw bias images and the electronic gain' +
         ' (e/ADU).')
