@@ -43,7 +43,7 @@ def command_line_opts(argv):
         description='Generates a bad pixel mask given a master dark or master bias FITS file.')
         
     # Required
-    parser.add_argument('master',
+    parser.add_argument('masterdark',
         metavar='IN_MASTER_DARK.FITS',
         help='Path/name of the input master dark/bias to use.')
     parser.add_argument('badpixfile',
@@ -59,26 +59,48 @@ def command_line_opts(argv):
     args = parser.parse_args(argv)
     return args
 
-class ApFindBadpix:
-    """
+class ApFindBadPixels:
+    """A class used to find bad pixels within dark or bias files based on
+       deviation from an expected uniform mean or median value. The instance
+       may be queried for properties of the input file, good or bad pixel
+       numbers or count values, the bad pixel map can be extracted as
+       a numpy array or written to a fits file.
     """
     
     def __init__(self,
+        darkfile,
         loglevel):
-        """
+        """Constructs an ApFindBadPixels object and performs preliminary
+           processing on it.
+        
+        :param darkfile: Input dark or bias file to search for bad pixels.
+        :param loglevel: Logging level to use.
         """
     
         # Initialize logging
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
+        # Data file to read
+        self._imfile   = darkfile
+        self._imextnum = 0
+        self._imdata, self._imhdr = self._read_fits(darkfile, 0)
+        
         return
+        
+    def _check_file_exists(self, filename):
+        if not os.path.isfile(filename):
+            err_msg = f'Cannot find {filename}. Not a valid path or file.'
+            self._logger.error(err_msg)
+            raise RuntimeError(err_msg)
+        return
+
         
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
         """
         
-        self._logger = logging.getLogger('ApFindBadpix')
+        self._logger = logging.getLogger('ApFindBadPixels')
         
         # Check that the input log level is legal
         numeric_level = getattr(logging, loglevel.upper(), None)
@@ -159,6 +181,9 @@ class ApFindBadpix:
                 
 def main(args=None):
     p_args      = command_line_opts(args)
+    p_inmstrdrk = p_args.masterdark
+    p_outbadpix = p_args.badpixfile
+    p_loglevel  = p_args.loglevel
     return 0
 
 if __name__ == '__main__':
