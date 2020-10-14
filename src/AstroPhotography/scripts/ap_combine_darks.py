@@ -82,7 +82,7 @@ def command_line_opts(argv):
             ' calibration files from being processed.'
             f' Default: "{p_exclude}"'))
     parser.add_argument('--telescop',
-        default=None,
+        default=p_telescop,
         metavar='TELESCOPE_NAME',
         help=('If the input files TELESCOP keyword is missing or empty,' +
             ' write this string as TELESCOP in the output master calibration' +
@@ -121,7 +121,7 @@ class ApMasterCal:
         self._loglevel = loglevel
         self._initialize_logger(loglevel)
 
-        self._rootdir   = rootdir
+        self._rootdir  = rootdir
         self._telescop = telescop
         self._temptol  = temptol
 
@@ -204,7 +204,7 @@ class ApMasterCal:
         # - exposure
         # - set-temp
         # If the number of unique values is > 1 then this is an error
-        for kw in ['imagetyp', 'naxis1', 'naxis2', 'exptime', 'set-temp']:
+        for kw in ['telescop', 'imagetyp', 'naxis1', 'naxis2', 'exptime', 'set-temp']:
             nuniq = len(uniq_dict[kw])
             if nuniq > 1:
                 msg = f'Error, there are {nuniq} unique values of {kw} in the files being processed: {uniq_dict[kw]}'
@@ -215,13 +215,22 @@ class ApMasterCal:
                 self._imgtype = uniq_dict[kw][0]
             elif 'exptime' in kw:
                 self._exptime = uniq_dict[kw][0]
+            elif 'telescop' in kw:
+                # Check that telescop is not empty. (Empty strings are False)
+                telescop = uniq_dict[kw][0]
+                if not bool(telescop.strip()):
+                    self._logger.warning(f'TELESCOP keyword empty or missing in input files. Using {self._telescop} instead.')
+                else:
+                    self._telescop = telescop.strip()
+                    self._logger.debug(f'The output TELESCOP keyword value will be {telescop}.')
+                
         
         # Check set-temp has a value, if so, use it.
         set_temp_is_set = False
         set_temperature = None
         val = uniq_dict['set-temp'][0]  # Know list has a single value
         if isinstance(val, str): 
-            # Is it an empty string?
+            # Is it an empty string? (Empty strings are False)
             if not bool(val.strip()):
                 msg = 'No numeric value found for SET-TEMP. Will use median of CCD-TEMP instead.'
                 self._logger.warning(msg)
@@ -328,7 +337,8 @@ class ApMasterCal:
             imgtype = raw_imgtype
         
         kw_dict = {}
-        kw_dict['IMGTYPE']  = (imgtype, 'Type of file')
+        kw_dict['IMAGETYP'] = (imgtype, 'Type of file')
+        kw_dict['TELESCOP'] = (self._telescop, 'Telescope used.')
         kw_dict['CREATOR']  = ('ApMasterCal', 'Software that generated this file.')
         kw_dict['SET-TEMP'] = (self._set_temperature, '[Celsius] Desired CCD temperature')
         kw_dict['CCD-TEMP'] = kw_dict['SET-TEMP']
@@ -390,7 +400,7 @@ class ApMasterCal:
 
         # Calculate the header keywords to update
         kw_dict   = self._generate_final_keywords()
-        cal_type  = kw_dict['IMGTYPE'][0]
+        cal_type  = kw_dict['IMAGETYP'][0]
         nfiles    = len(self._files.summary)
         
         # Combine files
