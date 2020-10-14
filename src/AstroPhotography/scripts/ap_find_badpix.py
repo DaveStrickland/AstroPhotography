@@ -52,6 +52,13 @@ def command_line_opts(argv):
         
         
     # Optional
+    p_sigma = 4.0
+    parser.add_argument('--sigma',
+        metavar='NSIGMA',
+        default=p_sigma,
+        help=('Number of MAD standard deviations to use in sigma clipping.'
+            ' After clipping pixels that are more than this number of sigma'
+            f' from the median will be marked bad. Default: {p_sigma:.2f}'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
@@ -69,11 +76,14 @@ class ApFindBadPixels:
     
     def __init__(self,
         darkfile,
+        sigma,
         loglevel):
         """Constructs an ApFindBadPixels object and performs preliminary
            processing on it.
         
         :param darkfile: Input dark or bias file to search for bad pixels.
+        :param sigma: Number of standard deviations away from the clipped
+          median a pixel must be (or more) to count as a bad pixel.
         :param loglevel: Logging level to use.
         """
     
@@ -84,8 +94,13 @@ class ApFindBadPixels:
         # Data file to read
         self._imfile   = darkfile
         self._imextnum = 0
+                
+        # Number of MAD std deviations for sigma clipping
+        self._sigma = sigma
+
+        # Process data.
         self._imdata, self._imhdr = self._read_fits(darkfile, 0)
-        
+        self._generate_sigmaclip_mask(self._imdata, self._sigma)
         return
         
     def _check_file_exists(self, filename):
@@ -95,7 +110,34 @@ class ApFindBadPixels:
             raise RuntimeError(err_msg)
         return
 
+    def _generate_sigmaclip_mask(self, data, sigma):
+        """Creates a bad pixel mask based on sigma-clipped statistics
+           of the input data array.
+           
+        This routine is most appropriate for images that expected to
+        be relatively uniform, but with a small number of highly 
+        discrepant values.
         
+        The generated mask is True when pixels are BAD and False where
+        pixels are GOOD. 
+                   
+        :param data: Input data array
+        :param sigma: Number of sigma away from the median to consider
+          a pixel bad.
+        """
+        
+        self._logger.debug(f'Generating a bad pixel mask using sigma={sigma} clipping on the input image data values.')
+        
+        # Clip first input image
+        mean, med, std   = sigma_clipped_stats(data, sigma=sigma)
+        lothresh         = med - (sigma * std)
+        hithresh         = med + (sigma * std)
+        bad_lo           = data < lothresh
+        bad_hi           = data > hithresh
+        self._badpixmask = np.logical_or(bad_lo, bad_hi)
+        self._logger.debug(f'After sigma clipping good pixels have values between {lothresh:.2f} and {hithresh:.2f} ADU.')
+        return
+
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
         """
@@ -145,8 +187,14 @@ class ApFindBadPixels:
         cols     = ext_hdr['NAXIS1']
         rows     = ext_hdr['NAXIS2']
         bitpix   = ext_hdr['BITPIX']
-        bzero    = ext_hdr['BZERO']
-        bscale   = ext_hdr['BSCALE']
+        if 'BZERO' in ext_hdr:
+            bzero    = ext_hdr['BZERO']
+        else:
+            bzero = 0
+        if 'BSCALE' in ext_hdr:
+            bscale   = ext_hdr['BSCALE']
+        else:
+            bscale = 1.0
         info_str = '{}-D BITPIX={} image with {} columns, {} rows, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, bscale, bzero)
         
         if ndim == 3:
@@ -183,7 +231,14 @@ def main(args=None):
     p_args      = command_line_opts(args)
     p_inmstrdrk = p_args.masterdark
     p_outbadpix = p_args.badpixfile
+    p_sigma     = p_args.sigma
     p_loglevel  = p_args.loglevel
+    
+    mkbadpix = ApFindBadPixels(p_inmstrdrk,
+        p_sigma,
+        p_loglevel)
+    #mkbadpix.write_mask(p_outbadpix)
+    
     return 0
 
 if __name__ == '__main__':

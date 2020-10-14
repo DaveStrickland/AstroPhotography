@@ -249,7 +249,7 @@ class ApImageDifference:
            of each input image data array.
            
         This routine is most appropriate for images that expected to
-        be relaitively uniform, but with a small number of highly 
+        be relatively uniform, but with a small number of highly 
         discrepant values.
         
         The generated mask is True when pixels are good and False where
