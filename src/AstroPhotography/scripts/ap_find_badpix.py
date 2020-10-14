@@ -100,6 +100,7 @@ class ApFindBadPixels:
 
         # Process data.
         self._imdata, self._imhdr = self._read_fits(darkfile, 0)
+        ## TODO data stats
         self._generate_sigmaclip_mask(self._imdata, self._sigma)
         return
         
@@ -128,14 +129,25 @@ class ApFindBadPixels:
         
         self._logger.debug(f'Generating a bad pixel mask using sigma={sigma} clipping on the input image data values.')
         
-        # Clip first input image
+        # Compute sigma clipped statistics
         mean, med, std   = sigma_clipped_stats(data, sigma=sigma)
+        self._logger.debug(f'Sigma-clipped mean={mean:.2f}, median={med:.2f}, and madstddev={std:.2f} values (ADU).')
+        
         lothresh         = med - (sigma * std)
         hithresh         = med + (sigma * std)
+        self._logger.info(f'Good pixels have values between {lothresh:.2f} and {hithresh:.2f} ADU.')
+        
+        # Pixels below low threshold
         bad_lo           = data < lothresh
+        ## TODO stats
+        
+        # Pixels above high threshold
         bad_hi           = data > hithresh
+        
+        # Generate final mask
         self._badpixmask = np.logical_or(bad_lo, bad_hi)
-        self._logger.debug(f'After sigma clipping good pixels have values between {lothresh:.2f} and {hithresh:.2f} ADU.')
+        
+
         return
 
     def _initialize_logger(self, loglevel):
