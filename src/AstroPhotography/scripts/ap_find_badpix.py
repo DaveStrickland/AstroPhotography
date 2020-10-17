@@ -100,7 +100,7 @@ class ApFindBadPixels:
 
         # Process data.
         self._imdata, self._imhdr = self._read_fits(darkfile, 0)
-        ## TODO data stats
+        self._image_stats()
         self._generate_sigmaclip_mask(self._imdata, self._sigma)
         return
         
@@ -127,6 +127,7 @@ class ApFindBadPixels:
           a pixel bad.
         """
         
+        npix = self._imdata.size
         self._logger.debug(f'Generating a bad pixel mask using sigma={sigma} clipping on the input image data values.')
         
         # Compute sigma clipped statistics
@@ -139,15 +140,37 @@ class ApFindBadPixels:
         
         # Pixels below low threshold
         bad_lo           = data < lothresh
-        ## TODO stats
+        nbad_lo          = np.sum(bad_lo)
+        self._logger.debug(f'{nbad_lo} (out of {npix}) pixels below {lothresh:.2f} ADU.')
         
         # Pixels above high threshold
         bad_hi           = data > hithresh
+        nbad_hi          = np.sum(bad_hi)
+        self._logger.debug(f'{nbad_hi} (out of {npix}) pixels above {hithresh:.2f} ADU.')
         
         # Generate final mask
         self._badpixmask = np.logical_or(bad_lo, bad_hi)
-        
+        nbad             = np.sum(self._badpixmask)
+        pct_bad          = 100 * (nbad/npix)
+        msg              = f'Out of {npix} pixels, {nbad} are bad ({pct_bad:.4f}%).'
+        self._logger.info(msg)
+        return
 
+    def _image_stats(self):
+        """If logging level is DEBUG, print some statistics of the data.
+        """
+        
+        if self._logger.getEffectiveLevel() == logging.DEBUG:
+            minval = np.min(self._imdata)
+            maxval = np.max(self._imdata)
+            self._logger.debug(f'Data min={minval:.2f}, max={maxval:.2f} ADU.')
+            
+            # percentiles
+            ipctls = [0.1, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.9]
+            opctls = np.percentile(self._imdata, ipctls)
+            for idx, pct in enumerate(ipctls):
+                self._logger.debug(f'{pct:.2f}% of the data has value of {opctls[idx]:.2f} ADU or less.')
+        
         return
 
     def _initialize_logger(self, loglevel):
