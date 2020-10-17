@@ -23,12 +23,14 @@
 #  MA 02110-1301, USA.
 #  
 #  2020-10-11 dks : Initial skeleton. 
+#  2020-10-17 dks : Working version completed.
 
 import argparse
 import sys
 import logging
 import os.path
 import math
+from datetime import datetime, timezone
 
 import numpy as np
 from astropy.io import fits
@@ -86,6 +88,8 @@ class ApFindBadPixels:
           median a pixel must be (or more) to count as a bad pixel.
         :param loglevel: Logging level to use.
         """
+    
+        self._name = 'ApFindBadPixels'
     
         # Initialize logging
         self._loglevel = loglevel
@@ -177,7 +181,7 @@ class ApFindBadPixels:
         """Initialize and return the logger
         """
         
-        self._logger = logging.getLogger('ApFindBadPixels')
+        self._logger = logging.getLogger(self._name)
         
         # Check that the input log level is legal
         numeric_level = getattr(logging, loglevel.upper(), None)
@@ -261,6 +265,63 @@ class ApFindBadPixels:
                 self._logger.debug(f'After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
         
         return ext_data, ext_hdr
+        
+    def _update_header(self, hdu):
+        """Updates the raw mask FITS primary header by adding select
+           keywords from the input master dark/bias file.
+           
+        :param hdu: FITS hdu object to be modified.
+        """
+        
+        self._logger.debug('Updating FITS primary HDU keywords.')
+        
+        # keyword dictionary to write to header
+        kw_dict = {}
+        
+        # Copy select keywords: basically those that would identify the
+        # telescope, instrument, and imaging mode used.
+        copy_list = ['TELESCOP', 'INSTRUME', 'SET-TEMP', 'CCD-TEMP',
+            'XPIXSZ', 'YPIXSZ', 'XBINNING', 'YBINNING',
+            'XORGSUBF', 'YORGSUBF', 'SITELAT', 'SITELONG']
+        
+        imgtype          = 'BADPIX'
+        tnow             = datetime.now().isoformat(timespec='milliseconds')
+        creation_date    = datetime.now(timezone.utc)
+        creation_datestr = creation_date.isoformat(timespec='seconds')
+
+        kw_dict['IMAGETYP'] = (imgtype, 'Type of file')
+        kw_dict['CREATOR']  = (self._name, 'Software that generated this file.')
+        kw_dict['DATE']     = (creation_datestr, 'UTC creation time.')
+        kw_dict['DATAFILE'] = (self._imfile, 'Data file used to identify bad pixels.')
+    
+        for kw in copy_list:
+            if kw in self._imhdr:
+                val = self._imhdr[kw]
+                cmt = self._imhdr.comments[kw]
+                kw_dict[kw] = (val, cmt)
+            
+        for kw in kw_dict:
+            hdu.header[kw] = kw_dict[kw]
+        hdu.header['HISTORY'] = f'Created by {self._name} at {tnow}'
+        return
+    
+    def write_mask(self, mask_file_name):
+        """Write the bad pixel mask to a FITS file with the user 
+           specified name/path.
+           
+        :param mask_file_name: File name/path for the output bad pixel
+          mask. The file will be overwritten if it exists.
+        """
+        
+        mask = self._badpixmask.astype('uint8').copy()
+        hdu  = fits.PrimaryHDU(data=mask)
+        self._update_header(hdu)
+        
+        hdu_list = fits.HDUList([hdu])
+        hdu_list.writeto(mask_file_name, overwrite=True)
+        self._logger.info(f'Wrote bad pixel mask to {mask_file_name}')
+        return
+    
                 
 def main(args=None):
     p_args      = command_line_opts(args)
@@ -272,7 +333,7 @@ def main(args=None):
     mkbadpix = ApFindBadPixels(p_inmstrdrk,
         p_sigma,
         p_loglevel)
-    #mkbadpix.write_mask(p_outbadpix)
+    mkbadpix.write_mask(p_outbadpix)
     
     return 0
 
