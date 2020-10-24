@@ -7,4 +7,4 @@ and astronomical FITS format.
 """
 from .__version__ import __version__
 from .__main__ import warn
-from .core import RawConv
+from .core import *

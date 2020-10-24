@@ -76,6 +76,9 @@ $ python3 -m pip install . -r requirements.txt --user
 $ pip3 install . -r requirements.txt
 ```
 
+To install in developer mode replace the last line with 
+`pip3 install -e . -r requirements.txt`.
+
 Get general command line application help:
 
 ```bash

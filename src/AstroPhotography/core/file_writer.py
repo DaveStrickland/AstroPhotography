@@ -1,8 +1,9 @@
 """Function based interface to FileWriter
+
+Limitations: Does not currently support metadata, e.g. FITS headers.
 """
 
 from .logger import logger
-#import .FileWriter
 import imageio
 import time
 import os.path
