@@ -41,6 +41,7 @@ Also see doc/iTelescope_processing.md
 - [ ] general: Optional asinh strech.
 - [ ] general: Try dng file type.
 - [ ] Switch TODO file to list task backlog by planned release.
+- [ ] Rename dksraw and RawConv.
 
 ## Metadata
 
@@ -72,6 +73,7 @@ Also see doc/iTelescope_processing.md
 ## Documentation
 
 - [ ] Provide examples in either md or notebook form.
+- [ ] Get sphinx to work properly again.
 - [ ] Clean up sphinx documentation to a basic level of quality.
 
 ## Bugs
