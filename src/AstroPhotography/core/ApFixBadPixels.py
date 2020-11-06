@@ -133,21 +133,32 @@ class ApFixBadPixels:
         
         return ext_data, ext_hdr
 
-    def fix_files(self, data_file, badpixmask_file, pixrad=1):
+    def fix_files(self, inpdata_file, 
+        badpixmask_file,
+        outdata_file, 
+        deltapix=1):
         """
         
-        :param data_file:
+        :param inpdata_file:
         :param badpixmask_file:
-        :param pixrad:
+        :param outdata_file:
+        :param deltapix:
         """
+        
+        idata, ihdr     = self._read_fits(inpdata_file, 0)
+        mskdata, mskhdr = self._read_fits(badpixmask_file, 0 )
+        
+        # Check that sizes match
+        ## TODO
+                
         return
 
-    def fix_bad_pixels(self, data, badpixmask, pixrad=1):
+    def fix_bad_pixels(self, data, badpixmask, deltapix=1):
         """
         
         :param data:
         :param badpixmask:
-        :param pixrad:
+        :param deltapix:
         """
         newdata  = data.copy()
         fixstats = {}

@@ -54,6 +54,15 @@ def command_line_opts(argv):
         help='Path/name of the output patched image.')        
         
     # Optional
+    p_delta = 1
+    parser.add_argument('-deltapix',
+        default=p_delta,
+        help=('Half-width and half-height of the box surrounding a bad'
+        ' pixel from which the median value of any good pixels will be'
+        ' used to replace the value in the bad pixel. If deltapix=1 then'
+        ' the 8 surrounding pixels will be used, if deltapix=2 then the'
+        ' surrounding 24 pixels will be used. Values above 2 are not recommended.'
+        f' Default: {p_delta} pixels.'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
@@ -66,9 +75,18 @@ def main(args=None):
     p_inp_img    = p_args.raw_image
     p_inp_badpix = p_args.master_badpix
     p_out_img    = p_args.fixed_image
+    
+    p_deltapix   = p_args.deltapix
     p_loglevel   = p_args.loglevel
     
+    # Create an instance of the object that can fix bad pixels.
     fixpix = ap.ApFixBadPixels(p_loglevel)
+    
+    # Tell it to fix data from files (rather than numpy arrays).
+    fixpix.fix_files(p_inp_img, 
+        p_inp_badpix,
+        p_out_img,
+        p_deltapix) 
     
     return 0
 
