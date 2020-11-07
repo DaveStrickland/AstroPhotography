@@ -30,7 +30,7 @@ class ApFixBadPixels:
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
-        self._logger.info('Hello. There will be cake.')
+        self._logger.debug(f'{self._name} instance constructed.')
         return
         
     def _check_file_exists(self, filename):
@@ -137,29 +137,67 @@ class ApFixBadPixels:
         badpixmask_file,
         outdata_file, 
         deltapix=1):
+        """Fix bad pixels in the input FITS file based on the mask in an
+           badpixel mask file, and write the updated file with a new 
+           file name.
+        
+        :param inpdata_file: Input FITS data file affected by bad pixels.
+        :param badpixmask_file: Input FITS file specifying the bad pixels.
+          Bad pixels should have non-zero values, good pixels should have
+          zero as the pixel value.
+        :param outdata_file: Modified copy of the input data file where the
+          bad pixels have had their data valus modified by the median
+          of the surrounding good pixels.
+        :param deltapix: Linear distance away from a bad pixel from which
+          the median value of the good pixels will be drawn. If 1 then
+          the median value of good pixels within the surrounding 8 pixels
+          will be used. If 2 then the median of the good pixels within the
+          surrounding 24 pixels will be used. Values above 2 are not
+          recommended.
         """
         
-        :param inpdata_file:
-        :param badpixmask_file:
-        :param outdata_file:
-        :param deltapix:
-        """
+        msg = (f'fix_files input data file={inpdata_file},'
+            f' mask file={badpixmask_file},'
+            f' output file={outdata_file}, deltapix={deltapix}')
+        self._logger.info(msg)
         
         idata, ihdr     = self._read_fits(inpdata_file, 0)
         mskdata, mskhdr = self._read_fits(badpixmask_file, 0 )
         
-        # Check that sizes match
-        ## TODO
-                
+        odata, odict = self.fix_bad_pixels(idata, mskdata, deltapix)
         return
 
     def fix_bad_pixels(self, data, badpixmask, deltapix=1):
+        """Fix bad pixels in the input array based on the mask in an
+           badpixel array, returning the modified data array, 
+           and a 
+           dictionary summarizing the number of bad pixels, pixels 
+           corrected, and pixels than could not be corrected.
+        
+        :param data: Input ndarray representing the data affected by
+          bad pixels.
+        :param badpixmask: Input ndarray specifying the bad pixels.
+          Bad pixels should have non-zero values, good pixels should have
+          zero as the pixel value.
+        :param deltapix: Linear distance away from a bad pixel from which
+          the median value of the good pixels will be drawn. If 1 then
+          the median value of good pixels within the surrounding 8 pixels
+          will be used. If 2 then the median of the good pixels within the
+          surrounding 24 pixels will be used. Values above 2 are not
+          recommended.
         """
         
-        :param data:
-        :param badpixmask:
-        :param deltapix:
-        """
-        newdata  = data.copy()
-        fixstats = {}
-        return newdata, fitstats
+        # Info message about array shape and data type.
+        self._logger.info(f'fix_bad_pixels: data has {data.shape[0]} rows x {data.shape[1]} columns, dtype={data.dtype}')
+        self._logger.info(f'fix_bad_pixels: mask has {badpixmask.shape[0]} rows x {badpixmask.shape[1]} columns, dtype={badpixmask.dtype}')
+        
+        # Check that sizes match
+        if (data.shape != badpixmask.shape):
+            msg = (f'Error, the shape of the input data array ({data.shape})'
+                f' does not match that of the bad pixel mask array ({badpixmask.shape}).')
+            self._logger.error(msg)
+            raise RunTimeError(msg)
+        
+        newdata     = data.copy()
+        fixed_stats = {}
+        return newdata, fixed_stats
