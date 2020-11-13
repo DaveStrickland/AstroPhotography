@@ -3,8 +3,9 @@
 
 import sys
 import logging
-import os.path
+from pathlib import Path
 import math
+import time
 from datetime import datetime, timezone
 
 import numpy as np
@@ -16,6 +17,9 @@ class ApFixBadPixels:
        by replacing them with the median value for surrounding good 
        pixels.
     """
+    
+    # Class level constants
+    MASK_GOOD = 0
     
     def __init__(self,
         loglevel):
@@ -30,11 +34,22 @@ class ApFixBadPixels:
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
+        # Minimum number of surrounding "good" pixels required to allow
+        # patching of bad pixels by the median of the good pixels.
+        # The smallest possible value is 1, but whether that gives 
+        # scientifically valid output is not clear.
+        self._min_valid = 4
+        
+        # Whether to replace unfixable pixel values with a artificial
+        # fill value, or simply leave them unchanged (recommended)
+        self._replace_unfixable       = False
+        self._replace_unfixable_value = np.nan
+        
         self._logger.debug(f'{self._name} instance constructed.')
         return
         
     def _check_file_exists(self, filename):
-        if not os.path.isfile(filename):
+        if not Path(filename).exists():
             err_msg = f'Cannot find {filename}. Not a valid path or file.'
             self._logger.error(err_msg)
             raise RuntimeError(err_msg)
@@ -155,6 +170,8 @@ class ApFixBadPixels:
           surrounding 24 pixels will be used. Values above 2 are not
           recommended.
         """
+
+        deltapix = int(deltapix)
         
         msg = (f'fix_files input data file={inpdata_file},'
             f' mask file={badpixmask_file},'
@@ -165,6 +182,11 @@ class ApFixBadPixels:
         mskdata, mskhdr = self._read_fits(badpixmask_file, 0 )
         
         odata, odict = self.fix_bad_pixels(idata, mskdata, deltapix)
+        odict['badpixfile'] = badpixmask_file
+        
+        # Create copy of input image and write modified data to it
+        # with an updated header
+        ## TODO
         return
 
     def fix_bad_pixels(self, data, badpixmask, deltapix=1):
@@ -186,6 +208,8 @@ class ApFixBadPixels:
           surrounding 24 pixels will be used. Values above 2 are not
           recommended.
         """
+
+        deltapix = int(deltapix)
         
         # Info message about array shape and data type.
         self._logger.info(f'fix_bad_pixels: data has {data.shape[0]} rows x {data.shape[1]} columns, dtype={data.dtype}')
@@ -198,6 +222,113 @@ class ApFixBadPixels:
             self._logger.error(msg)
             raise RunTimeError(msg)
         
-        newdata     = data.copy()
-        fixed_stats = {}
+        if not np.issubdtype(data.dtype, np.floating):
+            # Not a floating point datatype.
+            msg = ( 'Pixel medians may suffer from casting truncation because'
+                f' the input data is not a floating point datatype ({data.dtype}).')
+            self._logger.warning(msg)
+
+        
+        newdata = data.copy()
+        mask    = badpixmask != ApFixBadPixels.MASK_GOOD
+        npix    = data.size
+        nbad    = np.sum(mask)
+        pctbad  = 100.0 * nbad / npix
+        self._logger.debug(f'Percentage of pixels considered bad: {pctbad:.3f} ({nbad:d}/{npix:d})')
+        fixed_stats = {'numpix': npix,
+            'numbad': nbad,
+            'pctbad': pctbad}
+            
+        # Mask to record which pixels were not fixed.
+        newmask = mask.copy()
+
+        # Formatting for diagnostic output
+        nprint  = 100
+        idx_fmt = '3d'
+        pix_fmt = '4d'
+        msg     = f'Diagnostics of the first {nprint} bad pixels follow:\n'
+        hdr     =  '{}  {}  {}  {}  {}  {}  {}  {:>5s}  {:>10s}  \n'.format('idx',
+            'row_',  'col_',  'rmin:rmax',  'cmin:cmax',
+            'good',  'bad_', 'fix?',  'new_value')
+        msg    += hdr
+        line    = ('{:>' f'{idx_fmt}' '}  '                  # idx_
+            '{:>' f'{pix_fmt}'  '}  '                        # row_
+            '{:>' f'{pix_fmt}' '}  '                         # col_
+            '{:>' f'{pix_fmt}' '}:{:<' f'{pix_fmt}' '}  '    # rmin:rmax
+            '{:>' f'{pix_fmt}' '}:{:<' f'{pix_fmt}' '}  '    # cmin:cmax
+            '{:>' f'{pix_fmt}' '}  '                         # good
+            '{:>' f'{pix_fmt}' '}  '                         # bad_
+            '{:>5s}'                                         # fix?
+            '{:>10s}'                                        # new_value
+            '\n'
+            )
+        ##print(line)
+
+        # Iterate over pixels.
+        # - Construct row and column index arrays, then select only the
+        #   indices of the bad pixels and store those as 1-dimensional arrays.
+        nrows = mask.shape[0]
+        ncols = mask.shape[1]
+        perf_time_start    = time.perf_counter() # highest res timer, counts sleeps
+        row_idxs, col_idxs = np.mgrid[0:nrows, 0:ncols]
+        bp_row_idxs        = row_idxs[mask].ravel()
+        bp_col_idxs        = col_idxs[mask].ravel()
+        for idx, pos in enumerate(zip(bp_row_idxs, bp_col_idxs)):
+            ridx = pos[0]
+            cidx = pos[1]
+            rmin = max(0,     ridx - deltapix)     # included
+            rmax = min(nrows, ridx + deltapix + 1) # excluded
+            cmin = max(0,     cidx - deltapix)     # included
+            cmax = min(ncols, cidx + deltapix + 1) # excluded
+            
+            # Get data and mask cut outs.
+            # - Using data and mask, not newdata and newmask, means that
+            #   previous pixel corrections aren't used when updating pixels.
+            data_co  = data[rmin:rmax, cmin:cmax]
+            mask_co  = mask[rmin:rmax, cmin:cmax]  # True where bad
+            nbad_co  = np.sum(mask_co)
+            ngood_co = mask_co.size - nbad_co
+                        
+            can_fix  = False
+            if ngood_co >= self._min_valid:
+                # Flip mask so good pixels are True and we can select them.
+                good_mask = np.logical_not(mask_co)
+                
+                can_fix             = True
+                newmask[ridx, cidx] = ApFixBadPixels.MASK_GOOD
+                ##if idx < 3:
+                ##    print(data_co)
+                ##    print(good_mask)
+                ##    print(data_co[good_mask])
+                medval              = np.median( data_co[good_mask] )
+                fix_str             = f'{medval:>10.2f}  '
+                newdata[ridx, cidx] = medval
+            else:
+                fix_str = '{:>10s}  '.format('N/A')
+            
+            # Diagnostic string
+            if idx < nprint:
+                msg += line.format(idx, ridx, cidx, 
+                    rmin, rmax, cmin, cmax,
+                    ngood_co, nbad_co,
+                    str(can_fix), fix_str)
+                    
+        perf_time_end   = time.perf_counter() # highest res timer, counts sleeps
+        self._logger.debug(msg) 
+
+        # Measure performance, in case we need to speed this up later.
+        run_time   = perf_time_end - perf_time_start
+        ms_per_pix = 1000 * run_time / nbad 
+        msg = f'Processed {nbad} pixels in {run_time:.3f} s, {ms_per_pix:.2f} ms per bad pixel.'
+        self._logger.info(msg)        
+
+        # Work out how many pixels could not be fixed
+        nnotfix = np.sum(newmask)
+        fixed_stats['nnotfix'] = nnotfix
+        if nnotfix > 0:
+            msg = (f'Could not fix {nnotfix} pixels as they had less'
+                f' than {self._min_valid} good neighbors when deltapix={deltapix} pixels.')
+            self._logger.warning(msg)
+
+
         return newdata, fixed_stats

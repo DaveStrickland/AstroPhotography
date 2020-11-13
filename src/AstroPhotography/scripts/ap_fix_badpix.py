@@ -55,8 +55,9 @@ def command_line_opts(argv):
         
     # Optional
     p_delta = 1
-    parser.add_argument('-deltapix',
+    parser.add_argument('--deltapix',
         default=p_delta,
+        type=int,
         help=('Half-width and half-height of the box surrounding a bad'
         ' pixel from which the median value of any good pixels will be'
         ' used to replace the value in the bad pixel. If deltapix=1 then'
