@@ -1,6 +1,8 @@
 """Contains the implementation of the ApFixBadPixels class.
 """
 
+#  2020-11-16 dks : Working version of ApFixBadPixels.
+
 import sys
 import logging
 from pathlib import Path
@@ -148,7 +150,8 @@ class ApFixBadPixels:
         
         return ext_data, ext_hdr
 
-    def _write_corrected_image(self, inpdata_file, 
+    def _write_corrected_image(self, inpdata_file,
+            ext_num,
             outdata_file,
             odata, 
             odict):
@@ -172,6 +175,7 @@ class ApFixBadPixels:
                     not be corrected using BPIXDPIX and BPIX_MIN
         
         :param inpdata_file: Input FITS data file affected by bad pixels.
+        :param ext_num: Extension number for data array and header.
         :param outdata_file: Modified copy of the input data file where the
           bad pixels have had their data valus modified by the median
           of the surrounding good pixels.
@@ -184,6 +188,34 @@ class ApFixBadPixels:
         """
         
         self._logger.debug(f'Bad pixel keywords added to output: {odict}')
+
+        self._check_file_exists(inpdata_file)
+            
+        # open() parameters that can be important.
+        # Default values used here.
+        # See https://docs.astropy.org/en/stable/io/fits/api/files.html#astropy.io.fits.open
+        uint_handling = True
+        image_scaling = False
+            
+        with fits.open(inpdata_file, 
+            uint=uint_handling, 
+            do_not_scale_image_data=image_scaling) as hdu_list:
+            
+            # Modify data
+            hdu_list[ext_num].data = odata
+            
+            # Modify header
+            for kw, val in odict.items():
+                if 'BPIX' in kw:
+                    hdu_list[ext_num].header[kw] = val
+            
+            tnow = datetime.now().isoformat(timespec='milliseconds')
+            hdu_list[ext_num].header['HISTORY'] = f'Created by {self._name} at {tnow}'
+            
+            # Write to new file
+            hdu_list.writeto(outdata_file, 
+                output_verify='ignore',
+                overwrite=True)
         
         self._logger.info(f'Wrote bad pixel corrected file to {outdata_file}')
         return
@@ -211,6 +243,7 @@ class ApFixBadPixels:
           recommended.
         """
 
+        ext_num  = 0 # Really should have a better way of setting this.
         deltapix = int(deltapix)
         
         msg = (f'fix_files input data file={inpdata_file},'
@@ -218,8 +251,8 @@ class ApFixBadPixels:
             f' output file={outdata_file}, deltapix={deltapix}')
         self._logger.info(msg)
         
-        idata, ihdr     = self._read_fits(inpdata_file, 0)
-        mskdata, mskhdr = self._read_fits(badpixmask_file, 0 )
+        idata, ihdr     = self._read_fits(inpdata_file, ext_num)
+        mskdata, mskhdr = self._read_fits(badpixmask_file, ext_num)
         
         odata, odict = self.fix_bad_pixels(idata, mskdata, deltapix)
         odict['BPIXFILE'] = (Path(badpixmask_file).name,
@@ -228,6 +261,7 @@ class ApFixBadPixels:
         # Create copy of input image and write modified data to it
         # with an updated header
         self._write_corrected_image(inpdata_file, 
+            ext_num,
             outdata_file,
             odata, 
             odict)
@@ -284,8 +318,8 @@ class ApFixBadPixels:
         fixed_stats = {'numpix': (npix, 'Total number of pixels in image'),
             'BPIXNBAD': (nbad,     'Total number of bad pixels in bad pixel file'),
             'pctbad':   (pctbad,   'Percentage of pixel defined bad'),
-            'BPIX_MIN': (self._min_valid, 'Minimum number of good pixels needed to correct'),
-            'BPIXDPIX': (deltapix, 'Half height/width of collection region in pixels')}
+            'BPIX_MIN': (self._min_valid, 'Minimum number of good neighors needed'),
+            'BPIXDPIX': (deltapix, 'Half height/width of collection region (pixels)')}
             
         # Mask to record which pixels were not fixed.
         newmask = mask.copy()

@@ -24,6 +24,7 @@
 #  MA 02110-1301, USA.
 #  
 #  2020-10-24 dks : Initial skeleton. 
+#  2020-11-16 dks : Finalized along with ApFixBadPixels.
 
 import argparse
 import sys
@@ -54,7 +55,7 @@ def command_line_opts(argv):
         help='Path/name of the output patched image.')        
         
     # Optional
-    p_delta = 1
+    p_delta = 2
     parser.add_argument('--deltapix',
         default=p_delta,
         type=int,
