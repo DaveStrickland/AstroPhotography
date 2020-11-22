@@ -14,6 +14,8 @@ import numpy as np
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
 
+from .. import __version__
+
 class ApFixBadPixels:
     """A class used to fix pre-indentified bad pixels within an image
        by replacing them with the median value for surrounding good 
@@ -150,6 +152,24 @@ class ApFixBadPixels:
         
         return ext_data, ext_hdr
 
+    def _remove_pedestal_kw(self, hdr):
+        """Removes the PEDESTAL keyword from the input FITS header
+        
+        AstroPhotography always removes any artificial PEDESTAL applied
+        to the data when reading a FITS file, so it is important to make
+        sure that the FITS header keywords remain consistent.
+        
+        This function need only be applied when modified data is being
+        written or rewritten to disk using a copy of an original FITS
+        header.
+        """
+        
+        if 'PEDESTAL' in hdr:
+            self._logger.debug('Removing PEDESTAL keyword from FITS header.')
+            del hdr['PEDESTAL']
+        
+        return 
+
     def _write_corrected_image(self, inpdata_file,
             ext_num,
             outdata_file,
@@ -201,6 +221,8 @@ class ApFixBadPixels:
             uint=uint_handling, 
             do_not_scale_image_data=image_scaling) as hdu_list:
             
+            self._remove_pedestal_kw(hdu_list[ext_num].header)
+            
             # Modify data
             hdu_list[ext_num].data = odata
             
@@ -210,7 +232,7 @@ class ApFixBadPixels:
                     hdu_list[ext_num].header[kw] = val
             
             tnow = datetime.now().isoformat(timespec='milliseconds')
-            hdu_list[ext_num].header['HISTORY'] = f'Created by {self._name} at {tnow}'
+            hdu_list[ext_num].header['HISTORY'] = f'Applied {self._name} {__version__} at {tnow}'
             
             # Write to new file
             hdu_list.writeto(outdata_file, 
