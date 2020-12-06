@@ -25,19 +25,33 @@ class ApCalibrate:
        potentially gain greater control over the flat fielding I've 
        chosen to use this implementation instead of delegating to
        ccdproc.
+       
+       The calibrator object applies to a specific telescope/detector
+       (temperature) combination via the master bias, master dark 
+       and optional master bad pixel files. If a master flat is supplied
+       then it is specific to a given filter too.
     """
     
     # Flat fielding method enumeration
     MEAN_FULL   = 0  # Mean value of entire flat field.
     MEDIAN_FULL = 1  # Median value of entire flat field. TBA
     
-    def __init__(self, loglevel):
-        """Initializes an ApCalibrate instance.
+    def __init__(self, master_bias_file,
+        master_dark_file,
+        master_flat_file,
+        master_badpix_file,
+        loglevel):
+        """Initializes an ApCalibrate instance with the master 
+           calibration files.
         """
         
         self._name     = 'ApCalibrate'
         self._version  = __version__
-        self._loglevel = loglevel
+        self._master_bias_file   = master_bias_file
+        self._master_dark_file   = master_dark_file
+        self._master_flat_file   = master_flat_file
+        self._master_badpix_file = master_badpix_file
+        self._loglevel           = loglevel
         self._initialize_logger(self._loglevel)
         return
         
@@ -292,14 +306,12 @@ class ApCalibrate:
         return
         
     def calibrate(self, raw_image,
-        master_bias,
-        master_dark,
-        master_flat,
-        byhand_image,
-        byhand_flat):
+        cal_image,
+        delta_pix,
+        norm_flat,):
         """Perform bias subtraction, dark subtraction, flat fielding 
-           (optional), and bad pixel correction (optional).
-           
+           (optional), and bad pixel correction (optional) on the input
+           image.
         """
         
         # Convert to path objects

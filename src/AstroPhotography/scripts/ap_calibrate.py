@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 #  ap_calibrate.py
@@ -40,9 +40,10 @@ def command_line_opts(argv):
     :param argv: argument list to parse
     """
     parser = argparse.ArgumentParser(prog='ap_calibrate',
-        description=('An example of how ccdproc performs bias, dark,'
-        ' and flat fielding, along with a comparison of doing it by hand.'))
-        
+        description=('Performs calibration of raw astronomical images'
+        ' by applying bias and dark frame subtraction, along with'
+        ' optional (but recommended) flat fielding and bad pixel correction.'))
+    
     # Required
     parser.add_argument('raw_image',
         metavar='INPUT_IMAGE.FITS',
@@ -52,10 +53,10 @@ def command_line_opts(argv):
         help='Path/name of the master bias file.')
     parser.add_argument('master_dark',
         metavar='MDARK.FITS',
-        help='Path/name of the master dark file.' + 
-        ' WARNING. It is assumed that the master dark has not had the' +
-        ' bias subtracted. File an issue if you have example where this' +
-        ' is not the case.')
+        help=('Path/name of the master dark file.'
+        ' WARNING. It is assumed that the master dark has not had the'
+        ' bias subtracted. File an issue if you have example where this'
+        ' is not the case.'))
     parser.add_argument('calibrated_image',
         metavar='CALIBRATED_IMAGE.FITS',
         help='Path/name of the output calibrated image.')        
@@ -66,7 +67,7 @@ def command_line_opts(argv):
     parser.add_argument('--master_flat',
         metavar='MFLAT.FITS',
         default=None,
-        help='(Path/name of the master flat file.'
+        help=('Path/name of the master flat file.'
         ' If this is specified flat fielding will be applied to the final image.'))
     parser.add_argument('--master_badpix',
         metavar='BADPIX.FITS',
@@ -101,21 +102,30 @@ def command_line_opts(argv):
 
 def main(args=None):
     p_args       = command_line_opts(args)
-    p_inp_img    = p_args.raw_image
-    p_inp_badpix = p_args.master_badpix
-    p_out_img    = p_args.fixed_image
-    
+    p_raw_img    = p_args.raw_image
+    p_mbias      = p_args.master_bias
+    p_mdark      = p_args.master_dark
+    p_out_img    = p_args.calibrated_image
+        
+    p_mflat      = p_args.master_flat
+    p_mbadpix    = p_args.master_badpix
+
+    p_normflat   = p_args.normflat
     p_deltapix   = p_args.deltapix
     p_loglevel   = p_args.loglevel
     
-    # Create an instance of the object that can fix bad pixels.
-    fixpix = ap.ApFixBadPixels(p_loglevel)
+    # Create an instance of the calibrator.
+    calibrator = ap.ApCalibrate(p_mbias,
+        p_mdark,
+        p_mflat,
+        p_mbadpix,
+        p_loglevel)
     
-    # Tell it to fix data from files (rather than numpy arrays).
-    fixpix.fix_files(p_inp_img, 
-        p_inp_badpix,
+    # Tell it to calibrate data from files (rather than numpy arrays).
+    calibrator.calibrate(p_raw_img, 
         p_out_img,
-        p_deltapix) 
+        p_deltapix,
+        p_normflat) 
     
     return 0
 
