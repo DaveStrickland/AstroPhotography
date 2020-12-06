@@ -53,6 +53,30 @@ class ApCalibrate:
         self._master_badpix_file = master_badpix_file
         self._loglevel           = loglevel
         self._initialize_logger(self._loglevel)
+        
+        self._master_bias = Path(self._master_bias_file)
+        self._master_dark = Path(self._master_dark_file)
+
+        # Read bias and dark data
+        ext_num = 0
+        bias_data, bias_hdr = self._read_fits(master_bias, ext_num)
+        dark_data, dark_hdr = self._read_fits(master_dark, ext_num)
+
+        # Read optional flat
+        if self._master_flat_file is not None:
+            self._master_flat = Path(self._master_flat_file)
+            self._flat_method = byhand.MEAN_FULL
+            self._logger.info(f'Reading master flat field {self._master_flat.name}')
+            flat_data, flat_hdr = self._read_fits(master_flat, ext_num)
+            self._norm_flat = self._generate_flat(flat_data, self._flat_method)
+
+        # Read optional bad pixel file
+        if self._master_badpix_file is not None:
+            self._bpix  = ApFixBadPixels(self._loglevel)
+            self._master_bpix = Path(self._master_badpix_file)
+            self._mskdata, self._mskhdr = self._read_fits(self._master_bpix, ext_num)
+        else:
+            self._bpix = None
         return
         
     def _check_file_exists(self, filename):
@@ -315,16 +339,9 @@ class ApCalibrate:
         """
         
         # Convert to path objects
-        raw_image   = Path(raw_image)
-        master_bias = Path(master_bias)
-        master_dark = Path(master_dark)
-        master_flat = Path(master_flat)
-        
+        raw_image   = Path(raw_image)        
         ext_num = 0
         raw_data,  raw_hdr  = self._read_fits(raw_image,   ext_num)
-        bias_data, bias_hdr = self._read_fits(master_bias, ext_num)
-        dark_data, dark_hdr = self._read_fits(master_dark, ext_num)
-        flat_data, flat_hdr = self._read_fits(master_flat, ext_num)
         
         # Subtract bias from raw image and from dark.
         # Skipping the normal sanity checks I would do.
@@ -336,25 +353,46 @@ class ApCalibrate:
         dark_scaled = exp_ratio * dark_sub_b
         img_sub_bd  = img_sub_b - dark_scaled 
         
-        # Flat field correction
-        flat_method = byhand.MEAN_FULL
-        norm_flat = self._generate_flat(flat_data, flat_method)
-        img_bdf   = np.where(norm_flat != 0,
-            img_sub_bd / norm_flat,
-            img_sub_bd)
-        
-        # updated keywords
+        # Dictionary of keywords to add to output...
         odict = {'BIASCORR': (True, 'True if bias subtracted.'),
             'BIASFILE': (master_bias.name, 'Master bias file used.'),
             'DARKCORR': (True, 'True if scaled dark subtracted.'),
             'DARKFILE': (master_dark.name, 'Master dark file used.'),
-            'FLATCORR': (True, 'True if flat field applied.'),
-            'FLATFILE': (master_flat.name, 'Master flat file used.'),
             'BUNIT':    ('adu', 'Pixel value units.')}
+
+        # Flat field correction
+        if self._master_flat_file is not None:
+            img_bdf   = np.where(self._norm_flat != 0,
+                img_sub_bd / self._norm_flat,
+                img_sub_bd)
+            odict['FLATCORR'] = (True, 'True if flat field applied.')
+            odict['FLATFILE'] = (master_flat.name, 'Master flat file used.')
+            if norm_flat is not None:
+                # TODO, set keywords to be used in normalized flat?
+                self._logger.debug(f'Writing normalized flat field to {norm_flat}')
+                self._write_corrected_image(raw_image, ext_num,
+                    byhand_flat, self._norm_flat, {})
+        else:
+            self._logger.info('No flat field correction applied.')
+            img_bdf = img_sub_bd
+                    
+        # Optional bad pixel correction.
+        if self._bpix is not none:
+            img_bdf, bpix_odict = self.fix_bad_pixels(img_bdf, 
+                self._mskdata, delta_pix)
+                
+            # Update output FITS header keyword dictionary.
+            odict['BPIXFILE'] = (Path(badpixmask_file).name,
+                'Name of master bad pixel file used')
+            for key, val in bpix_odict.items():
+                if 'BPIX' in key:
+                    odict[key] = val
+        else:
+            self._logger.info('No bad pixel correction applied.')
+
+        # Write final image.
+        self.logger.info(f'Writing calibrated image to ')    
         self._write_corrected_image(raw_image, ext_num,
-            byhand_image, img_bdf, odict)
-            
-        self._write_corrected_image(raw_image, ext_num,
-            byhand_flat, norm_flat, {})
-        
+            cal_image, img_bdf, odict)
+                    
         return

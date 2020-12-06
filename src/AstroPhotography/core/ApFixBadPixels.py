@@ -275,7 +275,7 @@ class ApFixBadPixels:
         
         idata, ihdr     = self._read_fits(inpdata_file, ext_num)
         mskdata, mskhdr = self._read_fits(badpixmask_file, ext_num)
-        
+
         odata, odict = self.fix_bad_pixels(idata, mskdata, deltapix)
         odict['BPIXFILE'] = (Path(badpixmask_file).name,
             'Name of master bad pixel file used')
