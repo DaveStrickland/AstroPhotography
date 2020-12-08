@@ -1,7 +1,8 @@
 """Contains the implementation of the ApCalibrate class.
 """
 
-#  2020-12-05 dks : Initial implementation.
+# 2020-12-05 dks : Initial implementation.
+# 2020-12-08 dks : Working version.
 
 import sys
 import logging
@@ -58,17 +59,19 @@ class ApCalibrate:
         self._master_dark = Path(self._master_dark_file)
 
         # Read bias and dark data
+        # TODO check bias exposure time is zero.
         ext_num = 0
-        bias_data, bias_hdr = self._read_fits(master_bias, ext_num)
-        dark_data, dark_hdr = self._read_fits(master_dark, ext_num)
+        self._bias_data, self._bias_hdr = self._read_fits(self._master_bias, ext_num)
+        self._dark_data, self._dark_hdr = self._read_fits(self._master_dark, ext_num)
 
         # Read optional flat
         if self._master_flat_file is not None:
             self._master_flat = Path(self._master_flat_file)
-            self._flat_method = byhand.MEAN_FULL
+            self._flat_method = ApCalibrate.MEAN_FULL
+            
             self._logger.info(f'Reading master flat field {self._master_flat.name}')
-            flat_data, flat_hdr = self._read_fits(master_flat, ext_num)
-            self._norm_flat = self._generate_flat(flat_data, self._flat_method)
+            flat_data, flat_hdr = self._read_fits(self._master_flat, ext_num)
+            self._norm_flat     = self._generate_flat(flat_data, self._flat_method)
 
         # Read optional bad pixel file
         if self._master_badpix_file is not None:
@@ -140,7 +143,7 @@ class ApCalibrate:
         """
         
         norm_factor = 1
-        if flat_method == byhand.MEAN_FULL:
+        if flat_method == ApCalibrate.MEAN_FULL:
             self._logger.debug('Using mean value of input field image to normalize by.')
             norm_factor = np.nanmean(flat_data)
         else:
@@ -150,8 +153,28 @@ class ApCalibrate:
             
         self._logger.info(f'Flat field normalization factor: {norm_factor:.2f}')
         out_flat = flat_data / norm_factor
-        [meanval, medval, minval, maxval] = img_stats(out_flat, 'Normalized flat', True)
+        [meanval, medval, minval, maxval] = self._img_stats(out_flat, 'Normalized flat', True)
         return out_flat
+
+    def _img_stats(self, data, label, verbose):
+        """Calculate and display some image statistics"""
+        
+        minval  = np.nanmin(data)
+        maxval  = np.nanmax(data)
+        meanval = np.nanmean(data)
+        
+        # percentiles, 50th percentile is the median
+        #         0    1    2    3   4   5   6   7   8   9   10
+        ipctls = [0.1, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.9]
+        opctls = np.nanpercentile(data, ipctls)
+        medval = opctls[5]
+        
+        if verbose:
+            self._logger.info(f'{label} data min={minval:.2f}, max={maxval:.2f}, mean={meanval:.2f}, median={medval:.2f} ADU.')
+            self._logger.info(f'  90% of data between {opctls[2]:.2f} and {opctls[8]:.2f} ADU (5-95 precentiles)')
+            self._logger.info(f'  98% of data between {opctls[1]:.2f} and {opctls[9]:.2f} ADU (1-99 precentiles)')
+        return [minval, maxval, meanval, medval]
+
 
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
@@ -345,19 +368,20 @@ class ApCalibrate:
         
         # Subtract bias from raw image and from dark.
         # Skipping the normal sanity checks I would do.
-        img_sub_b  = raw_data - bias_data
-        dark_sub_b = dark_data - bias_data
+        img_sub_b  = raw_data - self._bias_data
+        dark_sub_b = self._dark_data - self._bias_data
         
         # Scale bias-subtracted dark by ratio of exposure times.
-        exp_ratio   = self._find_exptime_ratio(raw_hdr, dark_hdr)
+        # TODO check that dark exposure time is >= image exposure time.
+        exp_ratio   = self._find_exptime_ratio(raw_hdr, self._dark_hdr)
         dark_scaled = exp_ratio * dark_sub_b
         img_sub_bd  = img_sub_b - dark_scaled 
         
         # Dictionary of keywords to add to output...
         odict = {'BIASCORR': (True, 'True if bias subtracted.'),
-            'BIASFILE': (master_bias.name, 'Master bias file used.'),
+            'BIASFILE': (self._master_bias.name, 'Master bias file used.'),
             'DARKCORR': (True, 'True if scaled dark subtracted.'),
-            'DARKFILE': (master_dark.name, 'Master dark file used.'),
+            'DARKFILE': (self._master_dark.name, 'Master dark file used.'),
             'BUNIT':    ('adu', 'Pixel value units.')}
 
         # Flat field correction
@@ -366,23 +390,23 @@ class ApCalibrate:
                 img_sub_bd / self._norm_flat,
                 img_sub_bd)
             odict['FLATCORR'] = (True, 'True if flat field applied.')
-            odict['FLATFILE'] = (master_flat.name, 'Master flat file used.')
+            odict['FLATFILE'] = (self._master_flat.name, 'Master flat file used.')
             if norm_flat is not None:
                 # TODO, set keywords to be used in normalized flat?
                 self._logger.debug(f'Writing normalized flat field to {norm_flat}')
                 self._write_corrected_image(raw_image, ext_num,
-                    byhand_flat, self._norm_flat, {})
+                    norm_flat, self._norm_flat, {})
         else:
             self._logger.info('No flat field correction applied.')
             img_bdf = img_sub_bd
                     
         # Optional bad pixel correction.
-        if self._bpix is not none:
-            img_bdf, bpix_odict = self.fix_bad_pixels(img_bdf, 
+        if self._bpix is not None:
+            img_bdf, bpix_odict = self._bpix.fix_bad_pixels(img_bdf, 
                 self._mskdata, delta_pix)
                 
             # Update output FITS header keyword dictionary.
-            odict['BPIXFILE'] = (Path(badpixmask_file).name,
+            odict['BPIXFILE'] = (self._master_bpix.name,
                 'Name of master bad pixel file used')
             for key, val in bpix_odict.items():
                 if 'BPIX' in key:
@@ -391,7 +415,7 @@ class ApCalibrate:
             self._logger.info('No bad pixel correction applied.')
 
         # Write final image.
-        self.logger.info(f'Writing calibrated image to ')    
+        self._logger.info(f'Writing calibrated image to ')    
         self._write_corrected_image(raw_image, ext_num,
             cal_image, img_bdf, odict)
                     
