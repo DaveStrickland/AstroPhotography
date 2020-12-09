@@ -361,6 +361,9 @@ class ApCalibrate:
            image.
         """
         
+        # Performance timer
+        perf_time_start = time.perf_counter() # highest res timer, counts sleeps
+        
         # Convert to path objects
         raw_image   = Path(raw_image)        
         ext_num = 0
@@ -413,6 +416,11 @@ class ApCalibrate:
                     odict[key] = val
         else:
             self._logger.info('No bad pixel correction applied.')
+
+        # Performance 
+        perf_time_end = time.perf_counter() # highest res timer, counts sleeps
+        run_time_secs = perf_time_end - perf_time_start
+        self._logger.info(f'Calibrated {raw_image.name} in {run_time_secs:.3f} seconds.')
 
         # Write final image.
         self._logger.info(f'Writing calibrated image to ')    
