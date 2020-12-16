@@ -654,13 +654,19 @@ class ApFindStars:
         cols     = ext_hdr['NAXIS1']
         rows     = ext_hdr['NAXIS2']
         bitpix   = ext_hdr['BITPIX']
-        bzero    = ext_hdr['BZERO']
-        bscale   = ext_hdr['BSCALE']
-        info_str = '{}-D BITPIX={} image with {} columns, {} rows, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, bscale, bzero)
+        info_str = '{}-D BITPIX={} image with {} columns, {} rows'.format(ndim, bitpix, cols, rows)
         
         if ndim == 3:
             layers = ext_hdr['NAXIS3']
-            info_str = '{}-D BITPIX={} image with {} columns, {} rows, {} layers, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, layers, bscale, bzero)
+            info_str = '{}-D BITPIX={} image with {} columns, {} rows, {} layers'.format(ndim, bitpix, cols, rows, layers)
+
+        if 'BSCALE' in ext_hdr:
+            bscale   = ext_hdr['BSCALE']
+            info_str += f', BSCALE={bscale}'
+        
+        if 'BZERO' in ext_hdr:
+            bzero    = ext_hdr['BZERO']
+            info_str += f', BZERO={bzero}'
             
         self._logger.debug(info_str)
         if ndim == 3:

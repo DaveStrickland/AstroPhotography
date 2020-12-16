@@ -423,7 +423,7 @@ class ApCalibrate:
         self._logger.info(f'Calibrated {raw_image.name} in {run_time_secs:.3f} seconds.')
 
         # Write final image.
-        self._logger.info(f'Writing calibrated image to ')    
+        self._logger.info(f'Writing calibrated image to {cal_image}')    
         self._write_corrected_image(raw_image, ext_num,
             cal_image, img_bdf, odict)
                     
