@@ -13,6 +13,11 @@ from datetime import datetime, timezone
 import numpy as np
 from astropy.io import fits
 
+import astropy.units as u
+from astropy.coordinates import EarthLocation
+from astroplan import Observer
+
+
 from .. import __version__
 
 class ApAddMetadata:
@@ -73,6 +78,127 @@ class ApAddMetadata:
         # See https://stackoverflow.com/a/44426266
         self._logger.propagate = False
         return
+        
+    def _get_itelescope_site(self, telescope):
+        """Return an astroplan Observer instance for a given iTelescope
+           telescope.
+        """
+        
+        nm_loc = {'mpc': 'H06',
+            'tz':   'UTC Minus 7:00. Daylight savings time is observed.',
+            'lat':  '+32d54m11.91s',
+            'lon':  '-105d31m43.32s',
+            'elev': 2222 * u.m} 
+        es_loc = {'mpc':    'I89',
+            'tz':   'UTC +1:00 Madrid Daylight Savings Time is Observed',
+            'lat':  '+38d09m56s', 
+            'lon':  '-2d19m37s',  
+            'elev': 1607 * u.m}
+        au_loc = {'mpc':    'Q62',
+            'tz':   'UTC +10:00 New South Wales, Australia Daylight savings time is observed.',
+            'lat':  '-31d16m24s', 
+            'lon':  '149d04m11s',
+            'elev': 1118 * u.m}
+        ca_loc = {'mpc':    'U69',
+            'tz':   'UTC Minus 8:00. Daylight savings time is observed.',
+            'lat':  '37d04m13s', 
+            'lon':  '-119d24m47s',
+            'elev': 1403 * u.m}
+        
+        # Dictory of iTelescope to site. Note, used lower case
+        tel_site_dict = {'t02': 'mayhill',
+            't02': 'mayhill',
+            't05': 'mayhill',
+            't11': 'mayhill',
+            't14': 'mayhill',
+            't20': 'mayhill',
+            't21': 'mayhill',
+            't68': 'mayhill',
+            't24': 'auberry',
+            't08': 'sidingspring',
+            't09': 'sidingspring',
+            't12': 'sidingspring',
+            't17': 'sidingspring',
+            't30': 'sidingspring',
+            't31': 'sidingspring',
+            't32': 'sidingspring',
+            't33': 'sidingspring',
+            't07': 'nerpio',
+            't16': 'nerpio',
+            't18': 'nerpio'}
+        
+        mayhill_nm = EarthLocation.from_geodetic(nm_loc['lon'],
+            nm_loc['lat'], nm_loc['elev'])
+        nerpio_es = EarthLocation.from_geodetic(es_loc['lon'],
+            es_loc['lat'], es_loc['elev'])
+        sidingspring_au = EarthLocation.from_geodetic(au_loc['lon'],
+            au_loc['lat'], au_loc['elev'])
+        auberry_ca = EarthLocation.from_geodetic(ca_loc['lon'],
+            ca_loc['lat'], ca_loc['elev'])
+        
+        mayhill_obs = Observer(name='iTelescope New Mexico',
+               location=mayhill_nm,
+               description="iTelescope at Mayhill, NM")
+        nerpio_obs = Observer(name='iTelescope Astrocamp',
+               location=nerpio_es,
+               description="iTelescope at Nerpio, Spain")
+        sidingspring_obs = Observer(name='iTelescope Siding Spring',
+               location=sidingspring_au,
+               description="iTelescope at Siding Spring, Australia")
+        auberry_obs = Observer(name='iTelescope Sierra Remote',
+               location=auberry_ca,
+               description="iTelescope at Auberry, CA")
+        
+        err_msg = None
+        if telescope.lower() in tel_site_dict:
+            loc = tel_site_dict[telescope.lower()]
+            if 'mayhill' in loc:
+                observatory = mayhill_obs
+            elif 'auberry' in loc:
+                observatory = auberry_obs
+            elif 'nerpio' in loc:
+                observatory = nerpio_obs
+            elif 'sidingspring' in loc:
+                observatory = sidingspring_obs
+            else:
+                err_msg = f'Error, unexpected location {loc} found for telescope {telescope.lower()}.'
+        else:
+            err_msg = f'Error, telescope {telescope.lower()} not in list of iTelescope telescopes.'
+        
+        if err_msg is not None:
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+        
+        return observatory
+        
+        
+    def _parse_itelescope_filename(self, filename):
+        """Extract the telescope name, observer, and target from an
+           iTelescope-generated FITS file name.
+           
+        The input file name is expected to be of similar form to the
+        raw iTelescope files, e.g. 
+        `raw-T05-davestrickland-NGC_6888-20200716-231744-Ha-BIN1-E-180-001.fit`.
+        In particular dashes (`-`) are used as a field separator, and there
+        is only a single field before the telescope string. In this
+        particular case this function will return telescope=T05,
+        observer=davestrickland, and target=NGC_6888. 
+        """
+        
+        split_list = filename.split('-')
+        num_fields = len(split_list)
+        if num_fields > 3:
+            telescope  = split_list[1]
+            observer   = split_list[2]
+            target     = split_list[3]
+        else:
+            err_msg = (f'Error, splitting the file name {filename}'
+            f' only generated {num_fields} fields, expecting > 3 fields.'
+            f' Split file name: {split_list}')
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+        
+        return telescope, observer, target
         
     def _read_fits(self, image_filename, image_extension):
         """Read a single extension's data and header from a FITS file.
@@ -145,9 +271,15 @@ class ApAddMetadata:
         :param mode: Mode. Must be one of the modes specified above.
         """
         
+        self._logger.info(f'Adding metadata to {fitsfile}, mode={mode}.')
+        
+        telescope = None
+        target    = None
+        observer  = None
+        site      = None
         if 'iTelescope' in mode:
-            # TODO
-            print('TODO')
+            telescope, observer, target = self._parse_itelescope_filename(fitsfile)
+            self._logger.info(f'Telescope={telescope}, observer={observer}, and target={target}.')
         else:
             err_msg = f'Error, unexpected/unsupported mode {mode}.'
             self._logger.error(err_msg)
