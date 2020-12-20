@@ -2,6 +2,7 @@
 """
 
 # 2020-12-16 dks : Initial implementation.
+# 2020-12-20 dks : Working version.
 
 import sys
 import logging
@@ -11,12 +12,14 @@ import time
 from datetime import datetime, timezone
 
 import numpy as np
+
 from astropy.io import fits
-
 import astropy.units as u
+from astropy.time import Time
 from astropy.coordinates import EarthLocation
-from astroplan import Observer
 
+from astroplan import Observer
+from astroplan import FixedTarget
 
 from .. import __version__
 
@@ -190,7 +193,8 @@ class ApAddMetadata:
         if num_fields > 3:
             telescope  = split_list[1]
             observer   = split_list[2]
-            target     = split_list[3]
+            # Replace underscores with spaces.
+            target     = split_list[3].replace('_', ' ')
         else:
             err_msg = (f'Error, splitting the file name {filename}'
             f' only generated {num_fields} fields, expecting > 3 fields.'
@@ -221,13 +225,13 @@ class ApAddMetadata:
             
         return ext_data, ext_hdr
 
-    def _write_corrected_image(self, fitsfile, kwdict):
+    def _write_corrected_header(self, fitsfile, kwdict):
         """Updates the header keywords of the specified file with 
            the computed values.
         """
         
         self._logger.debug(f'FITS header keywords to be added to output: {kwdict}')
-        self._check_file_exists(inpdata_file)
+        self._check_file_exists(fitsfile)
             
         # open() parameters that can be important.
         # Default values used here.
@@ -273,16 +277,62 @@ class ApAddMetadata:
         
         self._logger.info(f'Adding metadata to {fitsfile}, mode={mode}.')
         
-        telescope = None
-        target    = None
-        observer  = None
-        site      = None
+        # FITS keyword (value, comment) dictionary
+        kwdict = {}
+        
+        telescope_str = None
+        target_str    = None
+        observer_str  = None
+        site          = None
+        target        = None
         if 'iTelescope' in mode:
-            telescope, observer, target = self._parse_itelescope_filename(fitsfile)
-            self._logger.info(f'Telescope={telescope}, observer={observer}, and target={target}.')
+            telescope_str, observer_str, target_str = self._parse_itelescope_filename(fitsfile)
+            self._logger.info(f'Telescope={telescope_str}, observer={observer_str}, and target={target_str}.')
+            site          = self._get_itelescope_site(telescope_str)
+            target        = FixedTarget.from_name(target_str)
+            telescope_str = 'iTelescope ' + telescope_str
         else:
             err_msg = f'Error, unexpected/unsupported mode {mode}.'
             self._logger.error(err_msg)
             raise RunTimeError(err_msg)
         
+        # Observer-related keywords
+        kwdict['OBSERVER'] = (observer_str, 'Name of observer')
+        
+        # observatory related keywords:
+        lat      = site.location.lat.deg
+        lon      = site.location.lon.deg
+        elev     = site.location.height.value
+        site_str = site.name
+        kwdict['OBSERVAT'] = (site_str, 'Observatory.')
+        kwdict['LAT-OBS']  = (lat, '[deg] Latitude of observatory.')
+        kwdict['LON-OBS']  = (lon, '[deg] Latitude of observatory.')
+        kwdict['ALT-OBS']  = (elev, '[m] Height of observatory.')
+        kwdict['TELESCOP'] = (telescope_str, 'Name of telescope used.')
+        
+        # Target related keywords
+        kwdict['OBJECT']  = (target_str, 'Target of observation')
+        kwdict['OBJNAME'] = kwdict['OBJECT']
+        kwdict['RA-OBJ']  = (target.ra.deg, '[deg] Right Ascension of target')
+        kwdict['DEC-OBJ'] = (target.dec.deg, '[deg] Declination of target')
+        
+        # Get FITS header and date of observation
+        ext_num = 0
+        fdata, fhdr = self._read_fits(fitsfile, ext_num)
+        date_obs = None
+        if 'DATE-OBS' in fhdr:
+            date_obs = Time(fhdr['DATE-OBS'])
+            self._logger.debug(f'Date of observation start: {date_obs}')
+        else:
+            err_msg = f'Error, {fitsfile} header did not contain DATE-OBS keyword.'
+            self._logger.error(err_msg)
+            raise RunTimeError(err_msg)
+
+        # Airmass
+        airmass = site.altaz(date_obs, target).secz.value
+        kwdict['AIRMASS'] = (airmass, 'Airmass at start of observation')
+
+        # Update original file.
+        self._write_corrected_header(fitsfile, kwdict)
+        self._logger.debug(f'Finished processing {fitsfile}')
         return
