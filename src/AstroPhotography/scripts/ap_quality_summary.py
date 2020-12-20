@@ -62,7 +62,7 @@ def command_line_opts(argv):
         help=f'File prefix for quality files. Default: {p_qual_pref}')
     parser.add_argument('--suffix',
         default=p_qual_suff,
-        help=f'File suffic for quality files. Default: {p_qual_suff}')
+        help=f'File suffix for quality files. Default: {p_qual_suff}')
     parser.add_argument('--walk_tree',
         default=False,
         action='store_true',
