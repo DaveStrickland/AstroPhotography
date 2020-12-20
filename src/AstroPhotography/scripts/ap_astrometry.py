@@ -23,7 +23,8 @@
 #  
 
 # 2020-08-12 dks : Initial WIP
-# 2020-08-29 dks : Update to keywords read from source list
+# 2020-08-29 dks : Update to keywords read from source list.
+# 2020-12-20 dks : Fix read fits when BZERO undefined, increase timeout.
 
 import argparse
 import sys
@@ -281,18 +282,26 @@ class ApAstrometry:
         cols     = ext_hdr['NAXIS1']
         rows     = ext_hdr['NAXIS2']
         bitpix   = ext_hdr['BITPIX']
-        bzero    = ext_hdr['BZERO']
-        bscale   = ext_hdr['BSCALE']
-        info_str = '{}-D BITPIX={} image with {} columns, {} rows, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, bscale, bzero)
+        info_str = '{}-D BITPIX={} image with {} columns, {} rows'.format(ndim, bitpix, cols, rows)
         
         if ndim == 3:
             layers = ext_hdr['NAXIS3']
-            info_str = '{}-D BITPIX={} image with {} columns, {} rows, {} layers, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, layers, bscale, bzero)
+            info_str = '{}-D BITPIX={} image with {} columns, {} rows, {} layers'.format(ndim, bitpix, cols, rows, layers)
+
+        if 'BSCALE' in ext_hdr:
+            bscale   = ext_hdr['BSCALE']
+            info_str += f', BSCALE={bscale}'
+        
+        if 'BZERO' in ext_hdr:
+            bzero    = ext_hdr['BZERO']
+            info_str += f', BZERO={bzero}'
             
         self._logger.debug(info_str)
+        
         if ndim == 3:
             self._logger.error('Error, 3-D handling has not been implemented yet.')
             sys.exit(1)
+            
         return ext_data, ext_hdr
         
     def _read_srclist(self, srclist_fname, srclist_extname):
@@ -356,7 +365,7 @@ class ApAstrometry:
                 else:
                     self._logger.debug('Monitoring astrometry.net submission {}'.format(submission_id))
                     wcs_header = ast.monitor_submission(submission_id,
-                        solve_timeout=120)
+                        solve_timeout=180)
             except TimeoutError as e:
                 submission_id = e.args[1]
             else:

@@ -669,8 +669,9 @@ class ApFindStars:
             info_str += f', BZERO={bzero}'
             
         self._logger.debug(info_str)
+        
         if ndim == 3:
-            self._loggererror('Error, 3-D handling has not been implemented yet.')
+            self._logger.error('Error, 3-D handling has not been implemented yet.')
             sys.exit(1)
             
         # Get data absolute limits.
