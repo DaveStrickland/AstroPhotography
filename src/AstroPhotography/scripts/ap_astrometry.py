@@ -211,15 +211,23 @@ class ApAstrometry:
         aprx_xpixsiz = None
         aprx_ypixsiz = None
 
-        if 'APRX_RA' in srclist_hdr:
+        if 'RA-OBJ' in srclist_hdr:
+            aprx_ra      = float( srclist_hdr['RA-OBJ'] )
+        elif 'APRX_RA' in srclist_hdr:
             aprx_ra      = float( srclist_hdr['APRX_RA'] )
-        if 'APRX_DEC' in srclist_hdr:
+
+        if 'DEC-OBJ' in srclist_hdr:
+            aprx_dec     = float( srclist_hdr['DEC-OBJ'] )
+        elif 'APRX_DEC' in srclist_hdr:
             aprx_dec     = float( srclist_hdr['APRX_DEC'] )
+
         if 'APRX_FOV' in srclist_hdr:
             aprx_fov     = float( srclist_hdr['APRX_FOV'] )
-        if 'APRX_XSZ' in srclist_hdr:
+
+        if 'APRX_XPS' in srclist_hdr:
             aprx_xpixsiz = float( srclist_hdr['APRX_XPS'] )
-        if 'APRX_YSZ' in srclist_hdr:
+
+        if 'APRX_YPS' in srclist_hdr:
             aprx_ypixsiz = float( srclist_hdr['APRX_YPS'] )
             
         # center_ra, center_dec, radius: all must be supplied
@@ -235,12 +243,16 @@ class ApAstrometry:
             # wrong by a factor 2.
             radius = math.ceil(aprx_fov * 3.0)
             hints_dict['radius'] = radius
+            self._logger.debug(f'Estimated center_ra={aprx_ra:.3f}, center_dec={aprx_dec:.3f}, radius={radius:.3f} deg.')
+        else:
+            self._logger.warning(f'Could not estimate center_ra, center_dec, radius.')
             
         # scale_units, scale_type, scale_est, scale_err
         if (aprx_xpixsiz is not None) and (aprx_ypixsiz is not None):
             # Default uncertainty in pixel size, percent
-            min_pix_size_err_pct = 30
-            hints_dict['scale_units'] = 'arcsecperpix'
+            min_pix_size_err_pct      = 30
+            scale_units               = 'arcsecperpix'
+            hints_dict['scale_units'] = scale_units
             mean_pix_size = math.sqrt( (aprx_xpixsiz*aprx_xpixsiz +
                 aprx_ypixsiz*aprx_ypixsiz) / 2 )
                 
@@ -254,6 +266,10 @@ class ApAstrometry:
             hints_dict['scale_type'] = 'ev'
             hints_dict['scale_est']  = mean_pix_size
             hints_dict['scale_err']  = pix_size_err_pct
+            self._logger.debug(f'Estimate scale={mean_pix_size:.3f} (+/-{pix_size_err_pct:.3f}%) {scale_units}')
+        else:
+            self._logger.warning(f'Could not estimate scale hints.')
+        
         
         self._logger.debug(f'Astrometry.net hints dictionary: {hints_dict}')
         return hints_dict
@@ -347,10 +363,15 @@ class ApAstrometry:
         try_again     = True
         submission_id = None
         pos_err_pix   = 10               # TODO get better estimate from srclist?
+        timeout       = 180
     
+        # TODO: Robustness...
+        # This block is a modified version of the example online.
+        # Both the original example and this version seem to fail to try
+        # again.
         while try_again:
             try:
-                if not submission_id:
+                if submission_id is None:
                     self._logger.debug('Submitting astrometry.net solve from source list with {} positions'.format(len(xy_table)))
                     wcs_header = ast.solve_from_source_list(xy_table['X'], 
                         xy_table['Y'],
@@ -361,15 +382,20 @@ class ApAstrometry:
                         crpix_center=True,
                         publicly_visible='n',
                         submission_id=submission_id,
+                        solve_timeout=timeout,
                         **hints_dict)
                 else:
                     self._logger.debug('Monitoring astrometry.net submission {}'.format(submission_id))
+                    try_again  = False
                     wcs_header = ast.monitor_submission(submission_id,
-                        solve_timeout=180)
+                        solve_timeout=timeout)
+
             except TimeoutError as e:
-                submission_id = e.args[1]
+                if (submission_id is not None) and (try_again):
+                    self._logger.warning(f'Astronomy solve from source list timed out after {timeout} seconds.')
+                    submission_id = e.args[1]
             else:
-                # got a result, so terminate
+                # got a result or failed twice, so terminate
                 try_again = False
         
         if wcs_header:
