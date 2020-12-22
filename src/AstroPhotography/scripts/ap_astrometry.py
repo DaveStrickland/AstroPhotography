@@ -33,6 +33,7 @@ import numpy as np
 import math
 import os.path
 import warnings
+import json
 
 from astropy.io import fits
 from astropy import wcs
@@ -42,6 +43,7 @@ from astropy.coordinates import Angle
 from astropy import units as u
 
 from astroquery.astrometry_net import AstrometryNet
+import astroquery.exceptions
     
 def command_line_opts(argv):
     """ Parse command line arguments.
@@ -367,8 +369,10 @@ class ApAstrometry:
     
         # TODO: Robustness...
         # This block is a modified version of the example online.
-        # Both the original example and this version seem to fail to try
-        # again.
+        # - Both the original example and this version seem to fail to try
+        #   again.
+        # - If Astrometry.net is not responding we can different exceptions
+        #   than just the JSONDecodeError currently handled.
         while try_again:
             try:
                 if submission_id is None:
@@ -377,22 +381,25 @@ class ApAstrometry:
                         xy_table['Y'],
                         image_width, 
                         image_height,
+                        solve_timeout=timeout,
                         parity=2,
                         positional_error=pos_err_pix,
                         crpix_center=True,
                         publicly_visible='n',
                         submission_id=submission_id,
-                        solve_timeout=timeout,
                         **hints_dict)
                 else:
                     self._logger.debug('Monitoring astrometry.net submission {}'.format(submission_id))
                     try_again  = False
                     wcs_header = ast.monitor_submission(submission_id,
                         solve_timeout=timeout)
-
-            except TimeoutError as e:
+            except json.JSONDecodeError as e:
+                err_msg = 'Caught JSONDecodeError. Usually this means Astrometry.net is down or login failed.'
+                self._logger.error(err_msg)
+                raise RuntimeError(err_msg)
+            except astroquery.exceptions.TimeoutError as e:
                 if (submission_id is not None) and (try_again):
-                    self._logger.warning(f'Astronomy solve from source list timed out after {timeout} seconds.')
+                    self._logger.warning(f'Astronomy solve (id={submission_id}) from source list timed out after {timeout} seconds.')
                     submission_id = e.args[1]
             else:
                 # got a result or failed twice, so terminate
