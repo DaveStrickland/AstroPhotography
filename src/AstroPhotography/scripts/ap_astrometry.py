@@ -25,6 +25,7 @@
 # 2020-08-12 dks : Initial WIP
 # 2020-08-29 dks : Update to keywords read from source list.
 # 2020-12-20 dks : Fix read fits when BZERO undefined, increase timeout.
+# 2020-12-28 dks : Disable SIP by default because swarp does not support it.
 
 import argparse
 import sys
@@ -81,6 +82,13 @@ def command_line_opts(argv):
         default='AP_XYPOS',
         metavar='EXT_NAME',
         help='FITS extension name for star X,Y position data. Default=AP_XYPOS')
+    parser.add_argument('--use-sip',
+        default=False,
+        action='store_true',
+        help=('Allow astrometry.net to fit SIP polynomial distortion terms.'
+            ' This may be necessary for very large fields of view (>10 deg),'
+            ' but SIP is not treated correctly by swarp (and possibly other'
+            ' software).'))
                 
     args = parser.parse_args(argv)
     return args
@@ -105,11 +113,13 @@ class ApAstrometry:
         srclist_extname,
         out_img_fname, 
         astnet_key,
+        use_sip,
         loglevel):
         
         self._initialize_logger(loglevel)
         self._loglevel = loglevel
         self._status   = ApAstrometry.NOMINAL
+        self._use_sip  = use_sip
 
         # Output image cannot be the same as the input to avoid 
         # over-writing it.
@@ -367,6 +377,12 @@ class ApAstrometry:
         pos_err_pix   = 10               # TODO get better estimate from srclist?
         timeout       = 180
     
+        sip_order = 0
+        if self._use_sip:
+            sip_order = 2
+            self._logger.debug(f'Allowing fitting of SIP distortion polynomial of order {sip_order}')
+            self._logger.warning('Some downstream software, e.g. swarp, may not handle SIP correctly.')
+    
         # TODO: Robustness...
         # This block is a modified version of the example online.
         # - Both the original example and this version seem to fail to try
@@ -386,6 +402,7 @@ class ApAstrometry:
                         positional_error=pos_err_pix,
                         crpix_center=True,
                         publicly_visible='n',
+                        tweak_order=sip_order,
                         submission_id=submission_id,
                         **hints_dict)
                 else:
@@ -548,6 +565,7 @@ def main(args=None):
     p_src_extname = p_args.xy_extension      # Extension number for data in input fits
     p_outimg      = p_args.out_image         # Name of output fits image
     p_astnetkey   = p_args.key               # Astrometry.net API key or None
+    p_use_sip     = p_args.use_sip           # Allow SIP fit? 
 
     ap_astrom = ApAstrometry(p_inpimg, 
         p_img_extnum,
@@ -555,6 +573,7 @@ def main(args=None):
         p_src_extname,
         p_outimg, 
         p_astnetkey,
+        p_use_sip,
         p_loglevel)
     return ap_astrom.status()
 
