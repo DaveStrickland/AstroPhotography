@@ -10,6 +10,8 @@ The emphasis of this release is to allow image resampling, combination
 and mosaic generation.
 
 - Disabled the default tweak_order=2 SIP polynomial fit in astrometry.net
+- Added option to apply user-defined bad pixels in ap_find_badpix.py and
+  ApFindBadPixels.
 
 ## v0.2.3 2020-12-22
 
