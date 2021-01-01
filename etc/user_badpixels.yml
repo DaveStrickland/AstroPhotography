@@ -1,0 +1,46 @@
+# An example of a user-defined badpixel definition file, as used
+# by the ap_find_badpix.py script and/or the ApFindBadPixels class.
+#
+# This is a YaML file that consists of three named sections:
+# - bad_columns: Entries are column indices of any entire column 
+#   to be marked bad.
+# - bad_rows: Entries are row indices of any entire row to be marked bad.
+# - bad_rectangles: Entries are lists of the coordinates 
+#   [row_start, row_end, col_start, col_end] of the rectangle to be marked
+#   bad.
+#
+# Note that these are:
+# 1. 1-based indices, e.g. as reported by ds9, not python/C style 
+#    0-based indices. So the index of the second column in the image
+#    is 2, not 1.
+# 2. Inclusive ranges (mathematical notation "[]"), so the rectangle 
+#    2,3,60,62 is a 2 row, 3 column region that includes rows 2 and 3, 
+#    columns 61, 62, and 63.
+# 3. The origin of the coordinates matches that of the data you pass
+#    to ApFindBadPixels.
+#
+# These coordinates will be converted to python 0-based inclusive lower
+# bound exclusive upper bound (mathematically "[)") by ApFindBadPixels.
+#
+# Comments (starting "#") can and should be used to note which telescope
+# or camera the file applies to, and why you chose to mark the 
+# row/column/rectangle bad, or where you first noted the problem region.
+---
+# iTelescope t05, 2020-03 calibrations.
+bad_columns:
+- 12
+- 13
+- 17 # Appeared in deep H-alpha images after 2020-08
+bad_rectangles:
+- - 1 # Test using first pixel in bottom left of image.
+  - 1
+  - 1
+  - 1
+- - 5 # 2 row times 6 column region here is intermittently bad. 
+  - 6
+  - 7
+  - 12
+bad_rows:
+- 101
+- 2032
+...
