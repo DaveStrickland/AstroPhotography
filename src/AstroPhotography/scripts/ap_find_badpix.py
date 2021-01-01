@@ -48,7 +48,6 @@ def command_line_opts(argv):
         metavar='OUT_BADPIX.FITS',
         help='Path/name of the output badpix file to generate.')
         
-        
     # Optional
     p_sigma = 4.0
     parser.add_argument('--sigma',
@@ -57,6 +56,15 @@ def command_line_opts(argv):
         help=('Number of MAD standard deviations to use in sigma clipping.'
             ' After clipping pixels that are more than this number of sigma'
             f' from the median will be marked bad. Default: {p_sigma:.2f}'))
+    parser.add_argument('--user_badpix',
+        metavar='USER_BADPIX.YML',
+        default=None,
+        help=('The name of an optional YaML format file containing the'
+            ' the location of addition user-defined bad rows, columns,'
+            ' or rectangles to be applied. This can be used to apply'
+            ' correction to flickering bad pixels that may not appear'
+            ' in the combined master dark. An example of the format can'
+            ' be found in etc/user_badpixels.yml'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
@@ -70,6 +78,7 @@ def main(args=None):
     p_inmstrdrk = p_args.masterdark
     p_outbadpix = p_args.badpixfile
     p_sigma     = p_args.sigma
+    p_userbad   = p_args.user_badpix
     p_loglevel  = p_args.loglevel
     
     mkbadpix = ap.ApFindBadPixels(p_inmstrdrk,
