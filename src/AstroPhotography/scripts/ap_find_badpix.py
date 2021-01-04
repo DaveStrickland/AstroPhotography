@@ -84,6 +84,11 @@ def main(args=None):
     mkbadpix = ap.ApFindBadPixels(p_inmstrdrk,
         p_sigma,
         p_loglevel)
+        
+    if p_userbad is not None:
+        mkbadpix.add_user_badpix(p_userbad)
+        
+    # Write final bad pixels mask.
     mkbadpix.write_mask(p_outbadpix)
     
     return 0

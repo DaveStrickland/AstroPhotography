@@ -9,6 +9,7 @@ import math
 from datetime import datetime, timezone
  
 import numpy as np
+import yaml
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
 
@@ -69,8 +70,8 @@ class ApFindBadPixels:
         be relatively uniform, but with a small number of highly 
         discrepant values.
         
-        The generated mask is True when pixels are BAD and False where
-        pixels are GOOD. 
+        The generated mask is of type uint8, with value 1 where pixels 
+        are BAD and zero where pixels are GOOD. 
                    
         :param data: Input data array
         :param sigma: Number of sigma away from the median to consider
@@ -98,8 +99,8 @@ class ApFindBadPixels:
         nbad_hi          = np.sum(bad_hi)
         self._logger.debug(f'{nbad_hi} (out of {npix}) pixels above {hithresh:.2f} ADU.')
         
-        # Generate final mask
-        self._badpixmask = np.logical_or(bad_lo, bad_hi)
+        # Generate final mask in uint8 form.
+        self._badpixmask = np.logical_or(bad_lo, bad_hi).astype('uint8')
         nbad             = np.sum(self._badpixmask)
         pct_bad          = 100 * (nbad/npix)
         msg              = f'Out of {npix} pixels, {nbad} are bad ({pct_bad:.4f}%).'
@@ -251,16 +252,46 @@ class ApFindBadPixels:
         hdu.header['HISTORY'] = f'Created by {self._name} {__version__} at {tnow}'
         return
     
+    def add_user_badpix(self, user_badpix_file):
+        """
+        
+        :param user_badpix_file: Path/name of a YaML containing user
+          defined bad columns, bad rows, and/or bad rectangular regions.
+        """
+        
+        self._logger.info(f'Reading user-defined bad pixels from {user_badpix_file}')
+        
+        # TODO
+        return
+    
+    def get_mask(self):
+        """Returns the bad pixel mask as a uint8 numpy array.
+        """
+        return self._badpixmask
+    
     def write_mask(self, mask_file_name):
         """Write the bad pixel mask to a FITS file with the user 
            specified name/path.
+           
+        The output FITS data array contains pixels that can have the
+        *sum* of the following numeric values. A given pixel may be
+        flagged bad based on both the statistical deviation in the dark
+        and the user, so such a pixel would have a value of 3.
+        0: Good pixels.
+        1: Algorithmically detected bad pixels.
+        2: User-defined bad pixels.
+        4: Reserved for future use.
+        8: Reserved for future use.
+        16: Reserved for future use.
+        32: Reserved for future use.
+        64: Reserved for future use.
+        128: Reserved for future use.
            
         :param mask_file_name: File name/path for the output bad pixel
           mask. The file will be overwritten if it exists.
         """
         
-        mask = self._badpixmask.astype('uint8').copy()
-        hdu  = fits.PrimaryHDU(data=mask)
+        hdu  = fits.PrimaryHDU(data=self._badpixmask)
         self._update_header(hdu)
         
         hdu_list = fits.HDUList([hdu])
