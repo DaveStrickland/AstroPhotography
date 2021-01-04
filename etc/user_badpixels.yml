@@ -25,6 +25,8 @@
 # Comments (starting "#") can and should be used to note which telescope
 # or camera the file applies to, and why you chose to mark the 
 # row/column/rectangle bad, or where you first noted the problem region.
+#
+# In this example there are no bad rows.
 ---
 # iTelescope t05, 2020-03 calibrations.
 bad_columns:
@@ -40,7 +42,9 @@ bad_rectangles:
   - 6
   - 7
   - 12
-bad_rows:
-- 101
-- 2032
+- - 200 # large test rectangle
+  - 300
+  - 400
+  - 420
+bad_rows: {} # No bad rows.
 ...
