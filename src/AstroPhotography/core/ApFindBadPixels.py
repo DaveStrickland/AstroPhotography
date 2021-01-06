@@ -4,7 +4,7 @@
 # 2020-12-31 dks : Moved ApFindBadPixels into core from ap_find_badpix.py
 
 import logging
-import os.path
+from pathlib import Path
 import math
 from datetime import datetime, timezone
  
@@ -22,6 +22,9 @@ class ApFindBadPixels:
        numbers or count values, the bad pixel map can be extracted as
        a numpy array or written to a fits file.
     """
+    GOOD     = 0
+    AUTO_BAD = 1
+    USER_BAD = 2
     
     def __init__(self,
         darkfile,
@@ -55,12 +58,106 @@ class ApFindBadPixels:
         self._generate_sigmaclip_mask(self._imdata, self._sigma)
         return
         
+    def _add_bad_columns(self, bad_col_list):
+        """Add bad columns to the _badpixmask, setting the mask values
+           to ApFindBadPixels.USER_BAD
+        """
+        num_cols     = len(bad_col_list)
+        num_user_bad = 0
+        ncols        = self._badpixmask.shape[1]
+        nrows        = self._badpixmask.shape[0]
+        self._logger.info(f'Adding {num_cols} bad columns to {nrows} row, {ncols} column mask.')
+        
+        for col in bad_col_list:
+            # Convert to python zero based index
+            col1 = col - 1
+            col2 = col
+            if (col1 < 0) or (col1 >= ncols):
+                # Skip as outside image range.
+                msg = f'Warning, column {col} (1-based) outside image.'
+                self._logger.warning(msg)
+            else:
+                self._logger.debug(f'Setting [:,{col1}:{col2}] to user-defined bad value.')
+                self._badpixmask[:,col1:col2] += ApFindBadPixels.USER_BAD
+                num_user_bad += nrows
+
+        self._logger.debug(f'Set {num_user_bad} pixels to user-defined bad value.')
+        return num_user_bad
+        
+    def _add_bad_rectangles(self, bad_rectangle_list):
+        """Add bad rectangular regions to the _badpixmask, setting the mask values
+           to ApFindBadPixels.USER_BAD
+        """
+        num_rect     = len(bad_rectangle_list)
+        ncols        = self._badpixmask.shape[1]
+        nrows        = self._badpixmask.shape[0]
+        num_user_bad = 0
+        self._logger.info(f'Adding {num_rect} bad rows to {nrows} row, {ncols} column mask.')
+        
+        for rect in bad_rectangle_list:
+            if len(rect) != 4:
+                msg = f'Error, expecting 4-element list, got {rect}. Skipping.'
+                self._logger.warning(msg)
+                continue
+            
+            # Convert to python zero based index. Here we convert from
+            # inclusive 1-based FITS style to [) zero-based indices.
+            row1 = rect[0] - 1
+            row2 = rect[1]
+            col1 = rect[2] - 1
+            col2 = rect[3] 
+            if (row1 < 0) or (row2 > nrows):
+                # Skip as outside image range.
+                msg = f'Warning, row range {row1}:{row2} (0-based) outside image.'
+                self._logger.warning(msg)
+            elif (col1 < 0) or (col2 > ncols):
+                # Skip as outside image range.
+                msg = f'Warning, column range {col1}:{col2} (0-based) outside image.'
+                self._logger.warning(msg)
+            else:
+                self._logger.debug(f'Setting [{row1}:{row2},{col1}:{col2}] bad.')
+                self._badpixmask[row1:row2,col1:col2] += ApFindBadPixels.USER_BAD
+                num_user_bad += (row2-row1)*(col2-col1)
+                
+        self._logger.debug(f'Set {num_user_bad} pixels to user-defined bad value.')
+        return num_user_bad
+    
+    def _add_bad_rows(self, bad_row_list):
+        """Add bad rows to the _badpixmask, setting the mask values
+           to ApFindBadPixels.USER_BAD
+        """
+        num_rows     = len(bad_row_list)
+        ncols        = self._badpixmask.shape[1]
+        nrows        = self._badpixmask.shape[0]
+        num_user_bad = 0
+        self._logger.info(f'Adding {num_rows} bad rows to {nrows} row, {ncols} column mask.')
+        
+        for row in bad_row_list:
+            # Convert to python zero based index
+            row1 = row - 1
+            row2 = row
+            if (row1 < 0) or (row1 >= nrows):
+                # Skip as outside image range.
+                msg = f'Warning, row {row} (1-based) outside image.'
+                self._logger.warning(msg)
+            else:
+                self._logger.debug(f'Setting [{row1}:{row2},:] bad.')
+                self._badpixmask[row1:row2,:] += ApFindBadPixels.USER_BAD
+                num_user_bad += ncols
+                
+        self._logger.debug(f'Set {num_user_bad} pixels to user-defined bad value.')
+        return num_user_bad
+        
     def _check_file_exists(self, filename):
-        if not os.path.isfile(filename):
+        """Checks the file exists and cleans up the path
+        """
+        
+        fpath = Path(filename).expanduser() 
+        if not fpath.exists():
             err_msg = f'Cannot find {filename}. Not a valid path or file.'
             self._logger.error(err_msg)
             raise RuntimeError(err_msg)
-        return
+        return fpath
 
     def _generate_sigmaclip_mask(self, data, sigma):
         """Creates a bad pixel mask based on sigma-clipped statistics
@@ -154,7 +251,7 @@ class ApFindBadPixels:
         """Read a single extension's data and header from a FITS file
         """
         
-        self._check_file_exists(image_filename)
+        image_filename = self._check_file_exists(image_filename)
         self._logger.info('Loading extension {} of FITS file {}'.format(image_extension, image_filename))
             
         # open() parameters that can be important.
@@ -213,6 +310,52 @@ class ApFindBadPixels:
         
         return ext_data, ext_hdr
         
+    def _read_user_badpix(self, user_badpix_file):
+        """Read user-defined bad columns, row and rectangles from a YaML
+           file.
+        
+        Returns a set of lists of the bad columns, bad rows, 
+        and bad rectangles (the latter consisting of lists) if these
+        are defined in the yaml file, or Nones otherwise.
+        """
+        
+        badcols = None
+        badrows = None
+        badrect = None
+        
+        user_badpix_file = self._check_file_exists(user_badpix_file)
+        with open(user_badpix_file) as bpfile:
+            lines = bpfile.read()
+            yobj  = yaml.safe_load(lines)
+            
+            if 'bad_columns' in yobj:
+                badcols = yobj['bad_columns']
+                self._logger.debug(f'There are {len(badcols)} bad columns in the user-defined badpixel file.')
+            else:
+                self._logger.debug('There were no bad columns in the user-defined badpixel file.')
+                
+            if 'bad_rows' in yobj:
+                badrows = yobj['bad_rows']
+                self._logger.debug(f'There are {len(badrows)} bad rows in the user-defined badpixel file.')
+            else:
+                self._logger.debug('There were no bad rows in the user-defined badpixel file.')
+                
+            if 'bad_rectangles' in yobj:
+                badrect = yobj['bad_rectangles']
+                self._logger.debug(f'There are {len(badrect)} bad rectangles in the user-defined badpixel file.')
+            else:
+                self._logger.debug('There were no bad rectangles in the user-defined badpixel file.')
+
+        # We don't want to deal with zero length objects.
+        if len(badcols) == 0:
+            badcols = None
+        if len(badrows) == 0:
+            badrows = None
+        if len(badrect) == 0:
+            badrect = None
+        
+        return badcols, badrows, badrect
+        
     def _update_header(self, hdu):
         """Updates the raw mask FITS primary header by adding select
            keywords from the input master dark/bias file.
@@ -259,9 +402,18 @@ class ApFindBadPixels:
           defined bad columns, bad rows, and/or bad rectangular regions.
         """
         
-        self._logger.info(f'Reading user-defined bad pixels from {user_badpix_file}')
+        self._logger.info(f'Processing user-defined bad pixels from {user_badpix_file}')
+        badcols, badrows, badrect = self._read_user_badpix(user_badpix_file)
         
-        # TODO
+        num_user_bad = 0
+        if badcols is not None:
+            num_user_bad += self._add_bad_columns(badcols)
+        if badrows is not None:
+            num_user_bad += self._add_bad_rows(badrows)
+        if badrect is not None:
+            num_user_bad += self._add_bad_rectangles(badrect)
+            
+        self._logger.debug(f'Total number of user-defined bad pixels applied to mask: {num_user_bad}')
         return
     
     def get_mask(self):
