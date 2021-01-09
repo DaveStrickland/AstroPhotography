@@ -2,6 +2,7 @@
 """
 
 # 2020-12-31 dks : Moved ApFindBadPixels into core from ap_find_badpix.py
+# 2020-01-09 dks : Added user-defined bad pixel processing. 
 
 import logging
 from pathlib import Path
@@ -45,9 +46,17 @@ class ApFindBadPixels:
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
-        # Data file to read
+        # Data file to read for automated bad pixel identification.
         self._imfile   = darkfile
         self._imextnum = 0
+        
+        # File for user-defined bad pixels.
+        self._userfile = None
+                
+        # Number of pixels defined bad by algorithm and by user,
+        # used for output file header metadata.
+        self._nbad_auto = 0
+        self._nbad_user = 0
                 
         # Number of MAD std deviations for sigma clipping
         self._sigma = sigma
@@ -202,6 +211,9 @@ class ApFindBadPixels:
         pct_bad          = 100 * (nbad/npix)
         msg              = f'Out of {npix} pixels, {nbad} are bad ({pct_bad:.4f}%).'
         self._logger.info(msg)
+        
+        # Update count of algorithmically-defined bad pixels.
+        self._nbad_auto = nbad
         return
 
     def _image_stats(self):
@@ -383,6 +395,10 @@ class ApFindBadPixels:
         kw_dict['CREATOR']  = (self._name, 'Software that generated this file.')
         kw_dict['DATE']     = (creation_datestr, 'UTC creation time.')
         kw_dict['DATAFILE'] = (self._imfile, 'Data file used to identify bad pixels.')
+        if self._userfile is not None:
+            kw_dict['USERFILE'] = (self._userfile.name, 'User-defined bad pixel file.')
+        kw_dict['NBADAUTO'] = (self._nbad_auto, 'Number of algorithm-detected bad pixels.')
+        kw_dict['NBADUSER'] = (self._nbad_user, 'Number of user-defined bad pixels.')
     
         for kw in copy_list:
             if kw in self._imhdr:
@@ -402,8 +418,11 @@ class ApFindBadPixels:
           defined bad columns, bad rows, and/or bad rectangular regions.
         """
         
+        user_badpix_file = Path(user_badpix_file).expanduser()
+        
         self._logger.info(f'Processing user-defined bad pixels from {user_badpix_file}')
         badcols, badrows, badrect = self._read_user_badpix(user_badpix_file)
+        self._userfile = user_badpix_file
         
         num_user_bad = 0
         if badcols is not None:
@@ -413,6 +432,8 @@ class ApFindBadPixels:
         if badrect is not None:
             num_user_bad += self._add_bad_rectangles(badrect)
             
+        # Update count of user-defined bad pixels.
+        self._nbad_user = num_user_bad
         self._logger.debug(f'Total number of user-defined bad pixels applied to mask: {num_user_bad}')
         return
     

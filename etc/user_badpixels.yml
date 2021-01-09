@@ -10,6 +10,8 @@
 #   bad.
 #
 # Note that these are:
+# 0. You need separate user-defined bad pixel files for different chip
+#    binnings!
 # 1. 1-based indices, e.g. as reported by ds9, not python/C style 
 #    0-based indices. So the index of the second column in the image
 #    is 2, not 1.
@@ -28,7 +30,7 @@
 #
 # In this example there are no bad rows.
 ---
-# iTelescope t05, 2020-03 calibrations.
+# iTelescope t05, 2020-03 calibrations. Binning 1x1 only!
 bad_columns:
 - 12
 - 13
