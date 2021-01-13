@@ -250,7 +250,7 @@ class ApAddMetadata:
                 hdu_list[ext_num].header[kw] = val
             
             tnow = datetime.now().isoformat(timespec='milliseconds')
-            hdu_list[ext_num].header['HISTORY'] = f'Modified by {self._name} {self._version} at {tnow}'
+            hdu_list[ext_num].header['HISTORY'] = f'Processed by {self._name} {self._version} at {tnow}'
 
             # Flush the changes back to disk.
             hdu_list.flush()

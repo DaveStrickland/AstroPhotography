@@ -408,7 +408,7 @@ class ApFindBadPixels:
             
         for kw in kw_dict:
             hdu.header[kw] = kw_dict[kw]
-        hdu.header['HISTORY'] = f'Created by {self._name} {__version__} at {tnow}'
+        hdu.header['HISTORY'] = f'Processed by {self._name} {__version__} at {tnow}'
         return
     
     def add_user_badpix(self, user_badpix_file):
