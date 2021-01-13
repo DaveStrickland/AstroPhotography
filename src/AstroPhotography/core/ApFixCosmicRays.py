@@ -15,27 +15,21 @@ from astropy.io import fits
 from .. import __version__
 
 class ApFixCosmicRays:
-    """A class used to find bad pixels within dark or bias files based on
-       deviation from an expected uniform mean or median value. The instance
-       may be queried for properties of the input file, good or bad pixel
-       numbers or count values, the bad pixel map can be extracted as
-       a numpy array or written to a fits file.
+    """Clean cosmic rays from a CCD image, either as a numpy array, or
+       from a FITS file, using the ccdproc implementation of the L.A. 
+       Cosmic algorithm.
+    The input image should have already undergone bad pixel
+    correction (e.g. using ap_fix_badpix.py) before attempting
+    cosmic ray correction.
     """
     GOOD     = 0
     AUTO_BAD = 1
     USER_BAD = 2
     
-    def __init__(self,
-        darkfile,
-        sigma,
-        loglevel):
-        """Constructs an ApFixCosmicRays object and performs preliminary
-           processing on it.
+    def __init__(self, loglevel):
+        """Constructs an ApFixCosmicRays object.
         
-        :param darkfile: Input dark or bias file to search for bad pixels.
-        :param sigma: Number of standard deviations away from the clipped
-          median a pixel must be (or more) to count as a bad pixel.
-        :param loglevel: Logging level to use.
+           :param loglevel: Logging level to use.
         """
     
         self._name = 'ApFixCosmicRays'
@@ -44,117 +38,11 @@ class ApFixCosmicRays:
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
-        # Data file to read for automated bad pixel identification.
-        self._imfile   = darkfile
-        self._imextnum = 0
-        
-        # File for user-defined bad pixels.
-        self._userfile = None
-                
-        # Number of pixels defined bad by algorithm and by user,
-        # used for output file header metadata.
-        self._nbad_auto = 0
-        self._nbad_user = 0
-                
-        # Number of MAD std deviations for sigma clipping
-        self._sigma = sigma
-
-        # Process data.
-        self._imdata, self._imhdr = self._read_fits(darkfile, 0)
-        self._image_stats()
-        self._generate_sigmaclip_mask(self._imdata, self._sigma)
+        # Related to FITS file processing
+        self._imhdr  = None
+        self._imdata = None
         return
-        
-    def _add_bad_columns(self, bad_col_list):
-        """Add bad columns to the _badpixmask, setting the mask values
-           to ApFixCosmicRays.USER_BAD
-        """
-        num_cols     = len(bad_col_list)
-        num_user_bad = 0
-        ncols        = self._badpixmask.shape[1]
-        nrows        = self._badpixmask.shape[0]
-        self._logger.info(f'Adding {num_cols} bad columns to {nrows} row, {ncols} column mask.')
-        
-        for col in bad_col_list:
-            # Convert to python zero based index
-            col1 = col - 1
-            col2 = col
-            if (col1 < 0) or (col1 >= ncols):
-                # Skip as outside image range.
-                msg = f'Warning, column {col} (1-based) outside image.'
-                self._logger.warning(msg)
-            else:
-                self._logger.debug(f'Setting [:,{col1}:{col2}] to user-defined bad value.')
-                self._badpixmask[:,col1:col2] += ApFixCosmicRays.USER_BAD
-                num_user_bad += nrows
-
-        self._logger.debug(f'Set {num_user_bad} pixels to user-defined bad value.')
-        return num_user_bad
-        
-    def _add_bad_rectangles(self, bad_rectangle_list):
-        """Add bad rectangular regions to the _badpixmask, setting the mask values
-           to ApFixCosmicRays.USER_BAD
-        """
-        num_rect     = len(bad_rectangle_list)
-        ncols        = self._badpixmask.shape[1]
-        nrows        = self._badpixmask.shape[0]
-        num_user_bad = 0
-        self._logger.info(f'Adding {num_rect} bad rows to {nrows} row, {ncols} column mask.')
-        
-        for rect in bad_rectangle_list:
-            if len(rect) != 4:
-                msg = f'Error, expecting 4-element list, got {rect}. Skipping.'
-                self._logger.warning(msg)
-                continue
-            
-            # Convert to python zero based index. Here we convert from
-            # inclusive 1-based FITS style to [) zero-based indices.
-            row1 = rect[0] - 1
-            row2 = rect[1]
-            col1 = rect[2] - 1
-            col2 = rect[3] 
-            if (row1 < 0) or (row2 > nrows):
-                # Skip as outside image range.
-                msg = f'Warning, row range {row1}:{row2} (0-based) outside image.'
-                self._logger.warning(msg)
-            elif (col1 < 0) or (col2 > ncols):
-                # Skip as outside image range.
-                msg = f'Warning, column range {col1}:{col2} (0-based) outside image.'
-                self._logger.warning(msg)
-            else:
-                self._logger.debug(f'Setting [{row1}:{row2},{col1}:{col2}] bad.')
-                self._badpixmask[row1:row2,col1:col2] += ApFixCosmicRays.USER_BAD
-                num_user_bad += (row2-row1)*(col2-col1)
                 
-        self._logger.debug(f'Set {num_user_bad} pixels to user-defined bad value.')
-        return num_user_bad
-    
-    def _add_bad_rows(self, bad_row_list):
-        """Add bad rows to the _badpixmask, setting the mask values
-           to ApFixCosmicRays.USER_BAD
-        """
-        num_rows     = len(bad_row_list)
-        ncols        = self._badpixmask.shape[1]
-        nrows        = self._badpixmask.shape[0]
-        num_user_bad = 0
-        self._logger.info(f'Adding {num_rows} bad rows to {nrows} row, {ncols} column mask.')
-        
-        for row in bad_row_list:
-            # Convert to python zero based index
-            row1 = row - 1
-            row2 = row
-            if (row1 < 0) or (row1 >= nrows):
-                # Skip as outside image range.
-                msg = f'Warning, row {row} (1-based) outside image.'
-                self._logger.warning(msg)
-            else:
-                self._logger.debug(f'Setting [{row1}:{row2},:] bad.')
-                self._badpixmask[row1:row2,:] += ApFixCosmicRays.USER_BAD
-                num_user_bad += ncols
-                
-        self._logger.debug(f'Set {num_user_bad} pixels to user-defined bad value.')
-        return num_user_bad
-        
     def _check_file_exists(self, filename):
         """Checks the file exists and cleans up the path
         """
@@ -214,23 +102,6 @@ class ApFixCosmicRays:
         self._nbad_auto = nbad
         return
 
-    def _image_stats(self):
-        """If logging level is DEBUG, print some statistics of the data.
-        """
-        
-        if self._logger.getEffectiveLevel() == logging.DEBUG:
-            minval = np.min(self._imdata)
-            maxval = np.max(self._imdata)
-            self._logger.debug(f'Data min={minval:.2f}, max={maxval:.2f} ADU.')
-            
-            # percentiles
-            ipctls = [0.1, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.9]
-            opctls = np.percentile(self._imdata, ipctls)
-            for idx, pct in enumerate(ipctls):
-                self._logger.debug(f'{pct:.2f}% of the data has value of {opctls[idx]:.2f} ADU or less.')
-        
-        return
-
     def _initialize_logger(self, loglevel):
         """Initialize and return the logger
         """
@@ -280,23 +151,24 @@ class ApFixCosmicRays:
         cols     = ext_hdr['NAXIS1']
         rows     = ext_hdr['NAXIS2']
         bitpix   = ext_hdr['BITPIX']
-        if 'BZERO' in ext_hdr:
-            bzero    = ext_hdr['BZERO']
-        else:
-            bzero = 0
-        if 'BSCALE' in ext_hdr:
-            bscale   = ext_hdr['BSCALE']
-        else:
-            bscale = 1.0
-        info_str = '{}-D BITPIX={} image with {} columns, {} rows, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, bscale, bzero)
+        info_str = '{}-D BITPIX={} image with {} columns, {} rows'.format(ndim, bitpix, cols, rows)
         
         if ndim == 3:
             layers = ext_hdr['NAXIS3']
-            info_str = '{}-D BITPIX={} image with {} columns, {} rows, {} layers, BSCALE={}, BZERO={}'.format(ndim, bitpix, cols, rows, layers, bscale, bzero)
+            info_str = '{}-D BITPIX={} image with {} columns, {} rows, {} layers'.format(ndim, bitpix, cols, rows, layers)
+
+        if 'BSCALE' in ext_hdr:
+            bscale   = ext_hdr['BSCALE']
+            info_str += f', BSCALE={bscale}'
+        
+        if 'BZERO' in ext_hdr:
+            bzero    = ext_hdr['BZERO']
+            info_str += f', BZERO={bzero}'
             
         self._logger.debug(info_str)
+        
         if ndim == 3:
-            self._loggererror('Error, 3-D handling has not been implemented yet.')
+            self._logger.error('Error, 3-D handling has not been implemented yet.')
             sys.exit(1)
             
         # Get data absolute limits.
@@ -319,53 +191,7 @@ class ApFixCosmicRays:
                 self._logger.debug(f'After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
         
         return ext_data, ext_hdr
-        
-    def _read_user_badpix(self, user_badpix_file):
-        """Read user-defined bad columns, row and rectangles from a YaML
-           file.
-        
-        Returns a set of lists of the bad columns, bad rows, 
-        and bad rectangles (the latter consisting of lists) if these
-        are defined in the yaml file, or Nones otherwise.
-        """
-        
-        badcols = None
-        badrows = None
-        badrect = None
-        
-        user_badpix_file = self._check_file_exists(user_badpix_file)
-        with open(user_badpix_file) as bpfile:
-            lines = bpfile.read()
-            yobj  = yaml.safe_load(lines)
-            
-            if 'bad_columns' in yobj:
-                badcols = yobj['bad_columns']
-                self._logger.debug(f'There are {len(badcols)} bad columns in the user-defined badpixel file.')
-            else:
-                self._logger.debug('There were no bad columns in the user-defined badpixel file.')
                 
-            if 'bad_rows' in yobj:
-                badrows = yobj['bad_rows']
-                self._logger.debug(f'There are {len(badrows)} bad rows in the user-defined badpixel file.')
-            else:
-                self._logger.debug('There were no bad rows in the user-defined badpixel file.')
-                
-            if 'bad_rectangles' in yobj:
-                badrect = yobj['bad_rectangles']
-                self._logger.debug(f'There are {len(badrect)} bad rectangles in the user-defined badpixel file.')
-            else:
-                self._logger.debug('There were no bad rectangles in the user-defined badpixel file.')
-
-        # We don't want to deal with zero length objects.
-        if len(badcols) == 0:
-            badcols = None
-        if len(badrows) == 0:
-            badrows = None
-        if len(badrect) == 0:
-            badrect = None
-        
-        return badcols, badrows, badrect
-        
     def _update_header(self, hdu):
         """Updates the raw mask FITS primary header by adding select
            keywords from the input master dark/bias file.
@@ -376,97 +202,161 @@ class ApFixCosmicRays:
         self._logger.debug('Updating FITS primary HDU keywords.')
         
         # keyword dictionary to write to header
-        kw_dict = {}
-        
-        # Copy select keywords: basically those that would identify the
-        # telescope, instrument, and imaging mode used.
-        copy_list = ['TELESCOP', 'INSTRUME', 'SET-TEMP', 'CCD-TEMP',
-            'XPIXSZ', 'YPIXSZ', 'XBINNING', 'YBINNING',
-            'XORGSUBF', 'YORGSUBF', 'SITELAT', 'SITELONG']
-        
-        imgtype          = 'BADPIX'
+        kw_dict = self._cr_kw
+                
         tnow             = datetime.now().isoformat(timespec='milliseconds')
         creation_date    = datetime.now(timezone.utc)
         creation_datestr = creation_date.isoformat(timespec='seconds')
 
-        kw_dict['IMAGETYP'] = (imgtype, 'Type of file')
         kw_dict['CREATOR']  = (self._name, 'Software that generated this file.')
         kw_dict['DATE']     = (creation_datestr, 'UTC creation time.')
-        kw_dict['DATAFILE'] = (self._imfile, 'Data file used to identify bad pixels.')
-        if self._userfile is not None:
-            kw_dict['USERFILE'] = (self._userfile.name, 'User-defined bad pixel file.')
-        kw_dict['NBADAUTO'] = (self._nbad_auto, 'Number of algorithm-detected bad pixels.')
-        kw_dict['NBADUSER'] = (self._nbad_user, 'Number of user-defined bad pixels.')
     
-        for kw in copy_list:
-            if kw in self._imhdr:
-                val = self._imhdr[kw]
-                cmt = self._imhdr.comments[kw]
-                kw_dict[kw] = (val, cmt)
-            
         for kw in kw_dict:
             hdu.header[kw] = kw_dict[kw]
-        hdu.header['HISTORY'] = f'Created by {self._name} {__version__} at {tnow}'
+        hdu.header['HISTORY'] = f'Processed by {self._name} {__version__} at {tnow}'
         return
+
+    def get_crdiff(self):
+        """Returns the difference between the original image and the
+           comsic-ray cleaned image array.
+        """
+        return self._crdiff
+        
+    def get_crmask(self):
+        """Returns the cosmic ray mask as a uint8 numpy array.
+        """
+        return self._crmask
     
-    def add_user_badpix(self, user_badpix_file):
+    def process(self, inpdata, gain):
+        """Apply L.A. Cosmic ray rejection algorithm to the data in the
+           input numpy array.
+          
+        Assumes that the data units are ADU. The output cleaned image is
+        also returned in ADU.
+        
+        :param inpdata: Input numpy data array. 
+        :param gain: Gain, in electrons per ADU.
+        
+        Returns the cleaned image, in the same units as the input,
+        and a dictionary of FITS keyword (value, comment) pairs that
+        can be used to update a FITS header.
         """
+
+        # Store inputs.
+        self._imdata = inpdata
+        self._gain   = gain
+
+        # Process
+        # TODO allow inputs. Currently set to be closer to iTelescope t05
+        # values for t05.
+        la_niter     = 6             # number of iterations
+        la_readnoise = 12.0          # electrons.
+        la_verbose   = False
+        la_fwhm      = 3.5           # pixels
+        la_satlevel  = gain * 65535  # electrons.
+        la_gainapply = True
+        la_sigclip   = 4.5           # default 4.5
+        la_fsmode    = 'convolve'    # default 'median', but convolve works better.
         
-        :param user_badpix_file: Path/name of a YaML containing user
-          defined bad columns, bad rows, and/or bad rectangular regions.
-        """
-        
-        user_badpix_file = Path(user_badpix_file).expanduser()
-        
-        self._logger.info(f'Processing user-defined bad pixels from {user_badpix_file}')
-        badcols, badrows, badrect = self._read_user_badpix(user_badpix_file)
-        self._userfile = user_badpix_file
-        
-        num_user_bad = 0
-        if badcols is not None:
-            num_user_bad += self._add_bad_columns(badcols)
-        if badrows is not None:
-            num_user_bad += self._add_bad_rows(badrows)
-        if badrect is not None:
-            num_user_bad += self._add_bad_rectangles(badrect)
+        settings_dict = {'gain': self._gain, 
+            'sigclip':      la_sigclip,
+            'readnoise':    la_readnoise,
+            'psffwhm':      la_fwhm, 
+            'verbose':      la_verbose, 
+            'gain_apply':   la_gainapply,
+            'satlevel':     la_satlevel,
+            'niter':        la_niter,
+            'fsmode':       la_fsmode}
             
-        # Update count of user-defined bad pixels.
-        self._nbad_user = num_user_bad
-        self._logger.debug(f'Total number of user-defined bad pixels applied to mask: {num_user_bad}')
-        return
+        msg = f'Running cosmicray_lacosmic with the following settings: {settings_dict}'
+        self._logger.debug(msg)
+        
+        # Run the algorithm.
+        crimg, crmask = ccdproc.cosmicray_lacosmic(inpdata,
+            **settings_dict)
+
+        # Convert back from electrons to ADU
+        self._cleandata = crimg / gain
+
+        # Convert mask to uint8
+        self._crmask = crmask.astype('uint8')
+        
+        # TODO stats of CRs. 
+        # Currently just count pixels set bad.
+        numbad = np.sum(self._crmask)
+        self._logger.info(f'{numbad} pixels in image indentified as affected by cosmic rays.')
+
+        # Set some metadata that a user can retrieve.
+        kw_dict = {'CR_CLEAN': (True, 'Has cosmic ray removal been performed?'),
+            'CR_NPIX':  (numbad, 'Number of pixels modified by lacosmic.')}
+
+        # Compute difference image and store
+        self._crdiff = self._imdata - self._cleandata      
+        self._cr_kw  = kw_dict  
+        return self._cleandata, kw_dict
     
-    def get_mask(self):
-        """Returns the bad pixel mask as a uint8 numpy array.
+    def process_file(self, inpfile, outfile):
         """
-        return self._badpixmask
-    
-    def write_mask(self, mask_file_name):
-        """Write the bad pixel mask to a FITS file with the user 
-           specified name/path.
-           
-        The output FITS data array contains pixels that can have the
-        *sum* of the following numeric values. A given pixel may be
-        flagged bad based on both the statistical deviation in the dark
-        and the user, so such a pixel would have a value of 3.
-        0: Good pixels.
-        1: Algorithmically detected bad pixels.
-        2: User-defined bad pixels.
-        4: Reserved for future use.
-        8: Reserved for future use.
-        16: Reserved for future use.
-        32: Reserved for future use.
-        64: Reserved for future use.
-        128: Reserved for future use.
-           
-        :param mask_file_name: File name/path for the output bad pixel
-          mask. The file will be overwritten if it exists.
         """
         
-        hdu  = fits.PrimaryHDU(data=self._badpixmask)
+        self._imdata, self._imhdr = self._read_fits(inpfile, 0)
+        
+        # Determine gain
+        gain = None
+        for kw in ['GAIN', 'EGAIN']:
+            if kw in self._imhdr:
+                gain = float( self._imhdr[kw] )
+                self._logger.debug(f'Read gain value of {gain:.3f} e/ADU from {kw} keyword.')
+        if gain is None:
+            gain = 1.0
+            self._logger.warning(f'Could not find gain value in header. Assuming gain={gain:.3f} e/ADU.')
+            
+        # Perform CR rejection. (Here we can ignore the returned data as we
+        # already store it.)
+        self.process(self._imdata, gain)
+
+        # Generate output image, based off header of input image.
+        hdu  = fits.PrimaryHDU(data=self._cleandata,
+            header=self._imhdr)
         self._update_header(hdu)
         
         hdu_list = fits.HDUList([hdu])
+        hdu_list.writeto(outfile, overwrite=True)
+        self._logger.info(f'Wrote cosmic ray cleaned image to {outfile}')
+        return
+
+    def write_crmask_img(self, mask_file_name):
+        """Write the cosmic ray mask to a FITS file with the user 
+           specified name/path.
+                      
+        :param mask_file_name: File name/path for the output cosmic ray
+          pixel mask. The file will be overwritten if it exists.
+        """
+        
+        hdu  = fits.PrimaryHDU(data=self._crmask)
+        #self._update_header(hdu)
+        
+        hdu_list = fits.HDUList([hdu])
         hdu_list.writeto(mask_file_name, overwrite=True)
-        self._logger.info(f'Wrote bad pixel mask to {mask_file_name}')
+        self._logger.info(f'Wrote cosmic ray pixel mask to {mask_file_name}')
         return
     
+    def write_crdiff_img(self, diff_file_name):
+        """Write the cosmic ray difference image to a FITS file with the user 
+           specified name/path.
+                      
+        The difference image is the cosmic ray cleaned data subtracted
+        from the original image. This will be non-zero only at the location
+        of the pixels the algorithm identified as cosmic rays.
+                      
+        :param diff_file_name: File name/path for the output cosmic ray
+          difference image. The file will be overwritten if it exists.
+        """
+        
+        hdu = fits.PrimaryHDU(data=self._crdiff)
+        #self._update_header(hdu)
+        
+        hdu_list = fits.HDUList([hdu])
+        hdu_list.writeto(diff_file_name, overwrite=True)
+        self._logger.info(f'Wrote cosmic ray difference image to {diff_file_name}')
+        return
