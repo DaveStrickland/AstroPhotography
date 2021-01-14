@@ -1,8 +1,11 @@
 """Contains the implementation of the ApCalibrate class.
+
+    TODO: Allow calibration of images in memory, in addition to files.
 """
 
 # 2020-12-05 dks : Initial implementation.
 # 2020-12-08 dks : Working version.
+# 2021-01-14 dks : Added calls to ApFixCosmicRays
 
 import sys
 import logging
@@ -16,6 +19,7 @@ from astropy.io import fits
 
 from .. import __version__
 from . import ApFixBadPixels
+from . import ApFixCosmicRays
 
 class ApCalibrate:
     """Astronomical CCD image calibrator that performs bias subtraction,
@@ -57,6 +61,10 @@ class ApCalibrate:
         
         self._master_bias = Path(self._master_bias_file)
         self._master_dark = Path(self._master_dark_file)
+
+        # Helpers.
+        self._bpix  = None # No ApFixBadPixels by default.
+        self._crfix = ApFixCosmicRays(self._loglevel)
 
         # Read bias and dark data
         # TODO check bias exposure time is zero.
@@ -155,6 +163,24 @@ class ApCalibrate:
         out_flat = flat_data / norm_factor
         [meanval, medval, minval, maxval] = self._img_stats(out_flat, 'Normalized flat', True)
         return out_flat
+
+    def _get_gain(self, hdr):
+        """Try to find the gain (e/ADU) from the specified header
+        
+        If the gain cannot be found a value of 1.0 will be returned. 
+        """
+        
+        # Determine gain
+        gain = None
+        for kw in ['GAIN', 'EGAIN']:
+            if kw in hdr:
+                gain = float( hdr[kw] )
+                self._logger.debug(f'Read gain value of {gain:.3f} e/ADU from {kw} keyword.')
+        if gain is None:
+            gain = 1.0
+            self._logger.warning(f'Could not find gain value in header. Assuming gain={gain:.3f} e/ADU.')
+        
+        return gain
 
     def _img_stats(self, data, label, verbose):
         """Calculate and display some image statistics"""
@@ -355,10 +381,24 @@ class ApCalibrate:
     def calibrate(self, raw_image,
         cal_image,
         delta_pix,
-        norm_flat,):
+        norm_flat,
+        fixcosmic):
         """Perform bias subtraction, dark subtraction, flat fielding 
            (optional), and bad pixel correction (optional) on the input
            image.
+           
+        :param raw_image: File name/path for raw light frame to be 
+          processed.
+        :param cal_image: File name/path for output calibrated image
+          file that has the requested calibration stages applied.
+          The file will be over written if it already exists.
+        :param delta_pix: Linear distance away from a bad pixel from which
+          the median value of the good pixels will be drawn. See
+          ApFixBadPixels for additional explanation.
+        :param norm_flat: If not None, then a FITS image with the 
+          normalized field will be written to this file name/path.
+        :param fixcosmic: Boolean that controls whether cosmic ray
+          corrections using ApFixCosmicRays will be performed.
         """
         
         # Performance timer
@@ -416,6 +456,15 @@ class ApCalibrate:
                     odict[key] = val
         else:
             self._logger.info('No bad pixel correction applied.')
+
+        # Optional cosmic ray removal.
+        if fixcosmic:
+            self._logger.info('Correcting cosmic rays...')
+            gain = self._get_gain(raw_hdr)
+            img_clean, cr_kw = self._crfix.process(img_bdf, gain)
+            for kw, val in cr_kw.items():
+                odict[kw] = val
+            img_bdf = img_clean
 
         # Performance 
         perf_time_end = time.perf_counter() # highest res timer, counts sleeps

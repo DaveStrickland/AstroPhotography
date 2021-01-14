@@ -6,9 +6,12 @@ Release notes for versions starting at v0.2.2 and later.
 
 ## Development version
 
-The emphasis of this release is to allow image resampling, combination 
-and mosaic generation.
+The emphasis of this release improvements in the calibration process,
+in particular bad pixel removal and the newly added cosmic ray removal.
 
+- Added cosmic ray removal using ccdproc's lacosmic algorithm in 
+  ApFixCosmicRays, invoked either by ap_fix_cosmic_rays.py or by
+  ApCalibrate/ap_calibrate.
 - Disabled the default tweak_order=2 SIP polynomial fit in astrometry.net
 - Added option to apply user-defined bad pixels in ap_find_badpix.py and
   ApFindBadPixels.
@@ -19,7 +22,7 @@ The emphasis of this release is on the capability to process FITS images
 from amatuer astronomical observations, in particular iTelescope.net.
 
 The ap_ scripts now allow iTelescope.net data to be calibrated from raw
-fits frames, through bias/dak/flat correction, star detection and WCS
+fits frames, through bias/dark/flat correction, star detection and WCS
 solutions.
 
 Outstanding Issues:

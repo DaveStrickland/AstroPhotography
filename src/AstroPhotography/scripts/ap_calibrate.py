@@ -7,7 +7,8 @@
 #  - Bias subtraction
 #  - Dark subtraction
 #  - Optional flat fielding correction.
-#  - Optional bad pixel removal.
+#  - Optional bad pixel removal
+#  - Optional cosmic ray removal.
 #  
 #  Copyright 2020 Dave Strickland <dave.strickland@gmail.com>
 #  
@@ -28,6 +29,7 @@
 #  
 #  2020-12-05 dks : Initial skeleton, based on example_ccdproc.py and 
 #                   ap_fix_badpix.py
+#  2021-01-14 dks : Add cosmic ray removal to match ap_fix_cosmic_rays.py
 
 import argparse
 import sys
@@ -42,7 +44,8 @@ def command_line_opts(argv):
     parser = argparse.ArgumentParser(prog='ap_calibrate',
         description=('Performs calibration of raw astronomical images'
         ' by applying bias and dark frame subtraction, along with'
-        ' optional (but recommended) flat fielding and bad pixel correction.'))
+        ' optional (but recommended) flat fielding, bad pixel correction,'
+        ' and cosmic ray removal.'))
     
     # Required
     parser.add_argument('raw_image',
@@ -89,6 +92,12 @@ def command_line_opts(argv):
         ' the 8 surrounding pixels will be used, if deltapix=2 then the'
         ' surrounding 24 pixels will be used. Values above 2 are not recommended.'
         f' Default: {p_delta} pixels.'))
+    parser.add_argument('--fixcosmic',
+        default=False,
+        action='store_true',
+        help=('If specified, cosmic ray removal will be performed.'
+        ' This removes many cosmic rays and remaining flickering bad'
+        ' pixels, but does not work well on alpha particle CRs.'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
@@ -112,6 +121,7 @@ def main(args=None):
 
     p_normflat   = p_args.normflat
     p_deltapix   = p_args.deltapix
+    p_fixcosmic  = p_args.fixcosmic
     p_loglevel   = p_args.loglevel
     
     # Create an instance of the calibrator.
@@ -125,7 +135,8 @@ def main(args=None):
     calibrator.calibrate(p_raw_img, 
         p_out_img,
         p_deltapix,
-        p_normflat) 
+        p_normflat,
+        p_fixcosmic) 
     
     return 0
 
