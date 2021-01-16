@@ -6,6 +6,7 @@
 # 2020-12-05 dks : Initial implementation.
 # 2020-12-08 dks : Working version.
 # 2021-01-14 dks : Added calls to ApFixCosmicRays
+# 2021-01-26 dks : Got the syntax for importing ApFixCosmicRays right.
 
 import sys
 import logging
@@ -19,7 +20,9 @@ from astropy.io import fits
 
 from .. import __version__
 from . import ApFixBadPixels
-from . import ApFixCosmicRays
+from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
+# TODO: I have no idea wht the ApFiBadPixels line works, but the same for
+# ApFixCosmicRays did not, instead requiring the more verbose line shown.
 
 class ApCalibrate:
     """Astronomical CCD image calibrator that performs bias subtraction,
@@ -469,11 +472,11 @@ class ApCalibrate:
         # Performance 
         perf_time_end = time.perf_counter() # highest res timer, counts sleeps
         run_time_secs = perf_time_end - perf_time_start
-        self._logger.info(f'Calibrated {raw_image.name} in {run_time_secs:.3f} seconds.')
 
         # Write final image.
         self._logger.info(f'Writing calibrated image to {cal_image}')    
         self._write_corrected_image(raw_image, ext_num,
             cal_image, img_bdf, odict)
-                    
+
+        self._logger.info(f'Calibrated {raw_image.name} in {run_time_secs:.3f} seconds.')                    
         return

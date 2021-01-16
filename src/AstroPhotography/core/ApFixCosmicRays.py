@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import math
 from datetime import datetime, timezone
+import time         # For performance counter
  
 import numpy as np
 import ccdproc
@@ -15,12 +16,24 @@ from astropy.io import fits
 from .. import __version__
 
 class ApFixCosmicRays:
-    """Clean cosmic rays from a CCD image, either as a numpy array, or
-       from a FITS file, using the ccdproc implementation of the L.A. 
-       Cosmic algorithm.
+    """
+    Clean cosmic rays from a CCD image, either as a numpy array, or
+    from a FITS file, using the ccdproc implementation of the L.A. 
+    Cosmic algorithm.
+    
     The input image should have already undergone bad pixel
     correction (e.g. using ap_fix_badpix.py) before attempting
-    cosmic ray correction.
+    cosmic ray correction, so as to remove most of the 1-pixel
+    artifacts. Per bad pixel this algorithm is approximately 250
+    times slower than ApFixBadPixels, and only operates over a fixed
+    number of iterations, making prior removal of as many bad pixels
+    imperative.
+    
+    The L.A. Cosmic algorithm does a good job of removing most small
+    CR artifacts as well as any remaining flickering bad pixel
+    artifacts. However it does not do a good job on large transient
+    artifacts on the scale of the stellar PSF or larger. These are
+    presumably (?) alpha particle hits.
     """
     GOOD     = 0
     AUTO_BAD = 1
@@ -242,6 +255,8 @@ class ApFixCosmicRays:
         can be used to update a FITS header.
         """
 
+        perf_time_start = time.perf_counter() # highest res timer, counts sleeps
+
         # Store inputs.
         self._imdata = inpdata
         self._gain   = gain
@@ -284,7 +299,7 @@ class ApFixCosmicRays:
         # TODO stats of CRs. 
         # Currently just count pixels set bad.
         numbad = np.sum(self._crmask)
-        self._logger.info(f'{numbad} pixels in image indentified as affected by cosmic rays.')
+        self._logger.info(f'{numbad} pixels in image identified as affected by cosmic rays.')
 
         # Set some metadata that a user can retrieve.
         kw_dict = {'CR_CLEAN': (True, 'Has cosmic ray removal been performed?'),
@@ -293,10 +308,28 @@ class ApFixCosmicRays:
         # Compute difference image and store
         self._crdiff = self._imdata - self._cleandata      
         self._cr_kw  = kw_dict  
+        
+        # Performance metric
+        perf_time_end = time.perf_counter() # highest res timer, counts sleeps
+        run_time_secs = perf_time_end - perf_time_start
+        ms_per_pix    = 1000 * run_time_secs / float(numbad)
+        self._logger.debug(f'Finished CR processing in {run_time_secs:.3f} s, {ms_per_pix:.3f} ms per CR pixel.')
         return self._cleandata, kw_dict
     
     def process_file(self, inpfile, outfile):
         """
+        Apply the L.A. Cosmic CR identification and removal algorithm to
+        the FITS image in inpfile, writing the corrected image to outfile.
+        
+        The input image should have a header keyword specifying the gain
+        in e/ADU, either GAIN or EGAIN. If not present then a value of 1.0
+        will be assumed. The output image is returned in the same units
+        as the original image.
+        
+        Note: assumes the input image units are ADU.
+        
+        :param inpfile: Input FITS image.
+        :param outfile: Output FITS image, will be over-written if present.
         """
         
         self._imdata, self._imhdr = self._read_fits(inpfile, 0)
