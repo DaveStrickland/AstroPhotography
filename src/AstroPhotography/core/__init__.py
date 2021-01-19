@@ -9,6 +9,9 @@ from .ApFindBadPixels import ApFindBadPixels as ApFindBadPixels
 from .ApAddMetadata import ApAddMetadata as ApAddMetadata
 from .ApCalibrate import ApCalibrate as ApCalibrate
 from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
+from .ApFindStars import ApFindStars as ApFindStars
+from .ApMeasureStars import ApMeasureStars as ApMeasureStars
+from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 from .file_writer import file_writer as file_writer
 
 __all__ = ["RawConv", 
@@ -17,4 +20,7 @@ __all__ = ["RawConv",
     "ApFindBadPixels", 
     "ApFixBadPixels",
     "ApFixCosmicRays",
-    "ApAddMetadata"]
+    "ApAddMetadata",
+    "ApFindStars",
+    "ApMeasureStars",
+    "ApQualitySummarizer"]
