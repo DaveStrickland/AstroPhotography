@@ -12,6 +12,7 @@ from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
 from .ApFindStars import ApFindStars as ApFindStars
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
 from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
+from .ApAstrometry import ApAstrometry as ApAstrometry
 from .file_writer import file_writer as file_writer
 
 __all__ = ["RawConv", 
@@ -23,4 +24,5 @@ __all__ = ["RawConv",
     "ApAddMetadata",
     "ApFindStars",
     "ApMeasureStars",
-    "ApQualitySummarizer"]
+    "ApQualitySummarizer",
+    "ApAstrometry"]
