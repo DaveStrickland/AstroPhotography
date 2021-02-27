@@ -6,6 +6,8 @@ Release notes for versions starting at v0.2.2 and later.
 
 ## Development version
 
+## v0.2.4 2021-02-27
+
 The emphasis of this release improvements in the calibration process,
 in particular bad pixel removal and the newly added cosmic ray removal.
 
@@ -15,6 +17,8 @@ in particular bad pixel removal and the newly added cosmic ray removal.
 - Disabled the default tweak_order=2 SIP polynomial fit in astrometry.net
 - Added option to apply user-defined bad pixels in ap_find_badpix.py and
   ApFindBadPixels.
+- Fix issue #5, allowing darks that either have bias subtraction or
+  have not (--dark_still_biased).
 
 ## v0.2.3 2020-12-22
 
