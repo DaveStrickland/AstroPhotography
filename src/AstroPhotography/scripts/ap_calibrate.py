@@ -30,6 +30,7 @@
 #  2020-12-05 dks : Initial skeleton, based on example_ccdproc.py and 
 #                   ap_fix_badpix.py
 #  2021-01-14 dks : Add cosmic ray removal to match ap_fix_cosmic_rays.py
+#  2021-02027 dks : Added dark_still_biased flag.
 
 import argparse
 import sys
@@ -98,6 +99,17 @@ def command_line_opts(argv):
         help=('If specified, cosmic ray removal will be performed.'
         ' This removes many cosmic rays and remaining flickering bad'
         ' pixels, but does not work well on alpha particle CRs.'))
+    parser.add_argument('--dark_still_biased',
+        default=False,
+        action='store_true',
+        help=('Use this flag to specify that the master dark file has NOT'
+            ' already had bias subtraction performed, and that ApCalibrate'
+            ' should bias-subtract the dark before scaling it by the'
+            ' exposure time ratio. By default the software assumes that'
+            ' the bias has ALREADY been subtracted from the master dark.'
+            ' iTelescope master darks with CALSTAT=M are still biased and'
+            ' require the use of this flag. Files with CALSTAT=BM have'
+            ' had bias subtraction and this flag can be omitted.'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
@@ -122,6 +134,7 @@ def main(args=None):
     p_normflat   = p_args.normflat
     p_deltapix   = p_args.deltapix
     p_fixcosmic  = p_args.fixcosmic
+    p_dark_still_biased = p_args.dark_still_biased
     p_loglevel   = p_args.loglevel
     
     # Create an instance of the calibrator.
@@ -129,7 +142,8 @@ def main(args=None):
         p_mdark,
         p_mflat,
         p_mbadpix,
-        p_loglevel)
+        p_loglevel,
+        p_dark_still_biased)
     
     # Tell it to calibrate data from files (rather than numpy arrays).
     calibrator.calibrate(p_raw_img, 

@@ -7,6 +7,7 @@
 # 2020-12-08 dks : Working version.
 # 2021-01-14 dks : Added calls to ApFixCosmicRays
 # 2021-01-26 dks : Got the syntax for importing ApFixCosmicRays right.
+# 2021-02-27 dks : Add dark_still_biased flag.
 
 import sys
 import logging
@@ -48,9 +49,25 @@ class ApCalibrate:
         master_dark_file,
         master_flat_file,
         master_badpix_file,
-        loglevel):
+        loglevel,
+        dark_still_biased=None):
         """Initializes an ApCalibrate instance with the master 
            calibration files.
+           
+        :param master_bias_file: Name/path of master bias.
+        :param master_dark_file: Name/path of master dark.
+        :param master_flat_file: Name/path of master flat (filter specific)
+        :param master_badpix_file: Name/path of master bad pixel file.
+        :param loglevel: Log level.
+        :param dark_still_biased: True or False, or None.
+            Use this flag to specify that the master dark file has NOT
+            already had bias subtraction performed, and that ApCalibrate
+            should bias-subtract the dark before scaling it by the
+            exposure time ratio. By default the software assumes that
+            the bias has ALREADY been subtracted from the master dark.
+            iTelescope master darks with CALSTAT=M are still biased and
+            require the use of this flag. Files with CALSTAT=BM have
+            had bias subtraction and this flag can be omitted.
         """
         
         self._name     = 'ApCalibrate'
@@ -64,6 +81,11 @@ class ApCalibrate:
         
         self._master_bias = Path(self._master_bias_file)
         self._master_dark = Path(self._master_dark_file)
+
+        if dark_still_biased is not None:
+            self._dark_still_biased = dark_still_biased
+        else:
+            self._dark_still_biased = False
 
         # Helpers.
         self._bpix  = None # No ApFixBadPixels by default.
@@ -412,10 +434,15 @@ class ApCalibrate:
         ext_num = 0
         raw_data,  raw_hdr  = self._read_fits(raw_image,   ext_num)
         
-        # Subtract bias from raw image and from dark.
+        # Subtract bias from raw image and from dark if still biased.
         # Skipping the normal sanity checks I would do.
         img_sub_b  = raw_data - self._bias_data
-        dark_sub_b = self._dark_data - self._bias_data
+        if self._dark_still_biased:
+            self._logger.info('Subtracting bias from dark')
+            dark_sub_b = self._dark_data - self._bias_data
+        else:
+            self._logger.debug('Dark assumed to already be bias-subtracted.')
+            dark_sub_b = self._dark_data
         
         # Scale bias-subtracted dark by ratio of exposure times.
         # TODO check that dark exposure time is >= image exposure time.
