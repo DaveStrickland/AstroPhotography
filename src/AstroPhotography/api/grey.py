@@ -5,7 +5,7 @@ from ..core.logger import logger
 from ..core.RawConv import *
 from ..core.file_writer import file_writer
 
-def main(rawfile, output, method, black, whitebalance):
+def main(rawfile, output, method, keepblack, whitebalance):
     """ Execute the grey command.
     
     :param rawfile: RAW input file to process.
@@ -16,15 +16,18 @@ def main(rawfile, output, method, black, whitebalance):
       Bayer channels. See RawConv.grey() for details on allowable methods.
     :param whitebalance: Whitebalance method to use when converting R, G and B
       channels to monochrome.
-    :param black: If true the camera black levels will be subtracted
-      from the channel data.
+    :param keepblack: If true the camera black levels (similar to a CCD bias?)
+      will NOT be subtracted from the channel data.
     """
     logger.info("Executing grey command on {:s}".format(rawfile))
     
     # Read and process the file.
     rawconv = RawConv(rawfile)
+    
+    subblack = not keepblack
+    
     grey_im = rawconv.grey(luminance_method=method, 
-        subtract_black=black, 
+        subtract_black=subblack, 
         wb_method=whitebalance)
     file_writer(grey_im, output)
     return 

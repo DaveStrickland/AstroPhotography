@@ -10,12 +10,13 @@ def main(rawfile, output, black, extension):
     
     :param rawfile: RAW input file to process.
     :param output: File prefix for output images. Output image 
-      file names will consist of the prefix followed by '_r.png', 
-      '_g1.png', '_b.png' and '_g2.png'.
+      file names will consist of the prefix followed by '_r.', 
+      '_g1.', '_b.' and '_g2.', followed by the file name
+      extension.
     :param black: If true the camera black levels will be subtracted
       from the channel data.
-    :param extension: File type and extension to use, e.g. 'png' or
-      'jp2'.
+    :param extension: File type and extension to use, e.g. 'png', 'jpg'
+      'jp2', or 'fits'
     """
     logger.info("Executing split command on {:s}".format(rawfile))
     

@@ -52,7 +52,7 @@ class RawConv:
         # Common image characteristics
         self._nrows        = self._rawpy.raw_image_visible.shape[0]
         self._ncols        = self._rawpy.raw_image_visible.shape[1]
-        self._color_desc = str(self._rawpy.color_desc)
+        self._color_desc   = str(self._rawpy.color_desc)
         if self._color_desc not in self._supported_colors:
             self._unsupported_colors
         # Know that for RGBG the color indices are 0, 1, 2, 3
@@ -118,6 +118,7 @@ class RawConv:
         g1_bg = int( self._black_levels[self.G1] )
         b_bg  = int( self._black_levels[self.B]  )
         g2_bg = int( self._black_levels[self.G2] )
+        logger.info(f'Subtracting camera black levels: R={r_bg} G1={g1_bg} B={b_bg} G2={g2_bg}')
 
         self._rawim_r  = self._safe_subtract(self._rawim_r,
             self._mask_r, 
@@ -154,6 +155,10 @@ class RawConv:
         odd_mask = data_arr < val_to_subtract
         num_odd  = np.sum(odd_mask)
         pct_odd  = 100 * num_odd / data_arr.size
+        
+        # Note: this gives a misleading answer when raw individual color
+        # channels are used, because e.g. an R image will have the G1, B,
+        # and G2 pixel values all set to zero.
         logger.warning('Input array has {} pixels ({:.2f}%) less than array we will subract from it.'.format(num_odd, pct_odd))
         if num_odd > 0:
             # Reset those pixels to the value we're going to subtract.

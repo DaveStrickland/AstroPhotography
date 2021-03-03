@@ -1,12 +1,14 @@
 """Function based interface to FileWriter
 
-Limitations: Does not currently support metadata, e.g. FITS headers.
+Limitations: Does not currently support metadata, e.g. FITS headers,
+or exif metadata.
 """
 
 from .logger import logger
 import imageio
 import time
 import os.path
+from astropy.io import fits
 
 def file_writer(data_array, out_file):
     """Abstracts away details of writing an image to a graphics
@@ -57,7 +59,10 @@ def file_writer(data_array, out_file):
             im=data_array,
             format=our_format)
     elif ftype == 'fits':
-        print('fits not yet implemented')
+        hdu_list = fits.PrimaryHDU(data_array)
+        hdu_list.writeto(out_file, 
+            output_verify='warn',
+            overwrite=True)
         return
     else:
         raise RuntimeError('Could not determine type for output file {}'.format(out_file))

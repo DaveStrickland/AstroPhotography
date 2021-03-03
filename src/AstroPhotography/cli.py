@@ -1,19 +1,18 @@
 """ Implementation of the command line interface for the AstroPhotography
     module.
     
-This provides the following subcommands:
+This is intended to provide the following subcommands:
 - grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
         FITS file using one of several methods.
-- rgb: Convert a RAW file into an RGB PNG image.
-- hist: Calculate and plot RGB or greyscale levels from a RAW image. 
 - split: Splits the input RAW file into separate 16-bit PNG files for each
          of the R, G, B and G channel in the Bayer mask.
+- rgb: Convert a RAW file into an RGB PNG image.
+- hist: Calculate and plot RGB or greyscale levels from a RAW image. 
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
                 of several ways.
 - info: Print metadata about the input RAW file to stdout.
-- features: Performs image segmentation on the input RAW image and outputs a
-            list of the coordinates and sizes of features thus found, along
-            with an indexed image that can be used to view them.
+
+Only the first two (grey and split) are currently implemented.
 
 Typical workflow might consist of:
 - Taking a RAW image using a digital camera attached to a telescope, 
@@ -22,9 +21,6 @@ Typical workflow might consist of:
   high brightness features, and then adjusting the exposure time of further
   images.
 - Looking at the levels using `dksraw hist`.
-- Finding the location of specific objects within an image (e.g. Jupiter)
-  using `dksraw features` to find the pixel locations to use in whitebalance
-  calculations using `dksraw whitebalance`.
 
 """
 from argparse import ArgumentParser
@@ -47,12 +43,12 @@ def main(argv=None) -> int:
     :return: exit status
     """
     args = _args(argv)
-    logger.start(args.warn or "DEBUG")  # can't use default from config yet
+    logger.start(args.loglevel or "DEBUG")  # can't use default from config yet
     logger.debug("Starting execution")
     config.load(args.config)
     config.core.config = args.config
-    if args.warn:
-        config.core.logging = args.warn
+    if args.loglevel:
+        config.core.logging = args.loglevel
     logger.stop()  # clear handlers to prevent duplicate records
     logger.start(config.core.logging)
     command = args.command
@@ -75,15 +71,11 @@ def _args(argv):
 
     :param argv: argument list to parse
     """
+    p_loglevel = "INFO"
     parser = ArgumentParser(prog='dksraw',
         description='Dave\'s RAW file conversion tool for AstroPhotography')
     parser.add_argument("-c", "--config", action="append",
             help="config file [etc/config.yml]")
-    parser.add_argument("-v", "--version", action="version",
-            version="AstroPhotography {:s}".format(__version__),
-            help="print version and exit")
-    parser.add_argument("-w", "--warn", default="WARN",
-            help="logger warning level [WARN]")
             
     # Common options for all command parsers
     common = ArgumentParser(add_help=False)
@@ -94,6 +86,13 @@ def _args(argv):
         help="Root name for output files." + 
         " If omitted then the name of the input RAW file " +
         "(with extension removed) will be used as the root name.")
+    common.add_argument("-v", "--version", action="version",
+            version="AstroPhotography {:s}".format(__version__),
+            help="print version and exit")
+    common.add_argument("-l", "--loglevel", default=p_loglevel,
+            help=("Logger informational level, one of NOTSET, DEBUG, INFO"
+            ", WARNING, ERROR, or CRITICAL in order of increasing severity."
+            f" Default: {p_loglevel}"))
     
     # Command parsers
     subparsers = parser.add_subparsers(title="Commands", 
@@ -159,7 +158,7 @@ def _grey(subparsers, common):
     :param common: parser for common subcommand arguments
     """
     allowed_wb = ['daylight', 'camera', 'auto', 'region[regspec]', 'user[userspec]']
-    default_wb = 'daylight'
+    default_wb = 'camera'
     default_method = 'direct'
     
     parser = subparsers.add_parser("grey", 
@@ -168,8 +167,13 @@ def _grey(subparsers, common):
         help='Creates a monochrome output image using the specified method and white-balance.')
     parser.add_argument('-m', '--method',
         default=default_method,
-        help='Method used to assemble the monochrome luminance image from the Bayer channels.' + 
-            ' Default: {}'.format(default_method))
+        help=('Method used to assemble the monochrome luminance image'
+            ' from the Bayer sub channels. Available options are: direct.'
+            ' Direct does not perform any de-Bayer calculation, instead'
+            ' just setting each pixel to its whitebalance-scaled value from'
+            ' which ever RGBG subband it can from. This will look spotty'
+            ' unless the correct whitebalance is chosen.'
+            f' Default: {default_method}'))
     parser.add_argument('-w', '--whitebalance',
         default=default_wb,
         help='Whitebalance to use when convert R, G and B channels.' + 
@@ -181,13 +185,15 @@ def _grey(subparsers, common):
             ' "region[450, 463, 2850, 2863]".' +
             ' To specify a user selected whitebalance use "user" with a user specifier' +
             ' of form [Rmult, G1mult, Bmult, G2mult].' +
-            ' For example "user[185, 1.0, 2.01, 1.0]".' +
+            ' For example "user[1.85, 1.0, 2.01, 1.0]".' +
             ' The region and user options should be enclosed in quotes to prevent shell expansion.' +
             ' Default: {}'.format(default_wb))
-    parser.add_argument('-b', '--black',
+    parser.add_argument('--keepblack',
         default=False,
         action='store_true',
-        help='Subtract camera band-specific black levels from the data. Default: False')
+        help=('Retain the camera band-specific black levels in the data.'
+            ' These are roughly equivalent to a CCD bias level.'
+            ' Default: False'))
     parser.set_defaults(command=grey)
     return
     
