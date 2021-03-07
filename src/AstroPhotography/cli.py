@@ -159,7 +159,8 @@ def _grey(subparsers, common):
     """
     allowed_wb = ['daylight', 'camera', 'auto', 'region[regspec]', 'user[userspec]']
     default_wb = 'camera'
-    default_method = 'direct'
+    allowed_method = ['linear', 'direct']
+    default_method = 'linear'
     
     parser = subparsers.add_parser("grey", 
         description="Creates a monochrome output image using the specified method and white-balance.",
@@ -168,8 +169,12 @@ def _grey(subparsers, common):
     parser.add_argument('-m', '--method',
         default=default_method,
         help=('Method used to assemble the monochrome luminance image'
-            ' from the Bayer sub channels. Available options are: direct.'
-            ' Direct does not perform any de-Bayer calculation, instead'
+            f' from the Bayer sub channels. Available options are: {allowed_method}'
+            ' linear: Performs the rawpy linear post_process to an RBG image,'
+            ' then applies CCIR 601 luma coefficients to obtain greyscale.'
+            ' This de-Bayers the image, but unfortunately renormalizes it'
+            ' to fill the full dynamic range available in the output.'
+            ' direct: Direct does not perform any de-Bayer calculation, instead'
             ' just setting each pixel to its whitebalance-scaled value from'
             ' which ever RGBG subband it can from. This will look spotty'
             ' unless the correct whitebalance is chosen.'

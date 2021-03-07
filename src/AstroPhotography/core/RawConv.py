@@ -301,30 +301,50 @@ class RawConv:
         :param verbose: TBA
         """
         
-        allowed_methods=['direct']
+        allowed_methods=['linear', 'direct']
         if luminance_method not in allowed_methods:
             err_str = 'Unexpected luminance calculate method supplied to RawConv.grey: {}. Allowed methods are: {}'.format(luminance_method, allowed_methods)
             logger.error(err_str)
+        else:
+            logger.info(f'Generating greyscale image using {luminance_method} method.')
         
         if subtract_black:
             self._subtract_black_levels()
             
         wb_list = self.get_whitebalance(wb_method)
-           
-        r_im  = np.where(self._mask_r,  self._rawim_r,  0)
-        g1_im = np.where(self._mask_g1, self._rawim_g1, 0)
-        b_im  = np.where(self._mask_b,  self._rawim_b,  0)
-        g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
         
-        # Perform calculations as double
-        grey_im = np.zeros(r_im.shape[0:2], dtype=np.float64)
-        grey_im += wb_list[self.R]  * r_im
-        grey_im += wb_list[self.G1] * g1_im
-        grey_im += wb_list[self.B]  * b_im
-        grey_im += wb_list[self.G2] * g2_im
         
-        # Should really do some sanity calculations here.
-        
+        if 'direct' in luminance_method:
+            r_im  = np.where(self._mask_r,  self._rawim_r,  0)
+            g1_im = np.where(self._mask_g1, self._rawim_g1, 0)
+            b_im  = np.where(self._mask_b,  self._rawim_b,  0)
+            g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
+            
+            # Perform calculations as double
+            grey_im = np.zeros(self._rawim_r.shape[0:2], dtype=np.float64)
+            grey_im += wb_list[self.R]  * r_im
+            grey_im += wb_list[self.G1] * g1_im
+            grey_im += wb_list[self.B]  * b_im
+            grey_im += wb_list[self.G2] * g2_im
+            
+        elif 'linear' in luminance_method:
+            rgb_coeff = [0.299, 0.587, 0.114] # CCIR 601
+            rgb = self._rawpy.postprocess(gamma=(1,1), 
+                no_auto_bright=True, no_auto_scale=True,
+                output_bps=16, user_wb=wb_list)
+                
+            # TODO error, this does seem to rescale to fill the full
+            # dynamic range. Will need to read the libraw documentation
+            # as the rawpy does are limited in this respect.
+            
+            grey_im = np.zeros(self._rawim_r.shape[0:2], dtype=np.float64)
+            for idx in range(3):
+                grey_im += rgb[:,:,idx] * rgb_coeff[idx]
+
+        # TODO Should really do some sanity calculations here 
+        # TODO image statistics?
+            
+        logger.debug('Greyscale image generated.')
         return grey_im.astype(np.uint16)
 
     def split(self, subtract_black=False, verbose=False):
