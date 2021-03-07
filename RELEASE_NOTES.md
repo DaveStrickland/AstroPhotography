@@ -2,9 +2,28 @@
 
 Release notes for versions starting at v0.2.2 and later.
 
-# 0.2
+# 0.3
 
 ## Development version
+
+## v0.3.0 xxxx-xx-xx
+
+Updates the RAW conversion tool `dksraw`:
+
+- Finally adds FITS format output. This expects you to specify file
+  names ending in in the full `.fits` (not `.fit`).
+- Adds the `linear` method to `dksraw grey`, which applies a default 
+  Bayer mask removal. This looks a lot better than the old `direct`
+  method, but at the cost of rescaling the image to fill the full
+  dynamic range. This may be a bug in `rawpy` or `libraw`.
+- CLI improvements: Renamed `--warn` to `--loglevel` for consistency 
+  with the ap_ scripts,
+  and changed how it was specified in argparse to avoid having to specify
+  it before the subcommand.
+- Made "black" level subtraction the default in `dksraw`, so now you have
+  to specify `--keepblack` if you want the black levels to be retained.
+
+# 0.2
 
 ## v0.2.4 2021-02-27
 
