@@ -4,6 +4,11 @@ Release notes for versions starting at v0.2.2 and later.
 
 # 0.3
 
+Version 0.3 is an interim release that attempts to finally provide
+the basic "required" functionality to the RAW file conversion 
+tool `dksraw`, before attention switches back to FITS file processing
+in v0.4.
+
 ## Development version
 
 ## v0.3.0 xxxx-xx-xx
