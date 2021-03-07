@@ -170,7 +170,7 @@ def _grey(subparsers, common):
         default=default_method,
         help=('Method used to assemble the monochrome luminance image'
             f' from the Bayer sub channels. Available options are: {allowed_method}'
-            ' linear: Performs the rawpy linear post_process to an RBG image,'
+            ' linear: Performs the rawpy linear postprocess to an RBG image,'
             ' then applies CCIR 601 luma coefficients to obtain greyscale.'
             ' This de-Bayers the image, but unfortunately renormalizes it'
             ' to fill the full dynamic range available in the output.'
