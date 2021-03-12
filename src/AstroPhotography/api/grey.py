@@ -26,8 +26,8 @@ def main(rawfile, output, method, keepblack, whitebalance):
     
     subblack = not keepblack
     
-    grey_im = rawconv.grey(luminance_method=method, 
+    grey_im, exif_dict = rawconv.grey(luminance_method=method, 
         subtract_black=subblack, 
         wb_method=whitebalance)
-    file_writer(grey_im, output)
+    file_writer(output, grey_im, exif_dict)
     return 

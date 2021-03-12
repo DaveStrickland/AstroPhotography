@@ -9,6 +9,19 @@ the basic "required" functionality to the RAW file conversion
 tool `dksraw`, before attention switches back to FITS file processing
 in v0.4.
 
+- FITS files can now be written by the `dksraw grey` and `dksraw split` commands.
+- The `dksraw grey` command now has a default `linear` method that performs Bayer
+  demasking and looks much better than the old `direct` method.
+- RAW file EXIF metadata is now read within `RawConv`, using the python 
+  package `ExifRead`. This is less capable than a command line tool like `exiv2`. 
+
+Limitations:
+
+- EXIF metadata writing has not been successfully implemented, as there
+  is a disconnect between python packages that can read metadata from RAW
+  file and those that claim to write valid EXIF metadata to graphics file
+  formats.
+
 ## Development version
 
 ## v0.3.0 xxxx-xx-xx

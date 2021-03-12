@@ -6,6 +6,7 @@ import rawpy
 import numpy as np
 import os.path
 import ast
+import exifread     # Read camera RAW exif data
 
 class RawConv:
     """ Higher level conversions and processing of RAW image files to graphics formats 
@@ -13,7 +14,8 @@ class RawConv:
     """
     
     def __init__(self, rawfile):
-        """RawConv constructor loads the raw file and performs initial processing.
+        """
+        RawConv constructor loads the raw file and performs initial processing.
         """
         
         self._supported_colors = ['RGBG']
@@ -21,7 +23,8 @@ class RawConv:
         return
         
     def __del__(self):
-        """ RawConv class destructor
+        """
+        RawConv class destructor
         """
         
         if self._rawpy is not None:
@@ -29,8 +32,9 @@ class RawConv:
         return
 
     def _unsupported_colors(self):
-        """ Raises an exception if the image color description is not 
-            supported.
+        """
+        Raises an exception if the image color description is not 
+        supported.
         """
         
         err_str = 'Image colors ({}) not in supported list of {}.'.format(self._color_desc, 
@@ -39,6 +43,11 @@ class RawConv:
         return
 
     def _load(self, rawfile):
+        """
+        Reads the RAW file nad performs some preliminary processing on it.
+        
+        :param rawfile: Input RAW file recognized by rawpy.
+        """
         self._rawfile    = rawfile
         self._rawpy      = None
         if os.path.isfile(rawfile):
@@ -48,6 +57,9 @@ class RawConv:
             err_msg = 'RawConv cannot load {}. Not a valid path or file.'.format(rawfile)
             logger.error(err_msg)
             raise RuntimeError(err_msg)
+        
+        # Read EXIF tags
+        self._read_exif(rawfile)
         
         # Common image characteristics
         self._nrows        = self._rawpy.raw_image_visible.shape[0]
@@ -77,8 +89,9 @@ class RawConv:
         return
 
     def _default_whitebalances(self):
-        """Convert default camera and daylight whitebalances into
-           a more consistent form
+        """
+        Convert default camera and daylight whitebalances into
+        a more consistent form
            
         For the Canon Digital Rebel XTi, the format of the camera
         whitebalance and the daylight whitebalance format are
@@ -108,10 +121,12 @@ class RawConv:
         return
 
     def _subtract_black_levels(self):
-        """Subtract black levels from sub-bands.
+        """
+        Subtract black levels from sub-bands.
         """
         if self._black_subtracted:
             # Already black subtracted
+            logger.warning('Camera black levels already subtracted. Not repeating.')
             return
             
         r_bg  = int( self._black_levels[self.R]  )
@@ -133,6 +148,61 @@ class RawConv:
             self._mask_g2, 
             g2_bg)
         self._black_subtracted = True
+
+    def _read_exif(self, input_file, use_makernote=None):
+        """
+        Read EXIF metadata from the specified input file, storing it
+        in self._exif_dict
+        
+        This function uses ExifRead, because the exif package cannot
+        read RAW files. Only deciphered tags are stored, becuase we lack
+        the capability to correctly rewrite them in the output file.
+        
+        :param input_file: Input RAW file path/name.
+        :param use_makernote: In most cases RAW file MakerNote tags are not
+          recognized by the exif writing code (the exif package) and
+          hence cannot be re-written even if ExifRead can read them.
+          However, if use_makernote is True they will be read and stored
+          in the returned exif_dict. 
+        """
+        
+        store_makernote = False
+        if use_makernote is not None:
+            store_makernote = use_makernote
+        
+        self._exif_dict = None
+        # Open image file for reading (must be in binary mode)
+        with open(input_file, 'rb') as f:
+            # Return Exif tags
+            tags = exifread.process_file(f)
+        
+            self._exif_dict = {}
+            for tag in tags.keys():
+                # Skip MakerNote?
+                if not store_makernote:
+                    if 'MakerNote' in tag:
+                        continue
+                
+                if tag in ('JPEGThumbnail', 'TIFFThumbnail', 'Filename', 'EXIF MakerNote'):
+                    continue
+                elif ' Tag ' in tag:
+                    continue
+                elif 'IFD 2 ' in tag:
+                    newtag = tag.replace('IFD 2 ', 'IFD2 ')
+                    self._exif_dict[newtag] = tags[tag]
+                elif 'IFD 3 ' in tag:
+                    newtag = tag.replace('IFD 3 ', 'IFD3 ')
+                    self._exif_dict[newtag] = tags[tag]
+                else:
+                    self._exif_dict[tag] = tags[tag]
+        
+        if self._exif_dict is not None:
+            logger.info(f'Input file {input_file} has {len(self._exif_dict)} items of EXIF metadata.')
+            logger.debug(f'The EXIF metadata items from the file are: {self._exif_dict.keys()}')
+        else:
+            logger.warning(f'Input file {input_file} does not contain any EXIF metadata.')
+        
+        return
 
     def _safe_subtract(self, data_arr, data_mask, val_to_subtract):
         """Safe subtraction of one array or scalar from another array
@@ -281,8 +351,8 @@ class RawConv:
         logger.debug('White balance values adopted: {}'.format(wb_list))
         return wb_list
 
-    def grey(self, luminance_method='direct', subtract_black=False, 
-        wb_method='auto', verbose=False):
+    def grey(self, luminance_method='linear', subtract_black=True, 
+        wb_method='auto'):
         """Create a luminance image using the supplied white-balance
            values, with or without black-level subtraction.
         
@@ -291,6 +361,9 @@ class RawConv:
         
         :param luminance_method: Luminance method to use. At present only the
            following method(s) are supported:
+           - linear: Applies Bayer correction with a gamma=1 value to
+             generate an RGB image, then applies the CCIR 601 coefficients
+             to convert that to greyscale.
            - direct: Each channel is multiplied by its white-balance factor
              and the added to the final image. There is no interpolation.
         :param subtract_black: If true the camera black levels will be 
@@ -298,7 +371,9 @@ class RawConv:
         :param wb_method: Whitebalance method to user to determine white 
           balances. See get_whitebalance() for details of the allowed
           methods.
-        :param verbose: TBA
+          
+        Returns a numpy array of the image along with a dictionary of EXIF
+        tags.
         """
         
         allowed_methods=['linear', 'direct']
@@ -312,7 +387,6 @@ class RawConv:
             self._subtract_black_levels()
             
         wb_list = self.get_whitebalance(wb_method)
-        
         
         if 'direct' in luminance_method:
             r_im  = np.where(self._mask_r,  self._rawim_r,  0)
@@ -345,9 +419,9 @@ class RawConv:
         # TODO image statistics?
             
         logger.debug('Greyscale image generated.')
-        return grey_im.astype(np.uint16)
+        return grey_im.astype(np.uint16), self._exif_dict
 
-    def split(self, subtract_black=False, verbose=False):
+    def split(self, subtract_black=True):
         """Exports the raw, unprocessed, bayer RGBG as four separate 
         uint16 numpy arrays.
         
@@ -356,13 +430,15 @@ class RawConv:
         
         :param subtract_black: If true the camera black levels will be 
           subtracted from the channel data.
-        :param verbose: TBA 
+        
+        Returns four numpy arrasy of the image, along with a dictionary of EXIF
+        tags.
         """
         
         if verbose:
             logger.info('split: black_levels {}'.format(self._black_levels))
-            logger.info('split: camera_wb   {} type={}'.format( self._wb_camera, type(self._wb_camera) ))
-            logger.info('split: daylight_wb {} type={}'.format( self._wb_daylight, type(self._wb_daylight) ))
+            logger.info('split: camera_wb    {} type={}'.format( self._wb_camera, type(self._wb_camera) ))
+            logger.info('split: daylight_wb  {} type={}'.format( self._wb_daylight, type(self._wb_daylight) ))
         
         if subtract_black:
             self._subtract_black_levels()
@@ -372,27 +448,4 @@ class RawConv:
         b_im  = np.where(self._mask_b,  self._rawim_b,  0)
         g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
         
-        # --> Should be moved to custom whitebalance
-        # minr=400
-        # maxr=500
-        # minc=2800
-        # maxc=2900
-        # print('raw_r=', r_im[minr:maxr,minc:maxc], r_im.dtype)
-        # print('raw_g1=', g1_im[minr:maxr,minc:maxc], g1_im.dtype)
-        
-        # --> Should be moved to RGB
-        #r_im3d  = rawim.postprocess(output_color=rawpy.ColorSpace.raw,
-        #    gamma=(1, 1), 
-        #    no_auto_bright=True, 
-        #    no_auto_scale=True,
-        #    dcb_enhance=False,
-        #    user_wb=[1, 0, 0, 0], 
-        #    output_bps=16, 
-        #    user_flip=0)
-            
-        # --> Should be moved to stats...
-        # print('R  min, max: ', np.nanmin(r_im[self._mask_r]),   np.nanmax(r_im[self._mask_r]))
-        # print('G1 min, max: ', np.nanmin(g1_im[self._mask_g1]), np.nanmax(g1_im[self._mask_g1]))
-        # print('B  min, max: ', np.nanmin(b_im[self._mask_b]),   np.nanmax(b_im[self._mask_b]))
-        # print('G2 min, max: ', np.nanmin(g2_im[self._mask_g2]), np.nanmax(g2_im[self._mask_g2]))
-        return r_im, g1_im, b_im, g2_im
+        return r_im, g1_im, b_im, g2_im, self._exif_dict

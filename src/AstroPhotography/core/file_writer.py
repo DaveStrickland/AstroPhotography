@@ -1,7 +1,5 @@
-"""Function based interface to FileWriter
-
-Limitations: Does not currently support metadata, e.g. FITS headers,
-or exif metadata.
+"""
+Function based interface to FileWriter
 """
 
 from .logger import logger
@@ -10,13 +8,17 @@ import time
 import os.path
 from astropy.io import fits
 
-def file_writer(data_array, out_file):
-    """Abstracts away details of writing an image to a graphics
-       file format or astronomical FITS file.
-       
+def file_writer(out_file, data_array, exif_dict):
+    """
+    Abstracts away details of writing an image to a graphics
+    file format or astronomical FITS file.
+
+    :param out_file: File path/name for output file.       
     :param data_array: 2-D (monochrome) or 3-D (rgb) ndarray of
       data values. Usually but not always of dtype.uint16
-    :param out_file: File path/name for output file.
+    :param exif_dict: Dictionary of EXIF tags and values in the format
+      produced by ExifRead. This will be processed to provide a format
+      suitable for the exif package or astropy FITS to write.
     """
     
     ftype = determine_file_type(out_file)
@@ -63,7 +65,6 @@ def file_writer(data_array, out_file):
         hdu_list.writeto(out_file, 
             output_verify='warn',
             overwrite=True)
-        return
     else:
         raise RuntimeError('Could not determine type for output file {}'.format(out_file))
     t_end = time.perf_counter()
@@ -74,10 +75,33 @@ def file_writer(data_array, out_file):
     logger.debug('Wrote {:.3f} MB file successfully in {:.3f} seconds ({:.3f} MB/s)'.format(io_size,
         io_time,
         io_rate))
+        
+    # This should be moved to a function with error/exception checking.
+    if ftype == 'graphics':
+        logger.warning('Writing EXIF metadata not yet supported.')
     return
+        
+def CapitalCase_to_snake_case(input_str):
+    """
+    Converts CapitalCase or camelCase strings to snake_case
+    
+    Based on: https://www.geeksforgeeks.org/python-program-to-convert-camel-case-string-to-snake-case/
+    
+    Limitations:
+    - Messes up consecutive capital letters, e.g. ISO become i_s_o, or
+      FocalLengthMM becomes focal_length_m_m
+    
+    :param input_str: Input CapitalCase or camelCase string
+    """
+    
+    output_str = ''.join(['_'+i.lower() if i.isupper() 
+               else i for i in input_str]).lstrip('_')
+               
+    return output_str
     
 def determine_file_type(fname):
-    """Determine if file is a common graphics format or FITS.
+    """
+    Determine if file is a common graphics format or FITS.
     """
     
     # Graphics file formats, delegated to imageio
