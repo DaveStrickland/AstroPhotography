@@ -19,6 +19,7 @@ class RawConv:
         """
         
         self._supported_colors = ['RGBG']
+        self._ipctls = [0.01, 0.1, 0.5, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.5, 99.9, 99.99]
         self._load(rawfile)
         return
         
@@ -42,6 +43,25 @@ class RawConv:
         raise NotImplementedError(err_str)        
         return
 
+    def _image_stats(self, numpy_array, pctiles=None):
+        """
+        Calculates basic statistics on an input array, including percentiles
+        """
+        if pctiles is None:
+            ipctls = [0.01, 0.1, 0.5, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.5, 99.9, 99.99]
+        else:
+            ipctls = pctiles
+        
+        minval    = np.nanmin(numpy_array)
+        maxval    = np.nanmax(numpy_array)
+        meanval   = np.nanmean(numpy_array)
+        stdval    = np.nanstd(numpy_array)
+        medianval = np.nanmedian(numpy_array)
+        
+        # percentiles
+        opctls = np.nanpercentile(numpy_array, ipctls)    
+        return minval, maxval, meanval, stdval, medianval, opctls
+
     def _load(self, rawfile):
         """
         Reads the RAW file nad performs some preliminary processing on it.
@@ -59,7 +79,7 @@ class RawConv:
             raise RuntimeError(err_msg)
         
         # Read EXIF tags
-        self._read_exif(rawfile)
+        self._read_exif(rawfile, use_makernote=True)
         
         # Common image characteristics
         self._nrows        = self._rawpy.raw_image_visible.shape[0]
@@ -199,6 +219,9 @@ class RawConv:
         if self._exif_dict is not None:
             logger.info(f'Input file {input_file} has {len(self._exif_dict)} items of EXIF metadata.')
             logger.debug(f'The EXIF metadata items from the file are: {self._exif_dict.keys()}')
+            for key, val in self._exif_dict.items():
+                logger.debug(f'  key={key:<30s}  val={val}')
+            
         else:
             logger.warning(f'Input file {input_file} does not contain any EXIF metadata.')
         
@@ -355,10 +378,7 @@ class RawConv:
         wb_method='auto'):
         """Create a luminance image using the supplied white-balance
            values, with or without black-level subtraction.
-        
-        For each band (R, G etc) the only non-zero pixels will be that 
-        band, and pixels associated with other bands will be set to zero.
-        
+
         :param luminance_method: Luminance method to use. At present only the
            following method(s) are supported:
            - linear: Applies Bayer correction with a gamma=1 value to
@@ -402,21 +422,29 @@ class RawConv:
             grey_im += wb_list[self.G2] * g2_im
             
         elif 'linear' in luminance_method:
-            rgb_coeff = [0.299, 0.587, 0.114] # CCIR 601
-            rgb = self._rawpy.postprocess(gamma=(1,1), 
+            rgb_coeff     = [0.299, 0.587, 0.114] # CCIR 601
+            linear_gamma  = (1,1)
+            default_gamma = (2.222, 4.5)
+            rgb = self._rawpy.postprocess(gamma=linear_gamma, 
                 no_auto_bright=True, no_auto_scale=True,
                 output_bps=16, user_wb=wb_list)
                 
-            # TODO error, this does seem to rescale to fill the full
-            # dynamic range. Will need to read the libraw documentation
-            # as the rawpy does are limited in this respect.
-            
             grey_im = np.zeros(self._rawim_r.shape[0:2], dtype=np.float64)
             for idx in range(3):
                 grey_im += rgb[:,:,idx] * rgb_coeff[idx]
 
         # TODO Should really do some sanity calculations here 
-        # TODO image statistics?
+        
+        # Calculate initial image statistics.
+        minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(rgb, self._ipctls)
+
+        # TODO Renormalization?
+
+        logger.info(f'Image statistics: min={minv} max={maxv} mean={meanv:.2f}+/-{stdv:.2f} median={medianv} ADU.')
+        logger.debug('Image percentiles follow:')
+        for idx, pct in enumerate(self._ipctls):
+            ovalue = pctiles[idx]
+            logger.debug(f'  {pct:6.3f} percentile: {ovalue:8.3f} ADU')
             
         logger.debug('Greyscale image generated.')
         return grey_im.astype(np.uint16), self._exif_dict

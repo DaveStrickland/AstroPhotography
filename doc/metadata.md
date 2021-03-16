@@ -144,3 +144,129 @@ After some inspection of imageio's github Issues page it appears like imageio
 does NOT currently provide any usable metadata handling. We may have to skip
 metadata, look to another module, or fall back on system calls to a
 utility like exiftool (which is not portable).
+
+## Metadata Read By ExifRead
+
+Using ExifRead (v2.3.2):
+```
+2021-03-14 15:23:06,965 | DEBUG | AstroPhotography |   key=Image ImageLength               val=1288
+2021-03-14 15:23:06,965 | DEBUG | AstroPhotography |   key=Image BitsPerSample             val=[8, 8, 8]
+2021-03-14 15:23:06,965 | DEBUG | AstroPhotography |   key=Image Compression               val=JPEG (old-style)
+2021-03-14 15:23:06,965 | DEBUG | AstroPhotography |   key=Image Make                      val=Canon
+2021-03-14 15:23:06,965 | DEBUG | AstroPhotography |   key=Image Model                     val=Canon EOS DIGITAL REBEL XTi
+2021-03-14 15:23:06,965 | DEBUG | AstroPhotography |   key=Image StripOffsets              val=80168
+2021-03-14 15:23:06,965 | DEBUG | AstroPhotography |   key=Image Orientation               val=Horizontal (normal)
+2021-03-14 15:23:06,966 | DEBUG | AstroPhotography |   key=Image StripByteCounts           val=228169
+2021-03-14 15:23:06,966 | DEBUG | AstroPhotography |   key=Image XResolution               val=72
+2021-03-14 15:23:06,966 | DEBUG | AstroPhotography |   key=Image YResolution               val=72
+2021-03-14 15:23:06,966 | DEBUG | AstroPhotography |   key=Image ResolutionUnit            val=Pixels/Inch
+2021-03-14 15:23:06,966 | DEBUG | AstroPhotography |   key=Image DateTime                  val=2014:01:18 21:48:57
+2021-03-14 15:23:06,966 | DEBUG | AstroPhotography |   key=Image ExifOffset                val=270
+2021-03-14 15:23:06,966 | DEBUG | AstroPhotography |   key=Thumbnail JPEGInterchangeFormat  val=78336
+2021-03-14 15:23:06,967 | DEBUG | AstroPhotography |   key=Thumbnail JPEGInterchangeFormatLength  val=1832
+2021-03-14 15:23:06,967 | DEBUG | AstroPhotography |   key=IFD2 ImageWidth                 val=384
+2021-03-14 15:23:06,967 | DEBUG | AstroPhotography |   key=IFD2 ImageLength                val=256
+2021-03-14 15:23:06,967 | DEBUG | AstroPhotography |   key=IFD2 BitsPerSample              val=[8, 8, 8]
+2021-03-14 15:23:06,967 | DEBUG | AstroPhotography |   key=IFD2 Compression                val=JPEG (old-style)
+2021-03-14 15:23:06,967 | DEBUG | AstroPhotography |   key=IFD2 PhotometricInterpretation  val=2
+2021-03-14 15:23:06,967 | DEBUG | AstroPhotography |   key=IFD2 StripOffsets               val=308337
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=IFD2 SamplesPerPixel            val=3
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=IFD2 RowsPerStrip               val=256
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=IFD2 StripByteCounts            val=294912
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=IFD2 PlanarConfiguration        val=1
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=IFD3 Compression                val=JPEG (old-style)
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=IFD3 StripOffsets               val=603249
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=IFD3 StripByteCounts            val=7721050
+2021-03-14 15:23:06,968 | DEBUG | AstroPhotography |   key=EXIF ExposureTime               val=30
+2021-03-14 15:23:06,969 | DEBUG | AstroPhotography |   key=EXIF FNumber                    val=28/5
+2021-03-14 15:23:06,969 | DEBUG | AstroPhotography |   key=EXIF ExposureProgram            val=Manual
+2021-03-14 15:23:06,969 | DEBUG | AstroPhotography |   key=EXIF ISOSpeedRatings            val=400
+2021-03-14 15:23:06,969 | DEBUG | AstroPhotography |   key=EXIF ExifVersion                val=0221
+2021-03-14 15:23:06,969 | DEBUG | AstroPhotography |   key=EXIF DateTimeOriginal           val=2014:01:18 21:48:57
+2021-03-14 15:23:06,969 | DEBUG | AstroPhotography |   key=EXIF DateTimeDigitized          val=2014:01:18 21:48:57
+2021-03-14 15:23:06,969 | DEBUG | AstroPhotography |   key=EXIF ComponentsConfiguration    val=
+2021-03-14 15:23:06,970 | DEBUG | AstroPhotography |   key=EXIF ShutterSpeedValue          val=-321577/65536
+2021-03-14 15:23:06,970 | DEBUG | AstroPhotography |   key=EXIF ApertureValue              val=162885/32768
+2021-03-14 15:23:06,970 | DEBUG | AstroPhotography |   key=EXIF ExposureBiasValue          val=0
+2021-03-14 15:23:06,970 | DEBUG | AstroPhotography |   key=EXIF MeteringMode               val=Average
+2021-03-14 15:23:06,970 | DEBUG | AstroPhotography |   key=EXIF Flash                      val=Flash did not fire, compulsory flash mode
+2021-03-14 15:23:06,970 | DEBUG | AstroPhotography |   key=EXIF FocalLength                val=30
+2021-03-14 15:23:06,971 | DEBUG | AstroPhotography |   key=EXIF UserComment                val=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+2021-03-14 15:23:06,971 | DEBUG | AstroPhotography |   key=EXIF FlashPixVersion            val=0100
+2021-03-14 15:23:06,971 | DEBUG | AstroPhotography |   key=EXIF ColorSpace                 val=Uncalibrated
+2021-03-14 15:23:06,971 | DEBUG | AstroPhotography |   key=EXIF ExifImageWidth             val=3888
+2021-03-14 15:23:06,971 | DEBUG | AstroPhotography |   key=EXIF ExifImageLength            val=2592
+2021-03-14 15:23:06,971 | DEBUG | AstroPhotography |   key=Interoperability InteroperabilityIndex  val=R98
+2021-03-14 15:23:06,971 | DEBUG | AstroPhotography |   key=Interoperability InteroperabilityVersion  val=[48, 49, 48, 48]
+2021-03-14 15:23:06,972 | DEBUG | AstroPhotography |   key=EXIF InteroperabilityOffset     val=77610
+2021-03-14 15:23:06,972 | DEBUG | AstroPhotography |   key=EXIF FocalPlaneXResolution      val=3888000/877
+2021-03-14 15:23:06,972 | DEBUG | AstroPhotography |   key=EXIF FocalPlaneYResolution      val=432000/97
+2021-03-14 15:23:06,972 | DEBUG | AstroPhotography |   key=EXIF FocalPlaneResolutionUnit   val=2
+2021-03-14 15:23:06,972 | DEBUG | AstroPhotography |   key=EXIF CustomRendered             val=Normal
+2021-03-14 15:23:06,972 | DEBUG | AstroPhotography |   key=EXIF ExposureMode               val=Manual Exposure
+2021-03-14 15:23:06,972 | DEBUG | AstroPhotography |   key=EXIF WhiteBalance               val=Auto
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=EXIF SceneCaptureType           val=Standard
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=MakerNote FlashInfo             val=[100, 0, 0, 0]
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=MakerNote ImageType             val=Canon EOS DIGITAL REBEL XTi
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=MakerNote FirmwareVersion       val=Firmware 1.1.0
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=MakerNote OwnerName             val=unknown
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=MakerNote SerialNumber          val=1521037688
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=MakerNote ModelID               val=EOS Digital Rebel XTi / 400D / Kiss Digital X
+2021-03-14 15:23:06,973 | DEBUG | AstroPhotography |   key=MakerNote ThumbnailImageValidArea  val=[0, 159, 7, 112]
+2021-03-14 15:23:06,974 | DEBUG | AstroPhotography |   key=MakerNote SerialNumberFormat    val=Format 2
+2021-03-14 15:23:06,974 | DEBUG | AstroPhotography |   key=MakerNote LensModel             val=EF-S18-55mm f/3.5-5.6
+2021-03-14 15:23:06,974 | DEBUG | AstroPhotography |   key=MakerNote InternalSerialNumber   val=H2485064
+2021-03-14 15:23:06,974 | DEBUG | AstroPhotography |   key=MakerNote DustRemovalData       val=[]
+2021-03-14 15:23:06,974 | DEBUG | AstroPhotography |   key=MakerNote CropInfo              val=[0, 0, 0, 0]
+2021-03-14 15:23:06,974 | DEBUG | AstroPhotography |   key=MakerNote ColorSpace            val=Adobe RGB
+2021-03-14 15:23:06,974 | DEBUG | AstroPhotography |   key=MakerNote Macromode             val=Normal
+2021-03-14 15:23:06,975 | DEBUG | AstroPhotography |   key=MakerNote SelfTimer             val=0
+2021-03-14 15:23:06,975 | DEBUG | AstroPhotography |   key=MakerNote Quality               val=Unknown
+2021-03-14 15:23:06,975 | DEBUG | AstroPhotography |   key=MakerNote FlashMode             val=Flash Not Fired
+2021-03-14 15:23:06,975 | DEBUG | AstroPhotography |   key=MakerNote ContinuousDriveMode   val=Single Or Timer
+2021-03-14 15:23:06,975 | DEBUG | AstroPhotography |   key=MakerNote Unknown               val=0
+2021-03-14 15:23:06,975 | DEBUG | AstroPhotography |   key=MakerNote FocusMode             val=Manual
+2021-03-14 15:23:06,975 | DEBUG | AstroPhotography |   key=MakerNote RecordMode            val=CR2
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote ImageSize             val=Unknown
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote EasyShootingMode      val=Manual
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote DigitalZoom           val=None
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote Contrast              val=Normal
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote Saturation            val=Normal
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote Sharpness             val=Unknown
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote ISO                   val=Unknown
+2021-03-14 15:23:06,976 | DEBUG | AstroPhotography |   key=MakerNote MeteringMode          val=Center-weighted
+2021-03-14 15:23:06,977 | DEBUG | AstroPhotography |   key=MakerNote FocusType             val=Unknown
+2021-03-14 15:23:06,977 | DEBUG | AstroPhotography |   key=MakerNote AFPointSelected       val=Unknown
+2021-03-14 15:23:06,977 | DEBUG | AstroPhotography |   key=MakerNote ExposureMode          val=Manual
+2021-03-14 15:23:06,977 | DEBUG | AstroPhotography |   key=MakerNote LensType              val=45
+2021-03-14 15:23:06,977 | DEBUG | AstroPhotography |   key=MakerNote LongFocalLengthOfLensInFocalUnits  val=55
+2021-03-14 15:23:06,977 | DEBUG | AstroPhotography |   key=MakerNote ShortFocalLengthOfLensInFocalUnits  val=18
+2021-03-14 15:23:06,977 | DEBUG | AstroPhotography |   key=MakerNote FocalUnitsPerMM       val=1
+2021-03-14 15:23:06,978 | DEBUG | AstroPhotography |   key=MakerNote FlashActivity         val=Did Not Fire
+2021-03-14 15:23:06,978 | DEBUG | AstroPhotography |   key=MakerNote FlashDetails          val=Manual
+2021-03-14 15:23:06,978 | DEBUG | AstroPhotography |   key=MakerNote AESetting             val=Unknown
+2021-03-14 15:23:06,978 | DEBUG | AstroPhotography |   key=MakerNote ImageStabilization    val=Unknown
+2021-03-14 15:23:06,978 | DEBUG | AstroPhotography |   key=MakerNote SpotMeteringMode      val=Unknown
+2021-03-14 15:23:06,978 | DEBUG | AstroPhotography |   key=MakerNote ManualFlashOutput     val=n/a
+2021-03-14 15:23:06,978 | DEBUG | AstroPhotography |   key=MakerNote FocalType             val=Unknown
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote FocalLength           val=907
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote WhiteBalance          val=Auto
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote SlowShutter           val=None
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote SequenceNumber        val=0
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote AFPointUsed           val=0
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote FlashBias             val=0 EV
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote SubjectDistance       val=222
+2021-03-14 15:23:06,979 | DEBUG | AstroPhotography |   key=MakerNote FileNumber            val=36906
+2021-03-14 15:23:06,980 | DEBUG | AstroPhotography |   key=MakerNote BracketMode           val=Off
+2021-03-14 15:23:06,980 | DEBUG | AstroPhotography |   key=MakerNote BracketValue          val=0
+2021-03-14 15:23:06,980 | DEBUG | AstroPhotography |   key=MakerNote BracketShotNumber     val=0
+2021-03-14 15:23:06,980 | DEBUG | AstroPhotography |   key=MakerNote RawJpgQuality         val=n/a
+2021-03-14 15:23:06,980 | DEBUG | AstroPhotography |   key=MakerNote RawJpgSize            val=Unknown
+2021-03-14 15:23:06,981 | DEBUG | AstroPhotography |   key=MakerNote LongExposureNoiseReduction2  val=Off
+2021-03-14 15:23:06,981 | DEBUG | AstroPhotography |   key=MakerNote WBBracketMode         val=Off
+2021-03-14 15:23:06,981 | DEBUG | AstroPhotography |   key=MakerNote WBBracketValueAB      val=0
+2021-03-14 15:23:06,981 | DEBUG | AstroPhotography |   key=MakerNote WBBracketValueGM      val=0
+2021-03-14 15:23:06,981 | DEBUG | AstroPhotography |   key=MakerNote FilterEffect          val=None
+2021-03-14 15:23:06,982 | DEBUG | AstroPhotography |   key=MakerNote ToningEffect          val=None
+2021-03-14 15:23:06,982 | DEBUG | AstroPhotography |   key=MakerNote MacroMagnification    val=119
+```
