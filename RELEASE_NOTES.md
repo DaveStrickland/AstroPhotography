@@ -12,6 +12,8 @@ in v0.4.
 - FITS files can now be written by the `dksraw grey` and `dksraw split` commands.
 - The `dksraw grey` command now has a default `linear` method that performs Bayer
   demasking and looks much better than the old `direct` method.
+- The `dksraw grey` command has a `--renormalize` option suitable for
+  generating quick-look images that fill the dynamic range of the output file.
 - RAW file EXIF metadata is now read within `RawConv`, using the python 
   package `ExifRead`. This is less capable than a command line tool like `exiv2`. 
 

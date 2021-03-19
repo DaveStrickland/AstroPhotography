@@ -1,6 +1,7 @@
-""" Implements the split command.
-
 """
+Implements the split command.
+"""
+import time
 from ..core.logger import logger
 from ..core.RawConv import RawConv
 from ..core.file_writer import file_writer
@@ -17,8 +18,8 @@ def main(rawfile, output, keepblack, extension):
     :param extension: File type and extension to use, e.g. 'png', 'jpg'
       'jp2', or 'fits'
     """
-    logger.info("Executing split command on {:s}".format(rawfile))
-    
+    logger.info(f'Executing split command on {rawfile:s}')
+    t_start = time.perf_counter()
     subblack = not keepblack
     
     # Read and process the file.
@@ -34,4 +35,8 @@ def main(rawfile, output, keepblack, extension):
     file_writer(g1_fname, g1_im, exif_dict)
     file_writer(b_fname,  b_im,  exif_dict)
     file_writer(g2_fname, g2_im, exif_dict)
+    
+    t_end = time.perf_counter()
+    t_run = t_end - t_start
+    logger.info(f'Completed split command in {t_run:.2f} seconds.')
     return 

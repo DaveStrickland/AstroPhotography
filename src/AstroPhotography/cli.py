@@ -199,6 +199,15 @@ def _grey(subparsers, common):
         help=('Retain the camera band-specific black levels in the data.'
             ' These are roughly equivalent to a CCD bias level.'
             ' Default: False'))
+    parser.add_argument('--renormalize',
+        default=False,
+        action='store_true',
+        help=('If specified the output image will be linearly renormalized'
+            ' to span the dynamic range 0 to (2^16)-1 ADU, similar to the'
+            ' ImageMagick -normalize option.'
+            ' This option is useful for quick look purposes, but as it'
+            ' alters the output data values it is not suitable for later'
+            ' image combination or processing.'))
     parser.set_defaults(command=grey)
     return
     
@@ -220,10 +229,12 @@ def _split(subparsers, common):
         help='Outputs raw, unmodified, R, G, B and G as separate TIFF files.' +
             'Output files use the specified or default output root name followed' +
             ' by a channel-specific suffix, and specified or default file name extension.')
-    parser.add_argument('-b', '--black',
+    parser.add_argument('--keepblack',
         default=False,
         action='store_true',
-        help='Subtract camera band-specific black levels from the data. Default: False')
+        help=('Retain the camera band-specific black levels in the data.'
+            ' These are roughly equivalent to a CCD bias level.'
+            ' Default: False'))
     parser.add_argument('--extension',
         default=default_ext,
         help='File name extension (i.e. type) for output files.' +

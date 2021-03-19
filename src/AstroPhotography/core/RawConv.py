@@ -19,6 +19,10 @@ class RawConv:
         """
         
         self._supported_colors = ['RGBG']
+        self._makernote        = False      # Don't read MakerNote
+        
+        # Percentiles. Note first and last must be 0.01 and 99.99 as these
+        # values are used in image renormalization
         self._ipctls = [0.01, 0.1, 0.5, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.5, 99.9, 99.99]
         self._load(rawfile)
         return
@@ -79,7 +83,7 @@ class RawConv:
             raise RuntimeError(err_msg)
         
         # Read EXIF tags
-        self._read_exif(rawfile, use_makernote=True)
+        self._read_exif(rawfile, use_makernote=self._makernote)
         
         # Common image characteristics
         self._nrows        = self._rawpy.raw_image_visible.shape[0]
@@ -203,7 +207,7 @@ class RawConv:
                     if 'MakerNote' in tag:
                         continue
                 
-                if tag in ('JPEGThumbnail', 'TIFFThumbnail', 'Filename', 'EXIF MakerNote'):
+                if tag in ('JPEGThumbnail', 'TIFFThumbnail', 'EXIF UserComment', 'EXIF MakerNote'):
                     continue
                 elif ' Tag ' in tag:
                     continue
@@ -353,7 +357,7 @@ class RawConv:
         method = wb_method.split('[')[0]
         
         if method not in allowed_methods:
-            err_str = 'Unexpected white balance method "{}" not one of the allowed method: {}'.format(method, allowed_methods)
+            err_str = f'Unexpected white balance method "{method}" not one of the allowed method: {allowed_methods}'
             logger.error(err_str)
             raise RuntimeError(err_str)
         
@@ -368,16 +372,17 @@ class RawConv:
             wb_list = self._get_whitebalance_from_region(wb_method)
         elif 'user' in wb_method:
             # TODO parse user spec, hand off to function
-            logger.warning('Whitebalance method {} not yet implemented'.format(wb_method))
+            logger.warning(f'Whitebalance method {wb_method} not yet implemented')
             
             
-        logger.debug('White balance values adopted: {}'.format(wb_list))
+        logger.debug(f'White balance values using method {method} adopted: {wb_list}')
         return wb_list
 
     def grey(self, luminance_method='linear', subtract_black=True, 
-        wb_method='auto'):
-        """Create a luminance image using the supplied white-balance
-           values, with or without black-level subtraction.
+        wb_method='auto', print_stats=None, renorm=None):
+        """
+        Create a luminance image using the supplied white-balance
+        values, with or without black-level subtraction.
 
         :param luminance_method: Luminance method to use. At present only the
            following method(s) are supported:
@@ -391,10 +396,23 @@ class RawConv:
         :param wb_method: Whitebalance method to user to determine white 
           balances. See get_whitebalance() for details of the allowed
           methods.
+        :param print_stats: Output image statistics to the logger if True.
+        :param renorm: Renormalize the image counts to fill the full
+          16-bit dynamic range if True. Specifically it will linearly
+          stretch the dynamic range from the 0.01th to 99.99th percentiles
+          to fill the range 0 to (2^16)-1 ADU.
           
         Returns a numpy array of the image along with a dictionary of EXIF
         tags.
         """
+        
+        min_adu = 0
+        max_adu = 2**16 - 1
+        
+        if print_stats is None:
+            print_stats = False
+        if renorm is None:
+            renorm = False
         
         allowed_methods=['linear', 'direct']
         if luminance_method not in allowed_methods:
@@ -432,20 +450,35 @@ class RawConv:
             grey_im = np.zeros(self._rawim_r.shape[0:2], dtype=np.float64)
             for idx in range(3):
                 grey_im += rgb[:,:,idx] * rgb_coeff[idx]
-
-        # TODO Should really do some sanity calculations here 
         
         # Calculate initial image statistics.
-        minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(rgb, self._ipctls)
+        minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(rgb, 
+            self._ipctls)
 
         # TODO Renormalization?
-
-        logger.info(f'Image statistics: min={minv} max={maxv} mean={meanv:.2f}+/-{stdv:.2f} median={medianv} ADU.')
-        logger.debug('Image percentiles follow:')
-        for idx, pct in enumerate(self._ipctls):
-            ovalue = pctiles[idx]
-            logger.debug(f'  {pct:6.3f} percentile: {ovalue:8.3f} ADU')
+        if renorm:
+            # Use 0.01 and 99.99 percentiles            
+            raw_min = pctiles[0]
+            raw_max = pctiles[ len(pctiles)-1 ]
+            logger.info(f'Renormalizing image from range [{raw_min:.2f}, {raw_max:.2f}] to [{min_adu}, {max_adu}] ADU.')
+            logger.debug(f'Original image statistics before renormalization: min={minv} max={maxv} mean={meanv:.2f}+/-{stdv:.2f} median={medianv} ADU.')
+            dx      = raw_max - raw_min
+            dy      = max_adu - min_adu
+            tmp     = grey_im - raw_min
+            grey_im = tmp * (dy/dx) + min_adu
             
+            # recompute statistics.
+            minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(grey_im, 
+                self._ipctls)
+
+        if print_stats:
+            logger.info(f'Image statistics: min={minv} max={maxv} mean={meanv:.2f}+/-{stdv:.2f} median={medianv} ADU.')
+            logger.debug('Image percentiles follow:')
+            for idx, pct in enumerate(self._ipctls):
+                ovalue = pctiles[idx]
+                logger.debug(f'  {pct:6.3f} percentile: {ovalue:8.3f} ADU')
+        
+        np.clip(grey_im, min_adu, max_adu, out=grey_im)
         logger.debug('Greyscale image generated.')
         return grey_im.astype(np.uint16), self._exif_dict
 
@@ -463,11 +496,10 @@ class RawConv:
         tags.
         """
         
-        if verbose:
-            logger.info('split: black_levels {}'.format(self._black_levels))
-            logger.info('split: camera_wb    {} type={}'.format( self._wb_camera, type(self._wb_camera) ))
-            logger.info('split: daylight_wb  {} type={}'.format( self._wb_daylight, type(self._wb_daylight) ))
-        
+        logger.debug('split: black_levels {}'.format( self._black_levels ))
+        logger.debug('split: camera_wb    {}'.format( self._wb_camera ))
+        logger.debug('split: daylight_wb  {}'.format( self._wb_daylight ))
+    
         if subtract_black:
             self._subtract_black_levels()
            
