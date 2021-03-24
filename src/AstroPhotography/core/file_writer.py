@@ -62,6 +62,8 @@ def file_writer(out_file, data_array, exif_dict):
             format=our_format)
     elif ftype == 'fits':
         hdu_list = fits.PrimaryHDU(data_array)
+        hdr = update_fits_header_with_exif(hdr, exif_dict)
+        hdu_list[0].header = hdr
         hdu_list.writeto(out_file, 
             output_verify='warn',
             overwrite=True)
@@ -80,6 +82,28 @@ def file_writer(out_file, data_array, exif_dict):
     if ftype == 'graphics':
         logger.warning('Writing EXIF metadata not yet supported.')
     return
+        
+def update_fits_header_with_exif(hdr, exif_dict):
+    """
+    Update a FITS header with items from an EXIF dictionary, returning
+    the modified header.
+    
+    This will attempt to add the following metadata in all cases:
+    
+    - DATE      (now)                   Date/time this file was generated
+    - DATE-OBS  Image DateTime          Corresponds to date/time RAW was taken
+    - EXPOSURE  EXIF ExposureTime       Exposure time as rational fraction (s)?
+    - EXPTIME                           Exposure as real number (s)
+    - FNUMBER   EXIF FNumber            F number
+    - ISONUM    EXIF ISOSpeedRatings    ISO number
+    - FOCALLEN  EXIF FocalLength        Focal length (mm)
+    
+    :param hdr: Input FITS header
+    :param exif_dict: EXIF dictionary in the format supplied by ExifRead
+    """
+    
+    new_hdr = hdr
+    return new_hdr
         
 def CapitalCase_to_snake_case(input_str):
     """
