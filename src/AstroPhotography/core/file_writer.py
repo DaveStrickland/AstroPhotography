@@ -61,8 +61,9 @@ def file_writer(out_file, data_array, exif_dict):
             im=data_array,
             format=our_format)
     elif ftype == 'fits':
-        hdu_list = fits.PrimaryHDU(data_array)
-        hdr = update_fits_header_with_exif(hdr, exif_dict)
+        hdu      = fits.PrimaryHDU(data_array)
+        hdu_list = fits.HDUList([hdu])
+        hdr = update_fits_header_with_exif(hdu_list[0].header, exif_dict)
         hdu_list[0].header = hdr
         hdu_list.writeto(out_file, 
             output_verify='warn',
@@ -92,6 +93,7 @@ def update_fits_header_with_exif(hdr, exif_dict):
     
     - DATE      (now)                   Date/time this file was generated
     - DATE-OBS  Image DateTime          Corresponds to date/time RAW was taken
+    - INSTRUME  Image Model             Camera make and model
     - EXPOSURE  EXIF ExposureTime       Exposure time as rational fraction (s)?
     - EXPTIME                           Exposure as real number (s)
     - FNUMBER   EXIF FNumber            F number
@@ -101,7 +103,7 @@ def update_fits_header_with_exif(hdr, exif_dict):
     :param hdr: Input FITS header
     :param exif_dict: EXIF dictionary in the format supplied by ExifRead
     """
-    
+    logger.info('Updating FITS header with RAW file EXIF information.')
     new_hdr = hdr
     return new_hdr
         
