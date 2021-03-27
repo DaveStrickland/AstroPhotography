@@ -6,7 +6,10 @@ from .logger import logger
 import imageio
 import time
 import os.path
+from datetime import datetime, timezone
 from astropy.io import fits
+
+from .. import __version__
 
 def file_writer(out_file, data_array, exif_dict):
     """
@@ -103,8 +106,45 @@ def update_fits_header_with_exif(hdr, exif_dict):
     :param hdr: Input FITS header
     :param exif_dict: EXIF dictionary in the format supplied by ExifRead
     """
+    
+    # file_writer is only called by RawConv
+    name = 'RawConv'
+    
+    # Metadata coming from the exif data.
+    metadata_dict = {
+        'DATE-OBS': {'exifkw': 'Image DateTime', 'cmt': 'Date/time RAW image captured'},
+        'INSTRUME': {'exifkw': 'Image Model', 'cmt': 'Camera make and model'},
+        'EXPOSURE': {'exifkw': 'EXIF ExposureTime', 'cmt': '[sec] Exposure time as rational number'},
+        'FNUMBER':  {'exifkw': 'EXIF FNumber', 'cmt': 'f-number, F/D'},
+        'ISONUM':   {'exifkw': 'EXIF ISOSpeedRatings', 'cmt': 'ISO number'},
+        'FOCALLEN': {'exifkw': 'EXIF FocalLength', 'cmt': '[mm] Focal length F'}
+        }
+    
     logger.info('Updating FITS header with RAW file EXIF information.')
     new_hdr = hdr
+    
+    tnow = datetime.now().isoformat(timespec='milliseconds')
+    new_hdr['HISTORY'] = f'Processed by {name} {__version__} at {tnow}'
+    new_hdr['DATE']    = (tnow, 'Date and time this FITS file was generated.')
+
+    exptime = None
+    for kw in metadata_dict:
+        val = None
+        exif_kw = metadata_dict[kw]['exifkw']
+        if exif_kw in exif_dict:
+            # Must convert out of Ifd format into a string before anything else.
+            val = str( exif_dict[exif_kw] )
+            if 'EXPOSURE' in kw:
+                exptime = float( eval(val) ) # convert string to float
+            if 'DATE-OBS' in kw:
+                dtime = datetime.strptime(val, '%Y:%m:%d %H:%M:%S')
+                val   = dtime.isoformat()
+            if kw in ['FNUMBER', 'FOCALLEN']:
+                val = float( eval(val) )
+        new_hdr[kw] = (val, metadata_dict[kw]['cmt'])
+    
+    new_hdr['EXPTIME'] = (exptime, '[sec] Exposure time as a floating point number.')
+    
     return new_hdr
         
 def CapitalCase_to_snake_case(input_str):

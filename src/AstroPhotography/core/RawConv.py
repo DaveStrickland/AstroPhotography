@@ -8,6 +8,8 @@ import os.path
 import ast
 import exifread     # Read camera RAW exif data
 
+from .. import __version__
+
 class RawConv:
     """ Higher level conversions and processing of RAW image files to graphics formats 
         and/or FITS image format.
