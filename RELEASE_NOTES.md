@@ -9,39 +9,35 @@ the basic "required" functionality to the RAW file conversion
 tool `dksraw`, before attention switches back to FITS file processing
 in v0.4.
 
-- FITS files can now be written by the `dksraw grey` and `dksraw split` commands.
+## v0.3.0 xxxx-xx-xx
+
+- FITS files can now be written by the `dksraw grey` and `dksraw split` 
+  commands. This expects you to specify file names ending in in the 
+  full `.fits` (not `.fit`).
 - The `dksraw grey` command now has a default `linear` method that performs Bayer
   demasking and looks much better than the old `direct` method.
 - The `dksraw grey` command has a `--renormalize` option suitable for
   generating quick-look images that fill the dynamic range of the output file.
 - RAW file EXIF metadata is now read within `RawConv`, using the python 
-  package `ExifRead`. This is less capable than a command line tool like `exiv2`. 
+  package `ExifRead`. This is less capable than a command line tool like `exiv2`.
+  A limited set of this metadata is written to FITS files (if used as 
+  output).  
+- Minor CLI improvements: 
+  - Renamed `--warn` to `--loglevel` for consistency with the ap_ scripts,
+    and changed how it was specified in argparse to avoid having to specify
+    it before the subcommand.
+  - Made "black" level subtraction the default in `dksraw`, so now you have
+    to specify `--keepblack` if you want the black levels to be retained.
+- The old `TODO.md` file has been removed as it was very out of date. See
+  the github Issue for a clearer view of development priorities.
 
 Limitations:
 
-- EXIF metadata writing has not been successfully implemented, as there
-  is a disconnect between python packages that can read metadata from RAW
-  file and those that claim to write valid EXIF metadata to graphics file
-  formats.
-
-## Development version
-
-## v0.3.0 xxxx-xx-xx
-
-Updates the RAW conversion tool `dksraw`:
-
-- Finally adds FITS format output. This expects you to specify file
-  names ending in in the full `.fits` (not `.fit`).
-- Adds the `linear` method to `dksraw grey`, which applies a default 
-  Bayer mask removal. This looks a lot better than the old `direct`
-  method, but at the cost of rescaling the image to fill the full
-  dynamic range. This may be a bug in `rawpy` or `libraw`.
-- CLI improvements: Renamed `--warn` to `--loglevel` for consistency 
-  with the ap_ scripts,
-  and changed how it was specified in argparse to avoid having to specify
-  it before the subcommand.
-- Made "black" level subtraction the default in `dksraw`, so now you have
-  to specify `--keepblack` if you want the black levels to be retained.
+- EXIF metadata writing to graphics files formats (tiff, jpg, png etc)
+  has not been successfully implemented, as there is a disconnect 
+  between python packages that can read metadata from RAW file and those
+  that claim to write valid EXIF metadata to graphics file formats.
+- Sphinx documentation still does not work.
 
 # 0.2
 

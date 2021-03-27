@@ -31,22 +31,17 @@ from some other sources (e.g. iTelescope, an archive, etc).
 
 ### dksraw
 
-**Note** Planned, only some are partially implemented at this stage. 
-See TODO.md for plan and implementation status.
+**Note** Some are partially implemented at this stage. 
 
 The command line `dksraw` application will provide the following subcommands:
 - grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
-        FITS file using one of several methods. **Partially implemented.**
+        FITS file. **Working implementation with limited number of options.**
 - rgb: Convert a RAW file into an RGB PNG image. **Not yet implemented.**
-- hist: Calculate and plot RGB or greyscale levels from a RAW image.  **Not yet implemented.** 
 - split: Splits the input RAW file into separate 16-bit PNG files for each
          of the R, G, B and G channel in the Bayer mask. **Implemented.**
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
                 of several ways. **Partially implemented as part of `grey`.**
 - info: Print metadata about the input RAW file to stdout.  **Not yet implemented.**
-- features: Performs image segmentation on the input RAW image and outputs a
-            list of the coordinates and sizes of features thus found, along
-            with an indexed image that can be used to view them.  **Not yet implemented.**
 
 ### ap_ scripts
 
@@ -107,6 +102,8 @@ python3 -m pytest --cov-report html --cov=AstroPhotography test/
 ```
 
 Build documentation:
+
+*Note* This is currently not working correctly.
 
 ```bash
     $ sphinx-build -b html doc doc/_build/html
