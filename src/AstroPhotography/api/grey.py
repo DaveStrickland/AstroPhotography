@@ -1,5 +1,5 @@
 """
-Implements the grey command.
+Implements the grey command caling RawConv.
 """
 import time
 from ..core.logger import logger

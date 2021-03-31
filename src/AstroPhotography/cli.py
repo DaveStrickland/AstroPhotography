@@ -1,26 +1,30 @@
-""" Implementation of the command line interface for the AstroPhotography
-    module.
+"""
+Implementation of the command line interface for the dksraw
+command within the AstroPhotography python module.
     
-This is intended to provide the following subcommands:
+The dksraw command is intended to provide the following subcommands:
 - grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
         FITS file using one of several methods.
 - split: Splits the input RAW file into separate 16-bit PNG files for each
          of the R, G, B and G channel in the Bayer mask.
 - rgb: Convert a RAW file into an RGB PNG image.
-- hist: Calculate and plot RGB or greyscale levels from a RAW image. 
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
                 of several ways.
 - info: Print metadata about the input RAW file to stdout.
 
-Only the first two (grey and split) are currently implemented.
+Only the first threee (rg, grey and split) are currently implemented, although
+parts of the whitebalance calculations are implemented.
 
-Typical workflow might consist of:
-- Taking a RAW image using a digital camera attached to a telescope, 
-  processing it with default options using `dksraw grey` in a FITS image, 
-  viewing the FITS image with ds9 with asinh scaling to see both low and 
-  high brightness features, and then adjusting the exposure time of further
-  images.
-- Looking at the levels using `dksraw hist`.
+Typical use-cases might be:
+- Taking a RAW image using a digital camera attached to a telescope,
+  and generating a quick look image using `dksraw grey --renomalize --loglevel DEBUG`
+  to check both framing and raw image count percentiles.
+- Later, converting all the RAW images taken in that session to FITS
+  files, using the default options of `dksraw grey` or `dksraw rgb`,
+  and then processing those with the ap_ scripts to build calibrated
+  and resampled composite image.  
+- Looking at basic information from a set of RAW files using 
+  `dksraw info`. (Still to be implemented.)
 
 """
 from argparse import ArgumentParser
@@ -29,6 +33,7 @@ from inspect import getfullargspec
 from . import __version__
 from .api import split
 from .api import grey
+from .api import rgb
 from .core.config import config
 from .core.logger import logger
 import sys
@@ -99,6 +104,7 @@ def _args(argv):
         description="RAW file processing commands." +
         " One command MUST be selected by the user.",
         help="Command-specfic help.")
+    _rgb(subparsers, common)
     _grey(subparsers, common)
     _split(subparsers, common)
     
@@ -125,7 +131,7 @@ def _check_args(parser, args):
     
     if ( args.command == split ):
         _check_output_args(args)
-    elif ( args.command == grey ):
+    elif ( (args.command == grey) or (args.command == rgb)):
         default_suffix = '.fits'
         if args.output is None:
             _check_output_args(args)
@@ -149,6 +155,62 @@ def _check_output_args(args):
             args.output = args.rawfile[start_idx:idx]
         else:
             raise RuntimeError('Could not determine root name from {}'.format(args.rawfile))
+    return
+
+def _rgb(subparsers, common):
+    """Defines command line options for the rgb command.
+
+    :param subparsers: subcommand parsers
+    :param common: parser for common subcommand arguments
+    """
+    allowed_wb = ['daylight', 'camera', 'auto', 'region[regspec]', 'user[userspec]']
+    default_wb = 'camera'
+    allowed_method = ['linear']
+    default_method = 'linear'
+    
+    parser = subparsers.add_parser("rgb", 
+        description="Creates a 3-channel RGB output image using the specified method and white-balance.",
+        parents=[common], 
+        help='Creates a RGB output image using the specified method and white-balance.')
+    parser.add_argument('-m', '--method',
+        default=default_method,
+        help=('Method used to assemble the monochrome luminance image'
+            f' from the Bayer sub channels. Available options are: {allowed_method}'
+            ' linear: Performs the rawpy linear postprocess to an RBG image,'
+            ' then applies CCIR 601 luma coefficients to obtain greyscale.'
+            ' This de-Bayers the image, but unfortunately renormalizes it'
+            ' to fill the full dynamic range available in the output.'
+            f' Default: {default_method}'))
+    parser.add_argument('-w', '--whitebalance',
+        default=default_wb,
+        help='Whitebalance to use when convert R, G and B channels.' + 
+            ' Allowed whitebalance methods are: {}'.format(allowed_wb) +
+            ' To calculate the whitebalance from the entire image use "auto".' +
+            ' To calculate the whitebalance from part of an image use "region"' +
+            ' with a region specifier of the form [minrow, maxrow, mincol, maxcol],' +
+            ' where the pixel indices are zero-based and inclusive. For example:' +
+            ' "region[450, 463, 2850, 2863]".' +
+            ' To specify a user selected whitebalance use "user" with a user specifier' +
+            ' of form [Rmult, G1mult, Bmult, G2mult].' +
+            ' For example "user[1.85, 1.0, 2.01, 1.0]".' +
+            ' The region and user options should be enclosed in quotes to prevent shell expansion.' +
+            ' Default: {}'.format(default_wb))
+    parser.add_argument('--keepblack',
+        default=False,
+        action='store_true',
+        help=('Retain the camera band-specific black levels in the data.'
+            ' These are roughly equivalent to a CCD bias level.'
+            ' Default: False'))
+    parser.add_argument('--renormalize',
+        default=False,
+        action='store_true',
+        help=('If specified the output image will be linearly renormalized'
+            ' to span the dynamic range 0 to (2^16)-1 ADU, similar to the'
+            ' ImageMagick -normalize option.'
+            ' This option is useful for quick look purposes, but as it'
+            ' alters the output data values it is not suitable for later'
+            ' image combination or processing.'))
+    parser.set_defaults(command=rgb)
     return
 
 def _grey(subparsers, common):

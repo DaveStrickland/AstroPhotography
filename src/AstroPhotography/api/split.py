@@ -1,5 +1,5 @@
 """
-Implements the split command.
+Implements the split command calling RawConv.
 """
 import time
 from ..core.logger import logger

@@ -380,6 +380,90 @@ class RawConv:
         logger.debug(f'White balance values using method {method} adopted: {wb_list}')
         return wb_list
 
+    def rgb(self, luminance_method='linear', subtract_black=True, 
+        wb_method='auto', print_stats=None, renorm=None):
+        """
+        Create a 3-channel RGB image using the supplied white-balance
+        values, with or without black-level subtraction.
+
+        :param luminance_method: Luminance method to use. At present only the
+           following method(s) are supported:
+           - linear: Applies Bayer correction with a gamma=1 value to
+             generate an RGB image, then applies the CCIR 601 coefficients
+             to convert that to greyscale.
+        :param subtract_black: If true the camera black levels will be 
+          subtracted from the channel data.
+        :param wb_method: Whitebalance method to user to determine white 
+          balances. See get_whitebalance() for details of the allowed
+          methods.
+        :param print_stats: Output image statistics to the logger if True.
+        :param renorm: Renormalize the image counts to fill the full
+          16-bit dynamic range if True. Specifically it will linearly
+          stretch the dynamic range from the 0.01th to 99.99th percentiles
+          to fill the range 0 to (2^16)-1 ADU.
+          
+        Returns a numpy array of the image along with a dictionary of EXIF
+        tags.
+        """
+        
+        min_adu = 0
+        max_adu = 2**16 - 1
+        
+        if print_stats is None:
+            print_stats = False
+        if renorm is None:
+            renorm = False
+        
+        allowed_methods=['linear']
+        if luminance_method not in allowed_methods:
+            err_str = 'Unexpected luminance calculate method supplied to RawConv.rgb: {}. Allowed methods are: {}'.format(luminance_method, allowed_methods)
+            logger.error(err_str)
+        else:
+            logger.info(f'Generating rgb image using {luminance_method} method.')
+        
+        if subtract_black:
+            self._subtract_black_levels()
+            
+        wb_list = self.get_whitebalance(wb_method)
+        
+        if 'linear' in luminance_method:
+            linear_gamma  = (1,1)
+            default_gamma = (2.222, 4.5)
+            rgb_im = self._rawpy.postprocess(gamma=linear_gamma, 
+                no_auto_bright=True, no_auto_scale=True,
+                output_bps=16, user_wb=wb_list)
+                        
+        # Calculate initial image statistics.
+        minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(rgb_im, 
+            self._ipctls)
+
+        # TODO Renormalization?
+        if renorm:
+            # Use 0.01 and 99.99 percentiles            
+            raw_min = pctiles[0]
+            raw_max = pctiles[ len(pctiles)-1 ]
+            logger.info(f'Renormalizing image from range [{raw_min:.2f}, {raw_max:.2f}] to [{min_adu}, {max_adu}] ADU.')
+            logger.debug(f'Original image statistics before renormalization: min={minv} max={maxv} mean={meanv:.2f}+/-{stdv:.2f} median={medianv} ADU.')
+            dx      = raw_max - raw_min
+            dy      = max_adu - min_adu
+            tmp     = rgb_im - raw_min
+            rgb_im  = tmp * (dy/dx) + min_adu
+            
+            # recompute statistics.
+            minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(rgb_im, 
+                self._ipctls)
+
+        if print_stats:
+            logger.info(f'Image statistics: min={minv} max={maxv} mean={meanv:.2f}+/-{stdv:.2f} median={medianv} ADU.')
+            logger.debug('Image percentiles follow:')
+            for idx, pct in enumerate(self._ipctls):
+                ovalue = pctiles[idx]
+                logger.debug(f'  {pct:6.3f} percentile: {ovalue:8.3f} ADU')
+        
+        np.clip(rgb_im, min_adu, max_adu, out=rgb_im)
+        logger.debug(f'RGB image of shape {rgb_im.shape} generated.')
+        return rgb_im.astype(np.uint16), self._exif_dict
+
     def grey(self, luminance_method='linear', subtract_black=True, 
         wb_method='auto', print_stats=None, renorm=None):
         """
@@ -425,10 +509,9 @@ class RawConv:
         
         if subtract_black:
             self._subtract_black_levels()
-            
-        wb_list = self.get_whitebalance(wb_method)
         
         if 'direct' in luminance_method:
+            wb_list = self.get_whitebalance(wb_method)
             r_im  = np.where(self._mask_r,  self._rawim_r,  0)
             g1_im = np.where(self._mask_g1, self._rawim_g1, 0)
             b_im  = np.where(self._mask_b,  self._rawim_b,  0)
@@ -442,19 +525,16 @@ class RawConv:
             grey_im += wb_list[self.G2] * g2_im
             
         elif 'linear' in luminance_method:
-            rgb_coeff     = [0.299, 0.587, 0.114] # CCIR 601
-            linear_gamma  = (1,1)
-            default_gamma = (2.222, 4.5)
-            rgb = self._rawpy.postprocess(gamma=linear_gamma, 
-                no_auto_bright=True, no_auto_scale=True,
-                output_bps=16, user_wb=wb_list)
+            rgb_coeff         = [0.299, 0.587, 0.114] # CCIR 601
+            rgb_im, exif_dict = self.rgb(luminance_method, subtract_black,
+                wb_method, False, False)
                 
             grey_im = np.zeros(self._rawim_r.shape[0:2], dtype=np.float64)
             for idx in range(3):
-                grey_im += rgb[:,:,idx] * rgb_coeff[idx]
+                grey_im += rgb_im[:,:,idx] * rgb_coeff[idx]
         
         # Calculate initial image statistics.
-        minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(rgb, 
+        minv, maxv, meanv, stdv, medianv, pctiles = self._image_stats(rgb_im, 
             self._ipctls)
 
         # TODO Renormalization?
@@ -481,7 +561,7 @@ class RawConv:
                 logger.debug(f'  {pct:6.3f} percentile: {ovalue:8.3f} ADU')
         
         np.clip(grey_im, min_adu, max_adu, out=grey_im)
-        logger.debug('Greyscale image generated.')
+        logger.debug(f'Greyscale image of shape {grey_im.shape} generated.')
         return grey_im.astype(np.uint16), self._exif_dict
 
     def split(self, subtract_black=True):
