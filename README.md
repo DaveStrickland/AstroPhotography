@@ -49,7 +49,12 @@ The command line `dksraw` application will provide the following subcommands:
 
 ### ap_ scripts
 
-(To be described)
+A series of python classes for FITS data processing (with names beginning 
+with Ap) can be used from the unix command line using scripts (names 
+beginning with ap_).
+
+(To be described, but see [doc/iTelescope_processing.md](doc/iTelescope_processing.md)
+for a very high level summary of what is currently implemented.)
 
 # Installation Instructions
 
