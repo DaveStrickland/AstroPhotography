@@ -17,6 +17,9 @@ when I became dissatified with the clunky nature of the unit tests. I've
 been putting more effort into the FITS data reduction side of the project,
 but still have a long way to go.
 
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for a summary of what has 
+changed recently.
+
 ## Command Line Functionality
 
 The command line python program `dksraw` will provide a simple method of
@@ -34,11 +37,12 @@ from some other sources (e.g. iTelescope, an archive, etc).
 **Note** Some are partially implemented at this stage. 
 
 The command line `dksraw` application will provide the following subcommands:
-- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
+- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG/JPG/TIFF or 
         FITS file. **Working implementation with limited number of options.**
-- rgb: Convert a RAW file into an RGB PNG image. **Not yet implemented.**
-- split: Splits the input RAW file into separate 16-bit PNG files for each
-         of the R, G, B and G channel in the Bayer mask. **Implemented.**
+- rgb: Convert a RAW file into an RGB PNG/JPG/TIFF image or FITS file. 
+  **Working implementation with limited number of options.**
+- split: Splits the input RAW file into separate 16-bit PNG/JPG/TIFF/FITS 
+  files for each of the R, G, B and G channel in the Bayer mask. **Implemented.**
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
                 of several ways. **Partially implemented as part of `grey`.**
 - info: Print metadata about the input RAW file to stdout.  **Not yet implemented.**

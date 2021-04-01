@@ -2,26 +2,33 @@
 
 Release notes for versions starting at v0.2.2 and later.
 
-# 0.3
+# Version 0.3
 
 Version 0.3 is an interim release that attempts to finally provide
 the basic "required" functionality to the RAW file conversion 
-tool `dksraw`, before attention switches back to FITS file processing
-in v0.4.
+tool `dksraw`, before attention switches back to FITS file processing.
 
 ## v0.3.0 xxxx-xx-xx
 
-- FITS files can now be written by the `dksraw grey` and `dksraw split` 
-  commands. This expects you to specify file names ending in in the 
-  full `.fits` (not `.fit`).
-- The `dksraw grey` command now has a default `linear` method that performs Bayer
-  demasking and looks much better than the old `direct` method.
-- The `dksraw grey` command has a `--renormalize` option suitable for
-  generating quick-look images that fill the dynamic range of the output file.
+- FITS files can now be written by the `dksraw grey`, `dksraw rgb`,
+  and `dksraw split` commands. This expects you to specify file names 
+  ending in in the full `.fits` (not `.fit`).
+- There is a new command `dksraw rgb`, that generates 3-channel RGB
+  images from RAW files. If the output file is FITS format the red,
+  green and blue channels are written to separate 2-D image extensions
+  within the same file. They can be loaded as a single RGB image in
+  `ds9` using the command line, e.g. 
+  `ds9 -rgb -red test_rgb.fits[0] -green test_rgb.fits[1] -blue test_rgb.fits[2]`
+- The `dksraw grey` and new `dksraw rgb` commands now have a (default)
+  `linear` method for Bayer demasking and looks much better than the 
+  old `direct` method.
+- The `dksraw grey` and `dksraw rgb` commands have a `--renormalize` 
+  option suitable for generating quick-look images that fill the dynamic 
+  range of the output file.
 - RAW file EXIF metadata is now read within `RawConv`, using the python 
-  package `ExifRead`. This is less capable than a command line tool like `exiv2`.
-  A limited set of this metadata is written to FITS files (if used as 
-  output).  
+  package `ExifRead`. This is less capable than a command line tool like 
+  `exiv2`. Nevertheless a limited set of this metadata is written to 
+  FITS files (if used as output).  
 - Minor CLI improvements: 
   - Renamed `--warn` to `--loglevel` for consistency with the ap_ scripts,
     and changed how it was specified in argparse to avoid having to specify
@@ -36,10 +43,13 @@ Limitations:
 - EXIF metadata writing to graphics files formats (tiff, jpg, png etc)
   has not been successfully implemented, as there is a disconnect 
   between python packages that can read metadata from RAW file and those
-  that claim to write valid EXIF metadata to graphics file formats.
+  that claim to write valid EXIF metadata to graphics file formats
+  that I have not had time to solve.
 - Sphinx documentation still does not work.
+- We are still using `imageio` for graphics-file format output, which is
+  **very slow for formats other than TIFF**. 
 
-# 0.2
+# Version 0.2
 
 ## v0.2.4 2021-02-27
 

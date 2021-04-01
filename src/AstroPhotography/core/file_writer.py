@@ -64,10 +64,34 @@ def file_writer(out_file, data_array, exif_dict):
             im=data_array,
             format=our_format)
     elif ftype == 'fits':
-        hdu      = fits.PrimaryHDU(data_array)
-        hdu_list = fits.HDUList([hdu])
+        if ndim == 2:
+            hdu1 = fits.PrimaryHDU(data_array)
+        elif ndim == 3:
+            # Store RGB image as three separate 2-D fits images
+            # Zero'th plane as first image
+            hdu1 = fits.PrimaryHDU( data_array[:,:,0] )
+            
+        hdu_list = fits.HDUList([hdu1])
         hdr = update_fits_header_with_exif(hdu_list[0].header, exif_dict)
         hdu_list[0].header = hdr
+        
+        if ndim == 3:
+            hdu_list[0].header['FILTER'] = ('Red', 'Red channel of RGB image')
+            
+            # Green
+            hdr2 = fits.Header(hdr, copy=True)
+            hdr2['FILTER'] = ('Green', 'Green channel of RGB image')
+            hdu2 = fits.ImageHDU(data_array[:,:,1], header=hdr2)
+            hdu_list.append(hdu2)
+            
+            # Blue
+            hdr3 = fits.Header(hdr, copy=True)
+            hdr3['FILTER'] = ('Blue', 'Blue channel of RGB image')
+            hdu3 = fits.ImageHDU(data_array[:,:,2], header=hdr3)
+            hdu_list.append(hdu3)
+            
+            logger.debug('3-D data array written to FITS file as three 2-D image extensions.')
+            
         hdu_list.writeto(out_file, 
             output_verify='warn',
             overwrite=True)
@@ -125,7 +149,7 @@ def update_fits_header_with_exif(hdr, exif_dict):
     
     tnow = datetime.now().isoformat(timespec='milliseconds')
     new_hdr['HISTORY'] = f'Processed by {name} {__version__} at {tnow}'
-    new_hdr['DATE']    = (tnow, 'Date and time this FITS file was generated.')
+    new_hdr['DATE']    = (tnow, 'Date/time FITS file  generated.')
 
     exptime = None
     for kw in metadata_dict:
