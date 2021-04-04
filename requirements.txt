@@ -19,3 +19,4 @@ photutils>=0.7.2
 regions>=0.4
 sphinx-astropy
 sphinx-argparse
+ExifRead>=2.3.2     # Read RAW file exif data

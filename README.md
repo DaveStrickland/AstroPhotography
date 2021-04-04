@@ -17,6 +17,9 @@ when I became dissatified with the clunky nature of the unit tests. I've
 been putting more effort into the FITS data reduction side of the project,
 but still have a long way to go.
 
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for a summary of what has 
+changed recently.
+
 ## Command Line Functionality
 
 The command line python program `dksraw` will provide a simple method of
@@ -31,26 +34,27 @@ from some other sources (e.g. iTelescope, an archive, etc).
 
 ### dksraw
 
-**Note** Planned, only some are partially implemented at this stage. 
-See TODO.md for plan and implementation status.
+**Note** Some are partially implemented at this stage. 
 
 The command line `dksraw` application will provide the following subcommands:
-- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
-        FITS file using one of several methods. **Partially implemented.**
-- rgb: Convert a RAW file into an RGB PNG image. **Not yet implemented.**
-- hist: Calculate and plot RGB or greyscale levels from a RAW image.  **Not yet implemented.** 
-- split: Splits the input RAW file into separate 16-bit PNG files for each
-         of the R, G, B and G channel in the Bayer mask. **Implemented.**
+- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG/JPG/TIFF or 
+        FITS file. **Working implementation with limited number of options.**
+- rgb: Convert a RAW file into an RGB PNG/JPG/TIFF image or FITS file. 
+  **Working implementation with limited number of options.**
+- split: Splits the input RAW file into separate 16-bit PNG/JPG/TIFF/FITS 
+  files for each of the R, G, B and G channel in the Bayer mask. **Implemented.**
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
                 of several ways. **Partially implemented as part of `grey`.**
 - info: Print metadata about the input RAW file to stdout.  **Not yet implemented.**
-- features: Performs image segmentation on the input RAW image and outputs a
-            list of the coordinates and sizes of features thus found, along
-            with an indexed image that can be used to view them.  **Not yet implemented.**
 
 ### ap_ scripts
 
-(To be described)
+A series of python classes for FITS data processing (with names beginning 
+with Ap) can be used from the unix command line using scripts (names 
+beginning with ap_).
+
+(To be described, but see [doc/iTelescope_processing.md](doc/iTelescope_processing.md)
+for a very high level summary of what is currently implemented.)
 
 # Installation Instructions
 
@@ -107,6 +111,8 @@ python3 -m pytest --cov-report html --cov=AstroPhotography test/
 ```
 
 Build documentation:
+
+*Note* This is currently not working correctly.
 
 ```bash
     $ sphinx-build -b html doc doc/_build/html
