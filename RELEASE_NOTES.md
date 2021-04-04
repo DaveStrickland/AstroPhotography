@@ -8,7 +8,7 @@ Version 0.3 is an interim release that attempts to finally provide
 the basic "required" functionality to the RAW file conversion 
 tool `dksraw`, before attention switches back to FITS file processing.
 
-## v0.3.0 xxxx-xx-xx
+## v0.3.0 2021-04-04
 
 - FITS files can now be written by the `dksraw grey`, `dksraw rgb`,
   and `dksraw split` commands. This expects you to specify file names 
