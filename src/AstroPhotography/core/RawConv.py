@@ -91,13 +91,28 @@ class RawConv:
         self._nrows        = self._rawpy.raw_image_visible.shape[0]
         self._ncols        = self._rawpy.raw_image_visible.shape[1]
         self._color_desc   = str(self._rawpy.color_desc)
-        if self._color_desc not in self._supported_colors:
-            self._unsupported_colors
+
+        # TODO have this based on color description
         # Know that for RGBG the color indices are 0, 1, 2, 3
         self.R  = 0
         self.G1 = 1
         self.B  = 2
         self.G2 = 3
+
+        if self._color_desc not in self._supported_colors:
+            self._unsupported_colors
+
+        self._black_levels = self._rawpy.black_level_per_channel
+        self._black_subtracted = False
+        self._default_whitebalances()
+        return
+        
+    def _build_raw_channel_images(self):
+        """
+        Create color map, masks, and per-channel raw images.
+        
+        Used only by the split command.
+        """
         self._color_map  = self._rawpy.raw_colors_visible.copy()
         self._mask_r     = self._color_map == self.R
         self._mask_g1    = self._color_map == self.G1
@@ -109,9 +124,6 @@ class RawConv:
         self._rawim_b    = np.where(self._mask_b,  self._rawpy.raw_image_visible, 0)
         self._rawim_g2   = np.where(self._mask_g2, self._rawpy.raw_image_visible, 0)
 
-        self._black_levels = self._rawpy.black_level_per_channel
-        self._black_subtracted = False
-        self._default_whitebalances()
         return
 
     def _default_whitebalances(self):
@@ -421,8 +433,9 @@ class RawConv:
         else:
             logger.info(f'Generating rgb image using {luminance_method} method.')
         
-        if subtract_black:
-            self._subtract_black_levels()
+        # TODO this isn't used with linear method
+        ##if subtract_black:
+        ##    self._subtract_black_levels()
             
         wb_list = self.get_whitebalance(wb_method)
         
@@ -506,16 +519,15 @@ class RawConv:
             logger.error(err_str)
         else:
             logger.info(f'Generating greyscale image using {luminance_method} method.')
-        
-        if subtract_black:
-            self._subtract_black_levels()
-        
+                
         if 'direct' in luminance_method:
+            # In this case we do need the raw images to be built.
+            r_im, g1_im, b_im, g2_im, exif_dict = self.split(subtract_black)
+            
+            if subtract_black:
+                self._subtract_black_levels(subtract_black)
+            
             wb_list = self.get_whitebalance(wb_method)
-            r_im  = np.where(self._mask_r,  self._rawim_r,  0)
-            g1_im = np.where(self._mask_g1, self._rawim_g1, 0)
-            b_im  = np.where(self._mask_b,  self._rawim_b,  0)
-            g2_im = np.where(self._mask_g2, self._rawim_g2, 0)
             
             # Perform calculations as double
             grey_im = np.zeros(self._rawim_r.shape[0:2], dtype=np.float64)
@@ -529,7 +541,7 @@ class RawConv:
             rgb_im, exif_dict = self.rgb(luminance_method, subtract_black,
                 wb_method, False, False)
                 
-            grey_im = np.zeros(self._rawim_r.shape[0:2], dtype=np.float64)
+            grey_im = np.zeros(rgb_im.shape[0:2], dtype=np.float64)
             for idx in range(3):
                 grey_im += rgb_im[:,:,idx] * rgb_coeff[idx]
         
@@ -581,6 +593,8 @@ class RawConv:
         logger.debug('split: black_levels {}'.format( self._black_levels ))
         logger.debug('split: camera_wb    {}'.format( self._wb_camera ))
         logger.debug('split: daylight_wb  {}'.format( self._wb_daylight ))
+    
+        self._build_raw_channel_images()
     
         if subtract_black:
             self._subtract_black_levels()
