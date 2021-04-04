@@ -323,7 +323,7 @@ class RawConvTest(object):
         
         # Check split without black-level subtraction
         black = False
-        r_im, g1_im, b_im, g2_im = rawconv_tfile.split(subtract_black=black)
+        r_im, g1_im, b_im, g2_im, exif_dict = rawconv_tfile.split(subtract_black=black)
         
         if 'R' in channel:
             img = r_im
@@ -338,7 +338,7 @@ class RawConvTest(object):
         
         # Check split with black-level subtraction.
         black = True
-        r_im, g1_im, b_im, g2_im = rawconv_tfile.split(subtract_black=black)
+        r_im, g1_im, b_im, g2_im, exif_dict = rawconv_tfile.split(subtract_black=black)
         
         if 'R' in channel:
             img = r_im
