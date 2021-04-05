@@ -1,4 +1,5 @@
-""" Current version of the AstroPhotography application.
+"""
+Current version of the AstroPhotography application.
 
 This project uses the Semantic Versioning scheme in conjunction with PEP 0440:
 

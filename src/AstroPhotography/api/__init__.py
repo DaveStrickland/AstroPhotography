@@ -1,5 +1,5 @@
-""" Application commands common to all interfaces.
-
+"""
+Application commands common to all interfaces.
 """
 
 # This is just ugly, but it is how the cookiecutter package was set up.
