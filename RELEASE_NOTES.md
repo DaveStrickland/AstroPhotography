@@ -2,11 +2,29 @@
 
 Release notes for versions starting at v0.2.2 and later.
 
+# Version 0.4
+
+Version 0.4 returns to issues related to processing of FITS images,
+in particular from iTelescope.
+
+## v0.4.0 2021-05-22
+
+- Added ap_imarith.py and ApImArith to supply a native way of performing
+  simple arithmetical operations on one or two FITS files.
+- Added example `bash` driver scripts that can process multiple images
+  from the observation of a single target. They're somewhat clunky to 
+  set up, so they're only provided as an example.
+  
+Limitations:
+- ap_imarith.py and ApImArith assume the data is always the first 
+  extension (Primary HDU) of the FITS file. This does not allow for 
+  multi-extension files (MEF).
+
 # Version 0.3
 
 Version 0.3 is an interim release that attempts to finally provide
 the basic "required" functionality to the RAW file conversion 
-tool `dksraw`, before attention switches back to FITS file processing.
+tool `dksraw`, before attention switches back to FITS file processing.  
 
 ## v0.3.0 2021-04-04
 
