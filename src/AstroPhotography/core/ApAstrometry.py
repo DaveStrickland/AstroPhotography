@@ -42,8 +42,10 @@ from astropy.table import QTable, Table
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import Angle
 from astropy import units as u
-
+from astropy import log as aplog
+aplog.setLevel('ERROR')
 from astroquery.astrometry_net import AstrometryNet
+aplog.setLevel('INFO')
 import astroquery.exceptions
     
 class ApAstrometry:
@@ -354,7 +356,9 @@ class ApAstrometry:
         wcs           = {}
         image_width   = cols
         image_height  = rows
+        aplog.setLevel('ERROR')
         ast           = AstrometryNet()
+        aplog.setLevel('INFO')
         ast.api_key   = astnetkey
         try_again     = True
         submission_id = None

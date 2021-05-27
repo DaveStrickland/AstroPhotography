@@ -27,6 +27,7 @@
 # 2020-12-09 dks : Modified for use with ApCalibrate calibrated files.
 #                  Add quality summary at end.
 # 2021-02-21 dks : Make sleep between calls a variable.
+# 2021-05-26 dks : Write log file locations to screen.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -202,6 +203,7 @@ for p_cal_file in $(find . -name "cal-*fits"); do
                 echo "    Star detection completed successfully at" $(date)
             fi
             mv $p_srclog $p_srclog_path
+            echo "      Log file written to $p_srclog_path"
             
             # end if whether srclist already exists
         fi
@@ -234,7 +236,8 @@ for p_cal_file in $(find . -name "cal-*fits"); do
                 echo "    Sleeping for $p_sleep seconds..."
                 sleep $p_sleep
             fi
-            mv $p_navlog $p_navlog_path
+            mv $p_navlog $
+            echo "      Log file written to $p_navlog_path"
                 
             # end if whether navigated image exists
         fi
