@@ -7,6 +7,15 @@ Release notes for versions starting at v0.2.2 and later.
 Version 0.4 returns to issues related to processing of FITS images,
 in particular from iTelescope.
 
+## v0.4.1 2021-xx-xx
+
+- Added ap_measure_background.py and ApMeasureBackground.py to resolve
+  issue #8. These measure and output an image of the large scale 
+  background in an image that can be used to correct for imperfect 
+  bias/dark/flat calibration or moon illumination. 
+- Big changes in the ApFindStars interface to support it being used by
+  external classes instead of doing all I/O on files.
+
 ## v0.4.0 2021-05-22
 
 - Added ap_imarith.py and ApImArith to supply a native way of performing
