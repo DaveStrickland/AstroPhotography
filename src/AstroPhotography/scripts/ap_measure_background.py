@@ -75,7 +75,7 @@ def main(args=None):
     
     measurebg = ap.ApMeasureBackground(p_loglevel)
     measurebg.process_files(p_input, p_srclist)
-    measurebg.write_bgfile(p_outputbg)
+    measurebg.write_bgimage(p_outputbg)
     return 0
 
 if __name__ == '__main__':
