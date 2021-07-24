@@ -20,14 +20,15 @@
 # 2021-01-16 dks : Add --fixcosmic to ap_calibrate call.
 # 2021-02-21 dks : Make target a command line argument.
 # 2021-02-27 dks : Add 2021-02-14 calibration, --dark_still_biased CLI flag.
+# 2021-06-07 dks : Add option to calculate and subtract the sky background.
 #
 #-----------------------------------------------------------------------
 # Initialization
 
-p_usage="$0 [target_name] [noclean|clean]"
+p_usage="$0 [target_name] [skybg|noskybg] [noclean|clean]"
 
-if [ $# -lt 2 ]; then
-    echo "Error: Expecting at least 1 command line argument(s), got $#"
+if [ $# -lt 3 ]; then
+    echo "Error: Expecting at least 2 command line arguments, got $#"
     echo "  usage: $p_usage"
     exit 1
 fi
@@ -38,11 +39,28 @@ fi
 p_targ="$1"
 echo "Processing data for target: $p_targ"
 
-# Clean run, remove existing outputs before running again.
+# Whether to calculate and subtract an estimate of the "sky" background.
+# This may also be necessary when the bias/dark/flat correction leaves
+# artifacts in the images.
 if [ -z $2 ]; then
+    echo "Error, specify one of skybg or noskybg."
+    echo "  usage: $p_usage"
+    exit 1
+else
+    if [[ $2 == "skybg" ]]; then
+        echo "Sky background will be calculated and subtracted from the images."
+        p_dosky=1
+    else
+        echo "No sky background estimation will be calculated."
+        p_dosky=0
+    fi
+fi
+    
+# Clean run, remove existing outputs before running again.
+if [ -z $3 ]; then
     p_clean=0
 else
-    if [[ "$2" == "clean" ]]; then
+    if [[ "$3" == "clean" ]]; then
         p_clean=1
     else
         p_clean=0
@@ -65,9 +83,11 @@ source ~/venv/astro/bin/activate
 # Scripts that do the work.
 p_apcal="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_calibrate.py"
 p_apmeta="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_add_metadata.py"
+p_apskybg="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_measure_background.py"
+p_apimarith="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_imarith.py"
 echo "Checking that scripts exist..." | tee -a $p_log
 p_err=0
-for p_script in $p_apcal $p_apmeta; do
+for p_script in $p_apcal $p_apmeta $p_apskybg $p_apimarith; do
     if [ -e $p_script ]; then
         echo "  Found $p_script" | tee -a $p_log
     else
@@ -267,6 +287,11 @@ for filter in ${p_filter_arr[@]}; do
                 p_status=$p_add_status
             fi
         fi 
+
+        # Sky background estimation and subtraction.
+        if [ $p_dosky ]; then
+            # TODO...
+        fi
 
         if [ $p_status -eq 0 ]; then
             ((p_nproc++))
