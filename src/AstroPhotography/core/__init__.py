@@ -15,6 +15,7 @@ from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 from .ApAstrometry import ApAstrometry as ApAstrometry
 from .file_writer import file_writer as file_writer
 from .ApImArith import ApImArith as ApImArith
+from .ApMeasureBackground import ApMeasureBackground as ApMeasureBackground 
 
 __all__ = ["RawConv", 
     "file_writer", 
@@ -27,4 +28,5 @@ __all__ = ["RawConv",
     "ApMeasureStars",
     "ApQualitySummarizer",
     "ApAstrometry",
-    "ApImArith"]
+    "ApImArith",
+    "ApMeasureBackground"]
