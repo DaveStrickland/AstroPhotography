@@ -7,7 +7,7 @@ Release notes for versions starting at v0.2.2 and later.
 Version 0.4 returns to issues related to processing of FITS images,
 in particular from iTelescope.
 
-## v0.4.1 2021-xx-xx
+## v0.4.1 2021-07-24
 
 - Updated the requirements.txt file with long term aim of supporting python39.
 - Added ap_measure_background.py and ApMeasureBackground.py to resolve
