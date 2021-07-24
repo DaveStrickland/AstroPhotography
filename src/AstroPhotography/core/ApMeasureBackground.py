@@ -61,7 +61,7 @@ class ApMeasureBackground:
         self._loglevel  = loglevel
         
         # Standard constants
-        self._boxsize        = (64, 64)
+        self._boxsize        = (48, 48)
         self._filtersize     = (3,3)
         self._exclude_pctile = 10.0
         self._nsigma         = 3.0

@@ -9,6 +9,7 @@ in particular from iTelescope.
 
 ## v0.4.1 2021-xx-xx
 
+- Updated the requirements.txt file with long term aim of supporting python39.
 - Added ap_measure_background.py and ApMeasureBackground.py to resolve
   issue #8. These measure and output an image of the large scale 
   background in an image that can be used to correct for imperfect 
