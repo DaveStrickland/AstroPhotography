@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #-----------------------------------------------------------------------
 # 
-# calibrate_all.sh [target] [noclean|clean]
+# calibrate_all.sh [target] [itelescope] [skybg|noskybg] [noclean|clean]
 # 
 # Perform basic calibration on a set of iTelescope files using
 # ap_calibrate.py
@@ -21,11 +21,15 @@
 # 2021-02-21 dks : Make target a command line argument.
 # 2021-02-27 dks : Add 2021-02-14 calibration, --dark_still_biased CLI flag.
 # 2021-06-07 dks : Add option to calculate and subtract the sky background.
+# 2021-07-22 dks : Work on better supporting other iTelescope telescopes.
 #
 #-----------------------------------------------------------------------
 # Initialization
 
-p_usage="$0 [target_name] [skybg|noskybg] [noclean|clean]"
+# iTelescope I have calibration data for.
+p_supported=("T05" "T09" "T14" "T16" "T20" "T32" )
+
+p_usage="$0 [target_name] [T05|T20] [skybg|noskybg] [noclean|clean]"
 
 if [ $# -lt 3 ]; then
     echo "Error: Expecting at least 2 command line arguments, got $#"
@@ -39,15 +43,27 @@ fi
 p_targ="$1"
 echo "Processing data for target: $p_targ"
 
+# Name of the iTelescope we're processing. This is used to find the original
+# data AND the calibration files.
+# Note that we've switched to iTelescope's recent mode of having the telescope
+# number in uppercase for both data and calibration.
+p_telescope="$2"
+# Check the telescope is in the list we expect.
+if [[ ! " ${p_supported[@]} " =~ " ${p_telescope} " ]]; then
+    echo "Error, telescope $p_telescope is not one of the expect/supported telescopes."
+    echo "  Supported telescopes: ${p_supported[@]}"
+    exit 1
+fi
+
 # Whether to calculate and subtract an estimate of the "sky" background.
 # This may also be necessary when the bias/dark/flat correction leaves
 # artifacts in the images.
-if [ -z $2 ]; then
+if [ -z $3 ]; then
     echo "Error, specify one of skybg or noskybg."
     echo "  usage: $p_usage"
     exit 1
 else
-    if [[ $2 == "skybg" ]]; then
+    if [[ $3 == "skybg" ]]; then
         echo "Sky background will be calculated and subtracted from the images."
         p_dosky=1
     else
@@ -57,10 +73,10 @@ else
 fi
     
 # Clean run, remove existing outputs before running again.
-if [ -z $3 ]; then
+if [ -z $4 ]; then
     p_clean=0
 else
-    if [[ "$3" == "clean" ]]; then
+    if [[ "$4" == "clean" ]]; then
         p_clean=1
     else
         p_clean=0
@@ -108,9 +124,22 @@ p_filter_arr=("Red" "Green" "Blue" "Ha" "OIII" "SII")
 
 # Calibration files to use
 p_itel=/Users/dks/Tmp/iTelescopeScratch
-p_data_dir=$p_itel/t05/$p_targ/
-p_cal_dir=$p_itel/calibration-library/T05/Masters
+p_data_dir=$p_itel/$p_telescope/$p_targ/
+p_cal_dir=$p_itel/calibration-library/$p_telescope/Masters
 declare -A p_flat_arr
+
+echo "Checking that base-level data and calibration directories exist:" | tee -a $p_log
+for p_dir in $p_data_dir $p_cal_dir; do
+    if [ -d $p_dir ]; then
+        echo "  Directory $p_dir found." | tee -a $p_log
+    else
+        echo "  Error, directory $p_dir not found." | tee -a $p_log
+        p_err=1
+    fi
+done
+if [ $p_err -gt 0 ]; then
+    exit 1
+fi
 
 # The following is observation specific and doesn't work very well
 # in this form in a shell script.
@@ -122,11 +151,18 @@ elif [[ $p_targ == "M82" ]]; then
     p_cal_to_use="2021-02-14"
 elif [[ $p_targ == "M81" ]]; then
     p_cal_to_use="2021-02-14"
+elif [[ $p_targ == "CygnusLoop_x1_y1" ]]; then
+    p_cal_to_use="2020-04"
+elif [[ $p_targ == "CygnusLoop_x1_y2" ]]; then
+    p_cal_to_use="2020-04"
 else
     echo "Error, calibration for target $p_targ is not defined."
     exit 1
 fi
     
+# Argh. This is fugly code that isn't going to work well with 
+# different telescopes... We really need some auto-discovery style
+# code, e.g. using CCDPROC.
 echo "Using $p_cal_to_use calibration with $p_targ"
 
 if [[ $p_cal_to_use == "2020-03" ]]; then
