@@ -32,5 +32,43 @@ Notes:
  - (*) Temporarily using an external non-python-based tool. 
  - (**) A temporary bash implementation.
 
+## Data Preparation
+
+After downloading the new data (or calibration data) from the iTelescope
+FTP site you should run `ap_fix_itelescope_dirs.sh` to correct the
+directory permissions and remove any spaces from the directory names.
+
+### Observation Data
+
+To unpack the data, for example for a new `T05` observation of `MyTarget`
+on `yyyymmdd`, unpack the zip files while also removing problematic space
+from file names (the following commands assume the `bash` shell):
+
+```bash
+cd T05/MyTarget/yyyymmdd/
+bash $PATH_TO_AP/src/AstroPhotography/scripts/ap_rename_files_with_spaces.sh
+for file in *.zip; do unzip $file; echo ""; done
+bash $PATH_TO_AP/src/AstroPhotography/scripts/ap_rename_files_with_spaces.sh
+rm *.zip
+```
+
+### Calibration Data Preparation
+
+A few addition steps must be taken when downloading new calibration
+data from the iTelescope website:
+
+- Fix directory permissions using `ap_fix_itelescope_dirs.sh`
+- Remove spaces from calibration file names using `ap_rename_files_with_spaces.sh`
+- Generate an initial master bad pixel file from the master dark file
+  using `ap_find_badpixel.py`.
+- After processing real data with the initial master bad pixel file
+  you will likely find additional bad pixels and/or columns that arise
+  at dates or exposures different from those used for the calibration
+  files. Careful inspection of the processed observation data (e.g. with
+  `ds9`) can be used generate a user-defined bad pixel file (in yaml 
+  format) which can then be used with `ap_find_badpixel.py` to generate
+  an updated master bad pixel file. (The observation data can then be 
+  reprocessed to remove the user-identified bad-pixels and columns.)
+
 ## Pipeline Processing
 
