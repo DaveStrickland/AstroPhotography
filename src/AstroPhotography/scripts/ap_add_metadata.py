@@ -26,11 +26,13 @@
 #  MA 02110-1301, USA.
 #  
 #  2020-12-16 dks : Initial skeleton.
+#  2021-08-12 dks : Updated documentation regarding name resolution.
 
 import argparse
 import sys
 import logging
 import AstroPhotography as ap
+import astropy.coordinates.name_resolve
 
 def command_line_opts(argv):
     """Parse command line arguments.
@@ -41,7 +43,9 @@ def command_line_opts(argv):
         description=('Adds metadata to the FITS header of a calibrated fits file.'
         ' Currently this is written to use the information in iTelescope'
         ' file names, plus information derived from that using astropy.'
-        ' In the longer term other ways of inputting the data could be added.'))
+        ' In the longer term other ways of inputting the data could be added.'
+        ' The target name must resolve correctly using the Object search from'
+        ' http://cdsweb.u-strasbg.fr/ or processing will fail.'))
     
     # Required
     parser.add_argument('fitsimage',
@@ -56,7 +60,10 @@ def command_line_opts(argv):
         metavar='MODE',
         default=p_mode,
         help=('Mode of operation. If "iTelescope" the telescope, target,'
-        ', and observer will be parsed from the file name.'))
+        ' and observer will be parsed from the file name.'
+        ' If the target name parsed from the iTelescope files contains'
+        ' mosaic-like values, e.g. CygnusLoop x1 y1, then the x* and y*'
+        ' parts will be dropped prior to attempted name resolution.'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
@@ -69,14 +76,20 @@ def main(args=None):
     p_fitsimg    = p_args.fitsimage
     p_mode       = p_args.mode
     p_loglevel   = p_args.loglevel
+    retcode      = 0
     
     # Create an instance of the calibrator.
     meta_adder = ap.ApAddMetadata(p_loglevel)
     
     # Update the image.
-    meta_adder.process(p_fitsimg, p_mode)
+    try:
+        meta_adder.process(p_fitsimg, p_mode)
+    except astropy.coordinates.name_resolve.NameResolveError as err:
+        retcode = 1
+        # TODO: Have logger pick up log format used in rest of AstroPhotography?
+        logging.getLogger(__name__).error(f"Name resolution failed: {err}")
     
-    return 0
+    return retcode
 
 if __name__ == '__main__':
     try:
