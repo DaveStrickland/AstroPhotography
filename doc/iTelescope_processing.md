@@ -59,6 +59,8 @@ data from the iTelescope website:
 
 - Fix directory permissions using `ap_fix_itelescope_dirs.sh`
 - Remove spaces from calibration file names using `ap_rename_files_with_spaces.sh`
+- Determine whether the master dark files have had the bias values
+  subtracted or not.
 - Generate an initial master bad pixel file from the master dark file
   using `ap_find_badpixel.py`.
 - After processing real data with the initial master bad pixel file
@@ -69,6 +71,25 @@ data from the iTelescope website:
   format) which can then be used with `ap_find_badpixel.py` to generate
   an updated master bad pixel file. (The observation data can then be 
   reprocessed to remove the user-identified bad-pixels and columns.)
+
+#### Generating An Initial Master Bad Pixel File
+
+The following example demonstates how to generate an initial set of bad
+pixel files. In this case for iTelescope T20 with the 2020-04 master files.
+
+```bash
+cd calibration-library/T20/Masters/Darks/2020-04/
+python3 ~/git/AstroPhotography/src/AstroPhotography/scripts/ap_find_badpix.py -l DEBUG \
+    Master_Dark_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit \
+    Master_Badpix_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit 
+python3 ~/git/AstroPhotography/src/AstroPhotography/scripts/ap_find_badpix.py -l DEBUG \
+    Master_Dark_2_2004x1336_Bin2x2_Temp-15C_ExpTime900s.fit \
+    Master_Badpix_2_2004x1336_Bin2x2_Temp-15C_ExpTime900s.fit 
+```
+
+Comparison of the resulting bad pixel files to the darks themselves show
+that the default bad pixel detection works well on the isolated high data
+value bad pixels, but misses some potentially problematic bad columns.
 
 ## Pipeline Processing
 

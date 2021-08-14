@@ -27,6 +27,7 @@
 #  
 #  2020-12-16 dks : Initial skeleton.
 #  2021-08-12 dks : Updated documentation regarding name resolution.
+#                   Added --target option to match ApAddMetadata.py
 
 import argparse
 import sys
@@ -45,7 +46,7 @@ def command_line_opts(argv):
         ' file names, plus information derived from that using astropy.'
         ' In the longer term other ways of inputting the data could be added.'
         ' The target name must resolve correctly using the Object search from'
-        ' http://cdsweb.u-strasbg.fr/ or processing will fail.'))
+        ' http://simbad.u-strasbg.fr/simbad/sim-fid or processing will fail.'))
     
     # Required
     parser.add_argument('fitsimage',
@@ -64,6 +65,14 @@ def command_line_opts(argv):
         ' If the target name parsed from the iTelescope files contains'
         ' mosaic-like values, e.g. CygnusLoop x1 y1, then the x* and y*'
         ' parts will be dropped prior to attempted name resolution.'))
+    parser.add_argument('--target',
+        metavar='TARGET NAME STRING',
+        default=None,
+        help=('A target name to be used for name resolution in cases'
+        ' where the file name based target name fails or will fail.'
+        ' This is a string so use quotation marks to enclose names'
+        ' with spaces. If specified this name is used irrespective of'
+        ' whether the file name based target name would work or not.'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
@@ -75,6 +84,7 @@ def main(args=None):
     p_args       = command_line_opts(args)
     p_fitsimg    = p_args.fitsimage
     p_mode       = p_args.mode
+    p_target     = p_args.target
     p_loglevel   = p_args.loglevel
     retcode      = 0
     
@@ -83,7 +93,7 @@ def main(args=None):
     
     # Update the image.
     try:
-        meta_adder.process(p_fitsimg, p_mode)
+        meta_adder.process(p_fitsimg, p_mode, p_target)
     except astropy.coordinates.name_resolve.NameResolveError as err:
         retcode = 1
         # TODO: Have logger pick up log format used in rest of AstroPhotography?

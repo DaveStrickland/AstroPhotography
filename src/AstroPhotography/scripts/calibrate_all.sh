@@ -229,32 +229,51 @@ elif [[ $p_targ == "M81" ]]; then
     p_flat_arr["V"]="Master_Flat_V_1_V_2184x1472_Bin1x1_Temp-10C_ExpTime6s.fit"
 elif [[ $p_targ == "CygnusLoop_x1_y1" ]]; then
     p_cal_to_use="2020-04"
-    
-    p_cal_date=2021-02-14
+    p_true_target_name="Cygnus Loop"
+    p_cal_date=2020-04
     
     # Masters
-    p_mdark=$p_cal_dir/Darks/$p_cal_date/Master_Dark_1_2184x1472_Bin1x1_Temp-10C_ExpTime900s.fit
-    p_mbadp=$p_cal_dir/Darks/$p_cal_date/Master_Badpix_1_2184x1472_Bin1x1_Temp-10C_ExpTime900s.fit
-    p_mbias=$p_cal_dir/Bias/$p_cal_date/Master_Bias_1_2184x1472_Bin1x1_Temp-10C_ExpTime0ms.fit
-    p_dark_still_biased=""
+    p_mdark=$p_cal_dir/Darks/$p_cal_date/Master_Dark_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit
+    p_mbadp=$p_cal_dir/Darks/$p_cal_date/Master_Badpix_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit
+    p_mbias=$p_cal_dir/Bias/$p_cal_date/Master_Bias_1_4008x2672_Bin1x1_Temp-15C_ExpTime0ms.fit
+    p_dark_still_biased="--dark_still_biased"
     
     # The flats are filter-specific. The associative array contains the file names,
-    # but not the path. These names are true for 2020-03, but may not work for
-    # other dates.                                                                   
+    # but not the path.                                                              
     p_flat_dir=$p_cal_dir/Flats/$p_cal_date
     
-    p_flat_arr["B"]="Master_Flat_B_1_B_2184x1472_Bin1x1_Temp-10C_ExpTime14s.fit"
-    p_flat_arr["I"]="Master_Flat_I_1_I_2184x1472_Bin1x1_Temp-10C_ExpTime22s.fit"
-    p_flat_arr["Blue"]="Master_Flat_Blue_1_Blue_2184x1472_Bin1x1_Temp-10C_ExpTime6s.fit"
-    p_flat_arr["OIII"]="Master_Flat_OIII_1_OIII_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
-    p_flat_arr["Clear"]="Master_Flat_Clear_1_Clear_2184x1472_Bin1x1_Temp-10C_ExpTime4s.fit"
-    p_flat_arr["Red"]="Master_Flat_Red_1_Red_2184x1472_Bin1x1_Temp-10C_ExpTime4s.fit"
-    p_flat_arr["Green"]="Master_Flat_Green_1_Green_2184x1472_Bin1x1_Temp-10C_ExpTime5s.fit"
-    p_flat_arr["SII"]="Master_Flat_SII_1_SII_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
-    p_flat_arr["Ha"]="Master_Flat_Ha_1_Ha_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
-    p_flat_arr["V"]="Master_Flat_V_1_V_2184x1472_Bin1x1_Temp-10C_ExpTime6s.fit"
+    p_flat_arr["V"]="Master_Flat_V_1_V_4008x2672_Bin1x1_Temp-15C_ExpTime22s.fit"
+    p_flat_arr["Blue"]="Master_Flat_Blue_1_Blue_4008x2672_Bin1x1_Temp-15C_ExpTime25s.fit"
+    p_flat_arr["OIII"]="Master_Flat_OIII_1_OIII_4008x2672_Bin1x1_Temp-15C_ExpTime4s.fit"
+    p_flat_arr["Red"]="Master_Flat_Red_1_Red_4008x2672_Bin1x1_Temp-15C_ExpTime9s.fit"
+    p_flat_arr["Green"]="Master_Flat_Green_1_Green_4008x2672_Bin1x1_Temp-15C_ExpTime81s.fit"
+    p_flat_arr["SII"]="Master_Flat_SII_1_SII_4008x2672_Bin1x1_Temp-15C_ExpTime98s.fit"
+    p_flat_arr["Ha"]="Master_Flat_Ha_1_Ha_4008x2672_Bin1x1_Temp-15C_ExpTime46s.fit"
+    p_flat_arr["Luminance"]="Master_Flat_Luminance_1_Luminance_4008x2672_Bin1x1_Temp-15C_ExpTime9s.fit"
 elif [[ $p_targ == "CygnusLoop_x1_y2" ]]; then
     p_cal_to_use="2020-04"
+    p_true_target_name="Cygnus Loop"
+    p_cal_date=2020-04
+    
+    # Masters
+    p_mdark=$p_cal_dir/Darks/$p_cal_date/Master_Dark_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit
+    p_mbadp=$p_cal_dir/Darks/$p_cal_date/Master_Badpix_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit
+    p_mbias=$p_cal_dir/Bias/$p_cal_date/Master_Bias_1_4008x2672_Bin1x1_Temp-15C_ExpTime0ms.fit
+    p_dark_still_biased="--dark_still_biased"
+    
+    # The flats are filter-specific. The associative array contains the file names,
+    # but not the path.                                                              
+    p_flat_dir=$p_cal_dir/Flats/$p_cal_date
+    
+    p_flat_arr["V"]="Master_Flat_V_1_V_4008x2672_Bin1x1_Temp-15C_ExpTime22s.fit"
+    p_flat_arr["Blue"]="Master_Flat_Blue_1_Blue_4008x2672_Bin1x1_Temp-15C_ExpTime25s.fit"
+    p_flat_arr["OIII"]="Master_Flat_OIII_1_OIII_4008x2672_Bin1x1_Temp-15C_ExpTime4s.fit"
+    p_flat_arr["Red"]="Master_Flat_Red_1_Red_4008x2672_Bin1x1_Temp-15C_ExpTime9s.fit"
+    p_flat_arr["Green"]="Master_Flat_Green_1_Green_4008x2672_Bin1x1_Temp-15C_ExpTime81s.fit"
+    p_flat_arr["SII"]="Master_Flat_SII_1_SII_4008x2672_Bin1x1_Temp-15C_ExpTime98s.fit"
+    p_flat_arr["Ha"]="Master_Flat_Ha_1_Ha_4008x2672_Bin1x1_Temp-15C_ExpTime46s.fit"
+    p_flat_arr["Luminance"]="Master_Flat_Luminance_1_Luminance_4008x2672_Bin1x1_Temp-15C_ExpTime9s.fit"
+
 else
     echo "Error, calibration for target $p_targ is not defined."
     exit 1
@@ -362,16 +381,28 @@ for filter in ${p_filter_arr[@]}; do
 
         # Run ap_add_metadata.py
         if [ $p_status -eq 0 ]; then
-            $p_apmeta $p_cal_file --loglevel=DEBUG  &>> $p_log_file
-            p_add_status=$?
+            # Check whether p_true_target_name is set, in which case
+            # we know that file name resolution will fail.
+            if [ -n "$p_true_target_name" ]; then
+                $p_apmeta $p_cal_file --loglevel=DEBUG \
+                    --target="$p_true_target_name" &>> $p_log_file
+                p_add_status=$?
+            else
+                # Use file name based target name
+                $p_apmeta $p_cal_file --loglevel=DEBUG &>> $p_log_file
+                p_add_status=$?
+            fi
+            
             if [ $p_add_status -ne 0 ]; then
                 p_status=$p_add_status
             fi
         fi 
 
         # Sky background estimation and subtraction.
-        if [ $p_dosky ]; then
-            # TODO...
+        if [ $p_dosky -eq 1 ]; then
+            # TODO.
+            echo "Sky background estimation/subtraction yet to be implemented!"
+            exit 10
         fi
 
         if [ $p_status -eq 0 ]; then

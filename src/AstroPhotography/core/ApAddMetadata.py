@@ -3,6 +3,9 @@
 
 # 2020-12-16 dks : Initial implementation.
 # 2020-12-20 dks : Working version.
+# 2021-08-14 dks : Add capabilty to remove Telescopius mosaic suffixes
+#                  and also accept a user-supplied target name for name
+#                  resolution
 
 import sys
 import logging
@@ -10,6 +13,7 @@ from pathlib import Path
 import math
 import time
 from datetime import datetime, timezone
+import re
 
 import numpy as np
 
@@ -24,11 +28,29 @@ from astroplan import FixedTarget
 from .. import __version__
 
 class ApAddMetadata:
-    """Adds metadata to the FITS header of a calibrated fits file.
+    """
+    Adds metadata to the FITS header of calibrated fits files.
     
     Currently this is written to use the information in iTelescope
     file names, plus information derived from that using astropy.
-    In the longer term other ways of inputting the data could be added.
+    Successful processing depends on successful target name resolution. 
+    
+    In cases where it is known that the target name in the FITS file
+    name will fail CDS/Simbad name resolution the user may supply the
+    target name as a string.
+    
+    You can check target name resolution at http://simbad.u-strasbg.fr/simbad/sim-fid
+    
+    Mosaic pointings, particularly those planned using Telescopius, often
+    append the sub-pointing or field identifier as a predictable suffix 
+    that can cause name resolution to fail. To avoid having to specify 
+    the target name by hand this class will attempt to automatically 
+    detect such cases and remove the suffix.
+    
+    For example the first field of a set of mosaic pointing of the 
+    Cygnus Loop might have a file name including `CygnusLoop_x1_y1.`
+    The `x* y*` suffix will be stripped so that only `CygnusLoop` 
+    is sent to CDS/Simbad for name resolution.
     """
     
     def __init__(self,
@@ -176,8 +198,9 @@ class ApAddMetadata:
         
         
     def _parse_itelescope_filename(self, filename):
-        """Extract the telescope name, observer, and target from an
-           iTelescope-generated FITS file name.
+        """
+        Extract the telescope name, observer, and target from an
+        iTelescope-generated FITS file name.
            
         The input file name is expected to be of similar form to the
         raw iTelescope files, e.g. 
@@ -185,7 +208,9 @@ class ApAddMetadata:
         In particular dashes (`-`) are used as a field separator, and there
         is only a single field before the telescope string. In this
         particular case this function will return telescope=T05,
-        observer=davestrickland, and target=NGC_6888. 
+        observer=davestrickland, and target=NGC_6888.
+        
+        :param filename: File name string to process. 
         """
         
         split_list = filename.split('-')
@@ -195,6 +220,16 @@ class ApAddMetadata:
             observer   = split_list[2]
             # Replace underscores with spaces.
             target     = split_list[3].replace('_', ' ')
+            
+            # Check if target contains a Telescopius-like mosaic suffix
+            # of the form '* x\d+ y\d+', in which case we want to strip
+            # the trailing x and y parts.
+            mosaic_re = re.compile(' x\d+ y\d+')
+            mosaic_check = mosaic_re.search(target)
+            if mosaic_check:
+                # Strip off the target part.
+                self._logger.debug(f'Mosaic suffix pattern found in file-based target name [{target}]')
+                target = target[0:mosaic_check.start()]
         else:
             err_msg = (f'Error, splitting the file name {filename}'
             f' only generated {num_fields} fields, expecting > 3 fields.'
@@ -258,8 +293,9 @@ class ApAddMetadata:
         self._logger.info(f'Finished updating FITS header of {fitsfile}')
         return
     
-    def process(self, fitsfile, mode):
-        """Adds or updates FITS header keywords in the name FITS file.
+    def process(self, fitsfile, mode, user_target_name=None):
+        """
+        Adds or updates FITS header keywords in the specified FITS file.
         
         This function generates or populates the values of FITS header
         keywords that are required by ApFindStars, ApAstrometry and
@@ -273,6 +309,9 @@ class ApAddMetadata:
         
         :param fitsfile: Path/name of the FITS file to be modified.
         :param mode: Mode. Must be one of the modes specified above.
+        :param user_target_name: If specified this string will be used
+          for target name and coordinate resolution instead of the being
+          parsed from the FITS file name.
         """
         
         self._logger.info(f'Adding metadata to {fitsfile}, mode={mode}.')
@@ -287,6 +326,11 @@ class ApAddMetadata:
         target        = None
         if 'iTelescope' in mode:
             telescope_str, observer_str, target_str = self._parse_itelescope_filename(fitsfile)
+            
+            if user_target_name is not None:
+                self._logger.debug(f'User specified target name [{user_target_name}] will be used instead of filename derived target name [{target_str}].')
+                target_str = user_target_name
+                
             self._logger.info(f'Telescope={telescope_str}, observer={observer_str}, and target={target_str}.')
             site          = self._get_itelescope_site(telescope_str)
             target        = FixedTarget.from_name(target_str)
