@@ -81,6 +81,34 @@ def main(args=None):
     p_loglevel   = p_args.loglevel
     retcode      = 0
         
+    # Create an instance of the ApAutoBadcols.
+    auto_badcols = ap.ApAutoBadcols(p_loglevel)
+    
+    # Process based on a file
+    badcols, badrows = auto_badcols.process_fits(p_fitsimg, 
+        p_sigma, 
+        p_window)
+    # TODO output to STDOUT in yaml-like format.
+    print(f'# Auto bad columns from {p_fitsimg}, sigma={p_sigma}, window_len={p_window}')
+    if badcols is not None:
+        if len(badcols) > 0:
+            print('bad_columns:')
+            for idx in range(len(badcols)):
+                print(f'- {badcols[idx]:d}')
+        else:
+            print('bad_columns: {}') # show it is empty
+    else:
+        print('# No bad columns detected.')
+    if badrows is not None:
+        if len(badrows) > 0:
+            print('bad_rows:')
+            for idx in range(len(badrows)):
+                print(f'- {badrows[idx]:d}')
+        else:
+            print('bad_rows: {}')   # show it is empty
+    else:
+        print('# No bad rows detected.')
+            
     return retcode
 
 if __name__ == '__main__':
