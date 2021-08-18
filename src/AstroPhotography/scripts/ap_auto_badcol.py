@@ -50,7 +50,7 @@ def command_line_opts(argv):
         ' The image data is assumed to be in the primary extension of the FITS file.'))
         
     # Optional
-    p_sigma      = 3.0
+    p_sigma      = 5.0
     p_window_len = 11
 
     parser.add_argument('--sigma',
@@ -92,18 +92,24 @@ def main(args=None):
     print(f'# Auto bad columns from {p_fitsimg}, sigma={p_sigma}, window_len={p_window}')
     if badcols is not None:
         if len(badcols) > 0:
+            # Add one to get FITS-like indexing
+            badcols = badcols + 1
+
             print('bad_columns:')
-            for idx in range(len(badcols)):
-                print(f'- {badcols[idx]:d}')
+            for val in badcols:
+                print(f'- {val:d}')
         else:
             print('bad_columns: {}') # show it is empty
     else:
         print('# No bad columns detected.')
     if badrows is not None:
         if len(badrows) > 0:
+            # Add one to get FITS-like indexing
+            badrows = badrows + 1
+
             print('bad_rows:')
-            for idx in range(len(badrows)):
-                print(f'- {badrows[idx]:d}')
+            for val in badrows:
+                print(f'- {val:d}')
         else:
             print('bad_rows: {}')   # show it is empty
     else:

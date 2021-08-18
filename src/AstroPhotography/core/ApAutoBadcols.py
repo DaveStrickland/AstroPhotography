@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from astropy.io import fits
+from astropy.stats import sigma_clipped_stats
 
 from .. import __version__
 
@@ -137,10 +138,37 @@ class ApAutoBadcols:
         
         return ext_data, ext_hdr
     
+    def _sliding_stats_1d(self, idata, window_len):
+        """
+        Simple brute force 1-dimensional sliding window statistics
+        
+        :param data: 1-dimensional array
+        :param window_len: Integer window length, must be positive odd number
+          e.g. 11.
+        """
+        hw        = int((window_len - 1)/2)
+        nvals     = idata.size
+        mean_data = np.zeros(nvals)
+        std_data  = np.zeros(nvals)
+        
+        for idx in range(nvals):
+            min_idx    = max(0, idx - hw)          # inclusive
+            max_idx    = min(nvals, idx + hw +1)   # exclusive
+            local_data = idata[min_idx:max_idx]
+            
+            # Use sigma clipping, because even a single discrepant
+            # value can through a normal standard deviation off.
+            cmean, cmedian, cstd = sigma_clipped_stats(local_data)
+            
+            mean_data[idx] = cmean
+            std_data[idx]  = cstd
+        return mean_data, std_data
+    
     def process_fits(self, fitsimg, nsigma=None, window_len=None):
         """
         Identify bad columns and rows in a numpy 2-dimensional array,
-        returning lists of the (zero-based) bad column and row indices.
+        returning a 1-d array of the (zero-based) bad column and row
+        indices, or None if there are none.
         """
         ext_num = 0
         idata, ihdr = self._read_fits(fitsimg, ext_num)
@@ -150,8 +178,80 @@ class ApAutoBadcols:
     def process(self, data_array, nsigma=None, window_len=None):
         """
         Identify bad columns and rows in a numpy 2-dimensional array,
-        returning lists of the (zero-based) bad column and row indices.
+        returning a 1-d array of the (zero-based) bad column and row 
+        indices, or None if there are none..
         """
-        badcols = {}
-        badrows = {}
+        
+        if nsigma is None:
+            nsigma = 5.0        # Want to be sure these are really clearly bad.
+        if window_len is None:
+            window_len = 11
+                    
+        nrows = data_array.shape[0]
+        ncols = data_array.shape[1]
+
+        # Look for bad columns, median over row axis (collapse down)
+        medn_over_cols = np.nanmedian(data_array, axis=0)
+        badcols        = self._process(medn_over_cols, 0, nsigma, window_len)
+
+        # Look for bad rows, median over column axis (collapse across)
+        medn_over_rows = np.nanmedian(data_array, axis=1)
+        badrows        = self._process(medn_over_rows, 1, nsigma, window_len)
+        
         return badcols, badrows
+
+    def _process(self, median_array, axis_used, nsigma, window_len):
+        """
+        Internal utility that performs the work of processing the 
+        1-dimensional column or row inspection
+        
+        :param median_array: A 1-d numpy array of the medians. If the
+          median over all rows (axis=0) is supplied for each column,
+          then this will be used to find bad columns.
+        :param axisname: The axis used when generating the median array.
+          This is an integer that is either 0 or 1. If 0, then the median
+          over all rows is performed per column, so this is used to find
+          bad columns. If 1, the median over all columns was calculated,
+          so this is used to identify bad rows.
+        :param nsigma: Values greater than or equal to this number of 
+          standard deviations away from local mean are considered bad.
+        :param window_len: Total width of the sliding window used to
+          assess the local mean value. This should be an odd number.
+        """
+        type_str  = 'column'
+        short_str = 'col'
+        if axis_used == 1:
+            type_str  = 'row'
+            short_str = 'row'
+        elif axis_used > 1:
+            raise ValueError(f'axis_used should be 0 or 1, not {axis_used}')
+        
+        nvals                 = median_array.size
+        sldng_mean, sldng_std = self._sliding_stats_1d(median_array, window_len)
+        nsigma_from_mean      = np.abs(median_array - sldng_mean) / sldng_std
+        bad_mask              = nsigma_from_mean >= nsigma
+        self._logger.info(f'Found {np.sum(bad_mask)} bad {type_str}s out of {nvals} {type_str}s.')
+        
+        # Create information for column by column (or row by row) debug level output.
+        # This does the first nalways columns/rows irrespective of whether
+        # they are good or bad, and then only the bad ones.
+        nalways      = 40
+        dbg_str_list = []
+        hdr_str      = '{:>4s}, {:>10s}, {:>10s}, {:>10s}, {:>10s}, {:>6s}'.format(short_str, 
+            'median', 'local_mean', 'local_std', 'nsigma', 'isbad?')
+        dbg_str_list.append(f'Diagnostics for first {nalways} {type_str}s and all bad {type_str}:')
+        dbg_str_list.append( hdr_str )
+        for idx in range(nvals):
+            if (idx < nalways) or (bad_mask[idx]):
+                dbg_str = f'{idx:04d}, {median_array[idx]:10.2f}, {sldng_mean[idx]:10.2f}, {sldng_std[idx]:10.2f}, {nsigma_from_mean[idx]:10.2f}, {bad_mask[idx]}'
+                dbg_str_list.append(dbg_str)
+        self._logger.debug('\n'.join(dbg_str_list))
+        
+        # Convert mask to indices
+        if np.sum(bad_mask) > 0:
+            bad_indices = np.arange(nvals)[bad_mask]
+        else:
+            bad_indices = None
+        
+        return bad_indices
+        
