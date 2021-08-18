@@ -7,6 +7,7 @@ from .RawConv import RawConv as RawConv
 from .ApFixBadPixels import ApFixBadPixels as ApFixBadPixels
 from .ApFindBadPixels import ApFindBadPixels as ApFindBadPixels
 from .ApAddMetadata import ApAddMetadata as ApAddMetadata
+from .ApAutoBadcols import ApAutoBadcols as ApAutoBadcols
 from .ApCalibrate import ApCalibrate as ApCalibrate
 from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
 from .ApFindStars import ApFindStars as ApFindStars
@@ -24,6 +25,7 @@ __all__ = ["RawConv",
     "ApFixBadPixels",
     "ApFixCosmicRays",
     "ApAddMetadata",
+    "ApAutoBadcols",
     "ApFindStars",
     "ApMeasureStars",
     "ApQualitySummarizer",

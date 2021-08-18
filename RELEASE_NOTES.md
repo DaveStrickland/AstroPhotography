@@ -14,6 +14,9 @@ in particular from iTelescope.
 - WIP on capability to process telescopes other than T05 in 
   `calibrate_all.sh` (although note this script is a temporary clunky
   solution for batch processing).
+- Added `ApFindBadcols` and `ap_find_badcols` to automatically detect
+  the majority of bad columns and rows when **first** generating a
+  user-defined bad pixel calibration file. (Issue #14)
 - Improved handling of failed name resolution in `ap_add_metadata.py`
 - Added capability to specify target name on `ap_add_metadata.py` in
   cases where file name parsing will not work.
