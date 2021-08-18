@@ -10,6 +10,7 @@ for astronomical FITS imagery, primarily those obtained using iTelescope.
 | Calibration Generation | Build Master Cal      | Build master calibration files  | Yes          | astropy.ccdproc   | ap_combine_darks.py      |
 | Calibration Generation | Calc Read Noise       | Calculate detector read noise   | Yes          |                   | ap_calc_read_noise.py    |
 | Calibration Generation | Find Bad Pixels       | Generate a bad pixel map        | Yes          |                   | ap_find_badpix.py        |
+| Calibration Generation | Find Bad Columns      | Find bad columns for badpix.yml | Yes          |                   | ap_auto_badcols.py       |
 | Calibration            | Apply Master Cal      | Apply bias/dark/flat correction | Yes          |                   | ap_calibrate.py          |
 | Calibration            | Add Metadata          | Add metadata to calibrated FITS | Yes          | astroplan         | ap_add_metadata.py       |
 | Calibration            | Fix Bad Pixels        | Correct bad pixels              | Yes          |                   | ap_fix_badpix.py         |
@@ -90,6 +91,49 @@ python3 ~/git/AstroPhotography/src/AstroPhotography/scripts/ap_find_badpix.py -l
 Comparison of the resulting bad pixel files to the darks themselves show
 that the default bad pixel detection works well on the isolated high data
 value bad pixels, but misses some potentially problematic bad columns.
+
+#### User-defined Bad Pixel File
+
+These bad columns are most easily found by calibrating some real data 
+with the initial badpix file, and inspecting the calibrated images for
+artifacts.
+
+The `ap_auto_badcol.py` script, which uses `ApAutoBadcols`, can be used
+to find the majority of the most obvious bad columns and rows at thise 
+stage. Its output can then be copy and pasted into a user-defined 
+badpixel file (see template in `etc/user_badpixels.yml`). Rerunning
+`ap_find_badpix.py` using both the master dark and the user-defined
+bad pixels generates an updated master badpix file, which can then be
+used to recalibrate your images. For example:
+
+```bash
+# copy template yml file to t20_user_badpixels_1_4008x2672_2020.yml
+
+# automatically detect the worse bad columns in an initially calibrated
+# image
+ap_auto_badcol.py 20210708/cal-T20-davestrickland-CygnusLoop_x1_y1-20210708-220604-Ha-BIN1-E-300-001.fits
+
+# copy output into t20_user_badpixels_1_4008x2672_2020.yml
+
+# update the master bad pixel file
+ap_find_badpix.py -l DEBUG \
+    Master_Dark_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit \
+    Master_Badpix_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit \
+    --user_badpix t20_user_badpixels_1_4008x2672_2020.yml
+```
+
+You would then recalibrate your images using the updated cailbration
+files. 
+
+Inspecting those images will likely reveal other remaining bad columns
+that are weaker, or only partially bad, that were missed by 
+`ap_auto_badcols`. In my experience these are most easily visible in
+long duration narrow-band images.
+
+You should identify those by eye, and add them to the user bad pixel 
+file. Then rerun `ap_find_badpix.py` and recalibrate your images,
+and iterate this process until no obvious bad columns/rows/regions
+are visible.
 
 ## Pipeline Processing
 
