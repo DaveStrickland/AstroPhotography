@@ -14,6 +14,9 @@ in particular from iTelescope.
 - WIP on capability to process telescopes other than T05 in 
   `calibrate_all.sh` (although note this script is a temporary clunky
   solution for batch processing).
+- Added more options to `ApMeasureBackground` and `ap_measure_background.py`
+  that allow user-driven finetuning of the background estimations, based
+  on experience with T20 observations of the Cygnus Loop.
 - Added `ApAutoBadcols` and `ap_auto_badcols` to automatically detect
   the majority of bad columns and rows when **first** generating a
   user-defined bad pixel calibration file. (Issue #14)

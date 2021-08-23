@@ -22,6 +22,7 @@
 # 2021-02-27 dks : Add 2021-02-14 calibration, --dark_still_biased CLI flag.
 # 2021-06-07 dks : Add option to calculate and subtract the sky background.
 # 2021-07-22 dks : Work on better supporting other iTelescope telescopes.
+# 2021-08-19 dks : Actually apply sky background correction.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -344,6 +345,12 @@ for filter in ${p_filter_arr[@]}; do
         # Name for the calibrated file. Note change to .fits from .fit
         p_cal_file=$(echo ${p_raw_file%.*} | sed -e 's/raw-/cal-/')'.fits'
 
+        # If sky background subtraction is to be performed, the following
+        # files are used: a background estimate, and a copy of the original
+        # calibrated image (without sky background subtraction).
+        p_skybg_file=$(echo ${p_cal_file%.*} | sed -e 's/cal-/skybg-/')'.fits'
+        p_orig_cal_file=$(echo ${p_cal_file%.*} | sed -e 's/cal-/withskybg_skybg-/')'.fits'
+
         # Name for log file
         p_log_file=$(echo ${p_raw_file%.*} | sed -e 's/raw-/logcal-/')'.log'
 
@@ -384,6 +391,7 @@ for filter in ${p_filter_arr[@]}; do
             # Check whether p_true_target_name is set, in which case
             # we know that file name resolution will fail.
             if [ -n "$p_true_target_name" ]; then
+                echo "" &>> $p_log_file
                 $p_apmeta $p_cal_file --loglevel=DEBUG \
                     --target="$p_true_target_name" &>> $p_log_file
                 p_add_status=$?
@@ -400,9 +408,34 @@ for filter in ${p_filter_arr[@]}; do
 
         # Sky background estimation and subtraction.
         if [ $p_dosky -eq 1 ]; then
-            # TODO.
-            echo "Sky background estimation/subtraction yet to be implemented!"
-            exit 10
+            # If clean is set, rebuild skybg and subtract.
+            # Else check that the skybg and pre-skybg-subtracted file
+            # exist, and only if so can we skip this step.
+            
+            if [ $p_clean -eq 0 ] || [ ! -e $p_skybg_file ]; then
+                echo "      Performing sky background estimation on $p_cal_file" | tee -a $p_log
+        
+                # Copy the original calibrated file to $p_orig_cal_file,
+                # then calculate sky background on that
+                echo "        Creating copy of original calibrated file: $p_orig_cal_file" | tee -a $p_log
+                echo "" &>> $p_log_file
+                cp -v $p_cal_file $p_orig_cal_file &>> $p_log_file
+                p_status=$?
+            
+                echo "        Generating sky background $p_skybg_file" | tee -a $p_log
+                echo "" &>> $p_log_file
+                $p_apskybg $p_orig_cal_file $p_skybg_file -l DEBUG \
+                    --nbg_cols=16 --nbg_rows=32 &>> $p_log_file
+                p_status=$?
+            
+                echo "        Subtracting sky background to (re)generate $p_cal_file" | tee -a $p_log
+                echo "" &>> $p_log_file
+                $p_apimarith $p_orig_cal_file SUB $p_skybg_file \
+                    $p_cal_file -l DEBUG &>> $p_log_file
+                p_status=$?
+            else
+                echo "      Skipping sky background estimation for $p_cal_file"
+            fi
         fi
 
         if [ $p_status -eq 0 ]; then

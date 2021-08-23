@@ -21,7 +21,8 @@
 #  
 #  
 
-# 2020-05-29 dks : Initial coding of skeleton
+# 2021-05-29 dks : Initial coding of skeleton
+# 2021-08-20 dks : Add configurable BG box parameters, update documentation
 
 import logging
 import os.path
@@ -51,6 +52,19 @@ class ApMeasureBackground:
     """
     Measures and outputs large scale non-uniform sky backgrounds left 
     by imperfect bias/dark/flat calibration.
+    
+    The input image is split into a configurable number of large-scale
+    boxes, and the sky background is estimated in each box using the 
+    photutils background estimator after identified stars have been 
+    excluded. The values from the large-scale boxes are then used to
+    generate a smooth background estimate over the entire image, 
+    excluding boxes that are outliers.
+    
+    The number of rows and columns of background boxes is configurable
+    and the user is encouraged to carefully choose the numbers based on
+    the images to be processed. Experimentation may be required in the
+    case of narrow-band imaging of nebulae to avoid the nebula 
+    emission from being considered part of the background.
     """
 
     def __init__(self, loglevel):
@@ -60,11 +74,20 @@ class ApMeasureBackground:
         self._name      = 'ApMeasureBackground'
         self._loglevel  = loglevel
         
-        # Standard constants
-        self._boxsize        = (48, 48)
-        self._filtersize     = (3,3)
-        self._exclude_pctile = 10.0
-        self._nsigma         = 3.0
+        # Standard constants, may be modified by user when processing
+        # Based on H-alpha image of the Cygnus Loop with strong 
+        # differential BG gradient (Moon?)
+        self._default_minwdth = 48
+        self._default_minhght = 48
+        self._default_nbgcols = 16
+        self._default_nbgrows = 16
+        self._default_filtsiz = 4
+        self._default_pctlile = 25.0
+        self._default_nsigma  = 3.0
+        self._boxsize         = (self._default_minhght, self._default_minwdth)
+        self._filtersize      = (self._default_filtsiz, self._default_filtsiz)
+        self._exclude_pctile  = self._default_pctlile
+        self._nsigma          = self._default_nsigma
         
         # Data from last processing
         self._imdata    = None
@@ -222,7 +245,91 @@ class ApMeasureBackground:
         
         return 
         
-    def process_data(self, imdata, imhdr=None):
+    def _set_bgbox_size(self, imrows, imcols, 
+            nbg_rows, nbg_cols, min_bgheight, min_bgwidth):
+        """
+        Calculate the size of the box or cell used for background 
+        estimation based on the image size, the class defaults, and any
+        user-specified constraints.
+        
+        :param imrows: Number of rows of data in the input image.
+        :param imcols: Number of columns of data in the input image.
+        :param nbg_rows: The number of rows of BG boxes the input image
+          will be split into to determine the local sky background.
+          If not specified a default number will be used.
+        :param nbg_cols: The number of columns of BG boxes the input image
+          will be split into to determine the local sky background.
+          If not specified a default number will be used.
+        :param min_bgheight: Minimum height in pixels of a background cell.
+          The height of a background region in an image of NROWS rows
+          is max(MIN_BGHEIGHT, 2*int(NROWS/2*NUM_BGROWS) pixels.
+          If not specified a default number will be used.
+        :param min_bgwidth: Minimum width in pixels of a background cell.
+          The width of a background region in an image of NCOLS rows
+          is max(MIN_BGWIDTH, 2*int(NCOLS/2*NUM_BGCOLS) pixels.
+          If not specified a default number will be used.
+        """
+
+        actual_nbg_rows = self._default_nbgrows
+        if nbg_rows is not None:
+            actual_nbg_rows = nbg_rows
+
+        actual_nbg_cols = self._default_nbgcols
+        if nbg_cols is not None:
+            actual_nbg_cols = nbg_cols
+
+        actual_min_bgheight = self._default_minhght
+        if min_bgheight is not None:
+            actual_min_bgheight = min_bgheight
+
+        actual_min_bgwidth = self._default_minwdth
+        if min_bgwidth is not None:
+            actual_min_bgwidth = min_bgheight
+            
+        self._logger.debug(('Background box size constraints:'
+            f' {actual_nbg_rows} rows x {actual_nbg_cols} columns of background boxes.'
+            f' Minimum box size {actual_min_bgheight} pixels high x {actual_min_bgwidth} pixels wide.'))
+
+        # Makes the box sizes a multiple of the quantum value (e.g. 2, 8 etc)
+        quantum = 2
+        box_height = max(actual_min_bgheight, 
+            quantum*(1 + int(imrows/(quantum*actual_nbg_rows)) ) )
+        box_width = max(actual_min_bgwidth, 
+            quantum*(1 + int(imcols/(quantum*actual_nbg_cols)) ) )
+            
+        # Now make sure we don't end up with a set of small boxes along
+        # the margins.
+        nrows = actual_nbg_rows*box_height
+        ncols = actual_nbg_cols*box_width
+        if nrows < imrows:
+            # Should only be missing out by < quantum * num_bg rows
+            if (imrows - nrows) > quantum*actual_nbg_rows:
+                self._logger.error(f'Error in _set_bgbox_size logic: missing {imrows-nrows} rows using box height of {box_height} rows.')
+            else:
+                box_height += quantum
+        
+        if ncols < imcols:
+            # Should only be missing out by < quantum * num_bg_cols
+            if (imcols - ncols) > quantum*actual_nbg_cols:
+                self._logger.error(f'Error in _set_bgbox_size logic: missing {imcols-ncols} cols using box width of {box_width} cols.')
+            else:
+                box_width += quantum
+        
+        self._logger.info(f'Background box size is {box_height} pixels high x {box_width} pixels wide.')
+        
+        self._box_height = box_height
+        self._box_width  = box_width
+        self._boxsize    = (box_height, box_width)
+        return
+        
+    def process_data(self, imdata, imhdr=None,
+        nbg_rows=None, 
+        nbg_cols=None,
+        min_bgheight=None,
+        min_bgwidth=None,
+        bg_filter_width=None,
+        bg_badbox_pctile=None,
+        bg_sigmaclip=None):
         """
         Measure the 2-dimensional sky background in data from an input
         FITS image.
@@ -238,6 +345,28 @@ class ApMeasureBackground:
         :param imhdr: Optional FITS header associated with the image
           imdata, if any. This will be used to populate any output
           background image's header metadata.
+        :param nbg_rows: The number of rows of BG boxes the input image
+          will be split into to determine the local sky background.
+          If not specified a default number will be used.
+        :param nbg_cols: The number of columns of BG boxes the input image
+          will be split into to determine the local sky background.
+          If not specified a default number will be used.
+        :param min_bgheight: Minimum height in pixels of a background cell.
+          The height of a background region in an image of NROWS rows
+          is max(MIN_BGHEIGHT, 2*int(NROWS/2*NUM_BGROWS) pixels.
+          If not specified a default number will be used.
+        :param min_bgwidth: Minimum width in pixels of a background cell.
+          The width of a background region in an image of NCOLS rows
+          is max(MIN_BGWIDTH, 2*int(NCOLS/2*NUM_BGCOLS) pixels.
+          If not specified a default number will be used.
+        :param bg_filter_width: Photutils Background2D filter size
+          parameter, used to median filter the course background values.
+        :param bg_bg_badbox_pctile: Photutils Background2D exclude_percentile
+          parameter, used to mark the course background cells to bad if
+          more than this percentage of their pixels are excluded or masked.
+        :param bg_sigmaclip: Photutils Background2D sigma_clip parameter,
+          used to sigma clipping on the pixel values within each course
+          background box.
         """
         
         self._imdata = imdata
@@ -245,8 +374,20 @@ class ApMeasureBackground:
         
         srcmask = self._make_source_mask()
         
+        if bg_filter_width is not None:
+            self._filtersize = (bg_filter_width, bg_filter_width)
+        
+        if bg_badbox_pctile is not None:
+            self._exclude_pctile = bg_badbox_pctile
+        
+        if bg_sigmaclip is not None:
+            self._nsigma = bg_sigmaclip
+        
         sigma_clipper = SigmaClip(sigma=self._nsigma)
         bkg_estimator = MedianBackground()
+        
+        self._set_bgbox_size(imdata.shape[0], imdata.shape[1], 
+            nbg_rows, nbg_cols, min_bgheight, min_bgwidth)
         
         self._logger.debug(('Background estimator settings used: estimator=MedianBackground'
             f', clipper=SigmaClip with sigma={self._nsigma}'
@@ -268,7 +409,15 @@ class ApMeasureBackground:
         self._logger.debug(f'Background mesh shape: {bkg.mesh_nmasked.shape}')        
         return
         
-    def process_files(self, input_fits, srclist_fits=None):
+    def process_files(self, input_fits, 
+        srclist_fits=None,
+        nbg_rows=None, 
+        nbg_cols=None,
+        min_bgheight=None,
+        min_bgwidth=None,
+        bg_filter_width=None,
+        bg_badbox_pctile=None,
+        bg_sigmaclip=None):
         """
         Measure the 2-dimensional sky background in data from an input
         FITS image.
@@ -282,6 +431,28 @@ class ApMeasureBackground:
         :param input_fits: Input FITS image containing the data.
         :param srclist_fits: Input FITS table containing a list of 
           detected sources, as generated by ap_find_stars.py.
+        :param nbg_rows: The number of rows of BG boxes the input image
+          will be split into to determine the local sky background.
+          If not specified a default number will be used.
+        :param nbg_cols: The number of columns of BG boxes the input image
+          will be split into to determine the local sky background.
+          If not specified a default number will be used.
+        :param min_bgheight: Minimum height in pixels of a background cell.
+          The height of a background region in an image of NROWS rows
+          is max(MIN_BGHEIGHT, 2*int(NROWS/2*NUM_BGROWS) pixels.
+          If not specified a default number will be used.
+        :param min_bgwidth: Minimum width in pixels of a background cell.
+          The width of a background region in an image of NCOLS rows
+          is max(MIN_BGWIDTH, 2*int(NCOLS/2*NUM_BGCOLS) pixels.
+          If not specified a default number will be used.
+        :param bg_filter_width: Photutils Background2D filter size
+          parameter, used to median filter the course background values.
+        :param bg_bg_badbox_pctile: Photutils Background2D exclude_percentile
+          parameter, used to mark the course background cells to bad if
+          more than this percentage of their pixels are excluded or masked.
+        :param bg_sigmaclip: Photutils Background2D sigma_clip parameter,
+          used to sigma clipping on the pixel values within each course
+          background box.
         """
         
         data, hdr = self._read_fits(input_fits, 0)
@@ -291,7 +462,9 @@ class ApMeasureBackground:
             self._logger.warning('Source list processing not yet implemented.')
             
         # Process the data.
-        self.process_data(data, hdr)
+        self.process_data(data, hdr, 
+            nbg_rows, nbg_cols, min_bgheight, min_bgwidth,
+            bg_filter_width, bg_badbox_pctile, bg_sigmaclip)
         return
         
     def get_bgimage(self):
