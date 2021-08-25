@@ -412,7 +412,7 @@ for filter in ${p_filter_arr[@]}; do
             # Else check that the skybg and pre-skybg-subtracted file
             # exist, and only if so can we skip this step.
             
-            if [ $p_clean -eq 0 ] || [ ! -e $p_skybg_file ]; then
+            if [ $p_clean -eq 1 ] || [ ! -e $p_skybg_file ]; then
                 echo "      Performing sky background estimation on $p_cal_file" | tee -a $p_log
         
                 # Copy the original calibrated file to $p_orig_cal_file,
