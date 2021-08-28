@@ -13,6 +13,8 @@
 # - Needs to be hardwired with the bias, dark, badpix and flat
 #   calibration files to use.
 # - Can not separately add to metadata without redoing entire calibration
+# - clean option does not properly work with sky BG subtraction if some
+#   files have already been calibrated.
 #
 # History:
 # 2020-12-09 dks : Initial version using ap_calibrate.py
@@ -23,6 +25,7 @@
 # 2021-06-07 dks : Add option to calculate and subtract the sky background.
 # 2021-07-22 dks : Work on better supporting other iTelescope telescopes.
 # 2021-08-19 dks : Actually apply sky background correction.
+# 2021-08-25 dks : Simpler calibration setup for Cygnus Loop mosaic.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -120,7 +123,7 @@ fi
 p_loglevel='DEBUG'
 
 # Filters to process:
-p_filter_arr=("Red" "Green" "Blue" "Ha" "OIII" "SII")
+p_filter_arr=("Red" "Green" "Blue" "Ha" "OIII" "SII" "Clear" "Luminance" "B" "V" "I" )
 ##p_filter_arr=("Red") # Testing purposes only.
 
 # Calibration files to use
@@ -144,6 +147,9 @@ fi
 
 # The following is observation specific and doesn't work very well
 # in this form in a shell script.
+
+p_cygloop21=("CygnusLoop_x1_y1" "CygnusLoop_x1_y2" "CygnusLoop_x1_y3" "CygnusLoop_x1_y4")
+
 
 p_cal_to_use="undefined"
 if [[ $p_targ == "ngc_6888" ]]; then
@@ -228,30 +234,33 @@ elif [[ $p_targ == "M81" ]]; then
     p_flat_arr["SII"]="Master_Flat_SII_1_SII_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
     p_flat_arr["Ha"]="Master_Flat_Ha_1_Ha_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
     p_flat_arr["V"]="Master_Flat_V_1_V_2184x1472_Bin1x1_Temp-10C_ExpTime6s.fit"
-elif [[ $p_targ == "CygnusLoop_x1_y1" ]]; then
-    p_cal_to_use="2020-04"
-    p_true_target_name="Cygnus Loop"
-    p_cal_date=2020-04
+elif [[ $p_targ == "gaia" ]]; then
+    p_cal_to_use="2021-02-14"
+    p_true_target_name="HE 2300-0630"    
+    p_cal_date=2021-02-14
     
     # Masters
-    p_mdark=$p_cal_dir/Darks/$p_cal_date/Master_Dark_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit
-    p_mbadp=$p_cal_dir/Darks/$p_cal_date/Master_Badpix_1_4008x2672_Bin1x1_Temp-15C_ExpTime900s.fit
-    p_mbias=$p_cal_dir/Bias/$p_cal_date/Master_Bias_1_4008x2672_Bin1x1_Temp-15C_ExpTime0ms.fit
-    p_dark_still_biased="--dark_still_biased"
+    p_mdark=$p_cal_dir/Darks/$p_cal_date/Master_Dark_1_2184x1472_Bin1x1_Temp-10C_ExpTime900s.fit
+    p_mbadp=$p_cal_dir/Darks/$p_cal_date/Master_Badpix_1_2184x1472_Bin1x1_Temp-10C_ExpTime900s.fit
+    p_mbias=$p_cal_dir/Bias/$p_cal_date/Master_Bias_1_2184x1472_Bin1x1_Temp-10C_ExpTime0ms.fit
+    p_dark_still_biased=""
     
     # The flats are filter-specific. The associative array contains the file names,
-    # but not the path.                                                              
+    # but not the path. These names are true for 2020-03, but may not work for
+    # other dates.                                                                   
     p_flat_dir=$p_cal_dir/Flats/$p_cal_date
     
-    p_flat_arr["V"]="Master_Flat_V_1_V_4008x2672_Bin1x1_Temp-15C_ExpTime22s.fit"
-    p_flat_arr["Blue"]="Master_Flat_Blue_1_Blue_4008x2672_Bin1x1_Temp-15C_ExpTime25s.fit"
-    p_flat_arr["OIII"]="Master_Flat_OIII_1_OIII_4008x2672_Bin1x1_Temp-15C_ExpTime4s.fit"
-    p_flat_arr["Red"]="Master_Flat_Red_1_Red_4008x2672_Bin1x1_Temp-15C_ExpTime9s.fit"
-    p_flat_arr["Green"]="Master_Flat_Green_1_Green_4008x2672_Bin1x1_Temp-15C_ExpTime81s.fit"
-    p_flat_arr["SII"]="Master_Flat_SII_1_SII_4008x2672_Bin1x1_Temp-15C_ExpTime98s.fit"
-    p_flat_arr["Ha"]="Master_Flat_Ha_1_Ha_4008x2672_Bin1x1_Temp-15C_ExpTime46s.fit"
-    p_flat_arr["Luminance"]="Master_Flat_Luminance_1_Luminance_4008x2672_Bin1x1_Temp-15C_ExpTime9s.fit"
-elif [[ $p_targ == "CygnusLoop_x1_y2" ]]; then
+    p_flat_arr["B"]="Master_Flat_B_1_B_2184x1472_Bin1x1_Temp-10C_ExpTime14s.fit"
+    p_flat_arr["I"]="Master_Flat_I_1_I_2184x1472_Bin1x1_Temp-10C_ExpTime22s.fit"
+    p_flat_arr["Blue"]="Master_Flat_Blue_1_Blue_2184x1472_Bin1x1_Temp-10C_ExpTime6s.fit"
+    p_flat_arr["OIII"]="Master_Flat_OIII_1_OIII_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
+    p_flat_arr["Clear"]="Master_Flat_Clear_1_Clear_2184x1472_Bin1x1_Temp-10C_ExpTime4s.fit"
+    p_flat_arr["Red"]="Master_Flat_Red_1_Red_2184x1472_Bin1x1_Temp-10C_ExpTime4s.fit"
+    p_flat_arr["Green"]="Master_Flat_Green_1_Green_2184x1472_Bin1x1_Temp-10C_ExpTime5s.fit"
+    p_flat_arr["SII"]="Master_Flat_SII_1_SII_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
+    p_flat_arr["Ha"]="Master_Flat_Ha_1_Ha_2184x1472_Bin1x1_Temp-10C_ExpTime3s.fit"
+    p_flat_arr["V"]="Master_Flat_V_1_V_2184x1472_Bin1x1_Temp-10C_ExpTime6s.fit"
+elif [[ " ${p_cygloop21[@]} " =~ " ${p_targ} " ]]; then
     p_cal_to_use="2020-04"
     p_true_target_name="Cygnus Loop"
     p_cal_date=2020-04
@@ -335,7 +344,7 @@ for filter in ${p_filter_arr[@]}; do
     p_mflat=$p_flat_dir/${p_flat_arr[$filter]}
 
     p_raw_file_arr=( $(find . -name "raw-*-$filter-*.fit*" | xargs) )
-    echo "  Found ${#p_raw_file_arr[@]} uncalibrated fits files." | tee -a $p_log
+    echo "  Found ${#p_raw_file_arr[@]} raw fits files." | tee -a $p_log
     for p_raw_file in ${p_raw_file_arr[@]}; do
         # Set up names for expected inputs and outputs ---------------------
     
@@ -366,11 +375,14 @@ for filter in ${p_filter_arr[@]}; do
             continue
         elif [ -e $p_cal_file ] && [ $p_clean -eq 1 ]; then
             # Wipe existing file and regenerate.
-            echo "    Removing existing, regenerating calibrated file: $p_cal_file" | tee -a $p_log
-            rm $p_cal_file
-            if [ -e $p_log_file ]; then
-                rm $p_log_file
-            fi
+            echo "    Removing existing calibrated files and regenerating them..." | tee -a $p_log
+            for tfile in $p_cal_file $p_log_file $p_orig_cal_file $p_skybg_file; do
+                if [ -e $tfile ]; then
+                    rm $tfile
+                    echo "      Removed $tfile" | tee -a $p_log
+                fi
+            done
+
         else
             echo "    Generating calibrated file: $p_cal_file" | tee -a $p_log
         fi

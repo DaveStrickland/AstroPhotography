@@ -207,7 +207,7 @@ for p_cal_file in $(find . -name "cal-*fits"); do
                 echo "Error: ap_find_stars.py exited with error code $p_status" | tee -a $p_log
                 echo "  Log file is $p_srclog" | tee -a $p_log
                 exit 8
-            elif [ ! -e $p_src_path]; then
+            elif [ ! -e $p_src_path ]; then
                 echo "Error, could not finded expected output source list." | tee -a $p_log
                 echo "  Failed to find $p_src_path" | tee -a $p_log
                 echo "  Current dir:" $(pwd) | tee -a $p_log

@@ -18,8 +18,9 @@
 # for optional stiff command line flags.
 # 
 # Color Selectors:
-# - sho: SII as red, Ha as green, OIII as blue.
-# - rgb: Red as red, Green as green, Blue as blue.
+# - sho:     SII as red, Ha as green, OIII as blue.
+# - rgb:     Red as red, Green as green, Blue as blue.
+# - hgb:     Ha as red, Green as green, Blue as blue
 #
 # Assumes:
 # That stiff in installed.
@@ -33,6 +34,7 @@
 #
 # History:
 # 2021-01-26 dks : Initial version begun.
+# 2021-08-28 dks : Added hgb color selections.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -181,6 +183,8 @@ for colsel in ${p_colsel_arr[@]}; do
         p_filter_arr=("SII" "Ha" "OIII" )
     elif [[ $colsel == 'rgb' ]]; then
         p_filter_arr=("Red" "Green" "Blue")
+    elif [[ $colsel == 'hgb' ]]; then
+        p_filter_arr=("Ha" "Green" "Blue")
     else
         echo "Error, unexpected 3-color combination $colsel" | tee -a $p_log
         echo "  Allowed values are: ${p_allowed_colsel[@]}" | tee -a $p_log

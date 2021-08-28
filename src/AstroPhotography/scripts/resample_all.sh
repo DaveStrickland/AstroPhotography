@@ -14,12 +14,14 @@
 # - swarp does not recognize SIP, and "eats in" from gaps in the data.
 # - Script does not carry over useful header info into resampled image
 #   or provide estimate of rough net exposure.
+# - Bug in summary function, gets the wrong band if some bands were skipped.
 #
 # History:
 # 2021-01-22 dks : Initial version begun.
 # 2021-01-31 dks : Change file naming to reflect weighted avg or median
 # 2021-02-09 dks : Add preliminary version of sum mode as well.
 # 2021-02-28 dks : Added target
+# 2021-08-27 dks : Added CygnusLoop, fix some directory creation bugs.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -128,14 +130,6 @@ p_fscalastro_type=VARIABLE
 p_delete_tmp=Y
 p_tmpfile_dir=TmpSwarp
 
-if [[ $p_delete_tmp == "N" ]]; then
-    if [ ! -e $p_tmpfile_dir ]; then
-        echo "Temporary files will be written to new directory $p_tmpfile_dir"
-        mkdir -p $p_tmpfile_dir
-    else
-        echo "Using existing temporary file directory $p_tmpfile_dir"
-    fi
-fi
 
 # Target specific info
 if [[ $p_target == "n6888" ]]; then
@@ -150,6 +144,24 @@ elif [[  $p_target == "M82" ]] ; then
     p_dec=69.6797028
     p_pixscale=1.8
     p_image_size=2560,1920
+elif [[  $p_target == "M81" ]] ; then
+    p_targ="m81"
+    p_ra=148.8882
+    p_dec=69.065295
+    p_pixscale=1.8
+    p_image_size=2560,1920
+elif [[  $p_target == "M82Group" ]] ; then
+    p_targ="m82group"
+    p_ra=148.9255
+    p_dec=69.385417
+    p_pixscale=1.8
+    p_image_size=3000,3000
+elif [[  $p_target == "CygnusLoop" ]] ; then
+    p_targ="CygnusLoop"
+    p_ra=312.75
+    p_dec=30.67
+    p_pixscale=3.6
+    p_image_size=5000,5000
 else
     echo "Error, unexpected target $p_target"
     echo "  This could be recoded to allow for general targets."
@@ -175,7 +187,7 @@ fi
 
 
 # Filters to process:
-p_filter_arr=( "Red" "Green" "Blue" "Ha" "OIII" "SII" )
+p_filter_arr=( "Red" "Green" "Blue" "Ha" "OIII" "SII" "B" "V" "I" "Clear" "Luminance" )
 #p_filter_arr=( "Red" ) # Testing purposes only.
 
 # Directory for input navigated images:
@@ -198,6 +210,7 @@ else
 fi
 if [ ! -d $p_resdir ]; then
     echo "Creating $p_resdir for resampled images."
+    mkdir $p_resdir
 else
     echo "Reusing existing $p_resdir for resampled images."
 fi
@@ -224,6 +237,15 @@ for filter in ${p_filter_arr[@]}; do
     # Change directories
     cd $p_resdir
 
+    # Tempfile dir
+    if [ ! -e $p_tmpfile_dir ]; then
+        echo "  Temporary files will be written to new directory $p_tmpfile_dir"
+        mkdir -p $p_tmpfile_dir
+    else
+        echo "  Using existing temporary file directory $p_tmpfile_dir"
+    fi
+
+
     # Temporary file
     p_tmp=$(mktemp -t tmp_XXXX)
 
@@ -240,6 +262,7 @@ for filter in ${p_filter_arr[@]}; do
     
     if [ $p_num_imgs -eq 0 ]; then
         echo "  Moving on to next filter..."
+        cd $p_odir
         continue
     fi
     
@@ -313,6 +336,7 @@ for filter in ${p_filter_arr[@]}; do
     cat $p_tmp >> $p_log
     if [ $p_status -ne 0 ]; then
         echo "Error, $p_swarp failed with status $p_status" | tee -a $p_log
+        
     fi
     p_fstat_arr+=( $p_status )
     
