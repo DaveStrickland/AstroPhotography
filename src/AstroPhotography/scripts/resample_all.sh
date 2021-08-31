@@ -112,10 +112,10 @@ p_fitsheader=fitsheader
 for p_exe in $p_swarp $p_fitsheader; do
     which $p_exe >& /dev/null
     if [ $? -ne 0 ]; then
-        echo "Error, $p_exe not found in your path."
+        echo "Error, $p_exe not found in your path." | tee -a $p_log
         exit 1
     else
-        echo "Using $p_exe from" $(which $p_exe)
+        echo "Using $p_exe from" $(which $p_exe) | tee -a $p_log
     fi
 done
 
@@ -163,8 +163,8 @@ elif [[  $p_target == "CygnusLoop" ]] ; then
     p_pixscale=3.6
     p_image_size=5000,5000
 else
-    echo "Error, unexpected target $p_target"
-    echo "  This could be recoded to allow for general targets."
+    echo "Error, unexpected target $p_target" | tee -a $p_log
+    echo "  This could be recoded to allow for general targets." | tee -a $p_log
     exit 3
 fi
 
@@ -181,7 +181,7 @@ elif [ $p_addmode -eq 2 ]; then
     p_fscalastro_type=NONE
     #true
 else
-    echo "Error, unexpected co-addition mode: p_addmode=$p_addmode"
+    echo "Error, unexpected co-addition mode: p_addmode=$p_addmode" | tee -a $p_log
     exit 2
 fi
 
@@ -202,17 +202,17 @@ p_resdir=./Resampled
 # Check input and output directories exist. We can create the resampled
 # dir if it exists but the navigated images directory must exist.
 if [ ! -d $p_navdir ]; then
-    echo "Error, can not find $p_navdir"
-    echo "  Current path: $cwd"
+    echo "Error, can not find $p_navdir" | tee -a $p_log
+    echo "  Current path: $cwd" | tee -a $p_log
     exit 2
 else
-    echo "Will read navigated images from $p_navdir"
+    echo "Will read navigated images from $p_navdir" | tee -a $p_log
 fi
 if [ ! -d $p_resdir ]; then
-    echo "Creating $p_resdir for resampled images."
+    echo "Creating $p_resdir for resampled images." | tee -a $p_log
     mkdir $p_resdir
 else
-    echo "Reusing existing $p_resdir for resampled images."
+    echo "Reusing existing $p_resdir for resampled images." | tee -a $p_log
 fi
 
 # Array for file names and processing statuses.
@@ -227,11 +227,11 @@ p_texp_arr=()
 p_odir=$(pwd)
 
 # Begin main processing loop.
-echo "-----------------------------------------------------------------"  | tee -a $p_log
+echo "---------------------------------------------------------------------"  | tee -a $p_log
 echo "About to loop through the following filters: ${p_filter_arr[@]}" | tee -a $p_log
 for filter in ${p_filter_arr[@]}; do
-    echo "-------------------------------------------------------------"
-    echo "Processing $filter filter images:" | tee -a $p_log
+    echo "----------------------------------------------------------------------" | tee -a $p_log
+    echo "Processing $filter filter images:" | tee -a $p_log 
     p_filtname_arr+=( $filter )
     
     # Change directories
@@ -239,10 +239,10 @@ for filter in ${p_filter_arr[@]}; do
 
     # Tempfile dir
     if [ ! -e $p_tmpfile_dir ]; then
-        echo "  Temporary files will be written to new directory $p_tmpfile_dir"
+        echo "  Temporary files will be written to new directory $p_tmpfile_dir" | tee -a $p_log
         mkdir -p $p_tmpfile_dir
     else
-        echo "  Using existing temporary file directory $p_tmpfile_dir"
+        echo "  Using existing temporary file directory $p_tmpfile_dir" | tee -a $p_log
     fi
 
 
@@ -261,9 +261,15 @@ for filter in ${p_filter_arr[@]}; do
     echo "  Found $p_num_imgs navigated fits files." | tee -a $p_log
     
     if [ $p_num_imgs -eq 0 ]; then
-        echo "  Moving on to next filter..."
+        echo "  Moving on to next filter..." | tee -a $p_log
+        p_fname_arr+=( "None" )
+        p_fstat_arr+=( 0 )
+        p_texp_arr+=( 0 )
+        p_time_arr+=( 0 )
         cd $p_odir
         continue
+    else
+        p_tmpfile_fullpath=$(pwd)/$p_tmpfile_dir
     fi
     
     for p_nav_file in ${p_nav_file_arr[@]}; do
@@ -305,11 +311,12 @@ for filter in ${p_filter_arr[@]}; do
     else
         p_fscale_str=$(echo "$p_fscale_str" | sed -e 's/,//')
     fi
-    echo "  Flux scalings: $p_fscale_str"
+    echo "  Flux scalings: $p_fscale_str" | tee -a $p_log
     
     # Convert total exposure from seconds to minutes
     p_texp=$(echo $p_texp | awk '{print $1/60.0}')
-    echo "  Total exposure in $filter filter:" $p_texp "minutes."
+    echo "  Total exposure in $filter filter:" $p_texp "minutes." | tee -a $p_log
+    echo ""  | tee -a $p_log
     p_texp_arr+=( $p_texp )
     
     # Name of output files: target filter size (resampled or weights) co-add_type
@@ -317,7 +324,7 @@ for filter in ${p_filter_arr[@]}; do
     p_wgt_img=$p_targ'_'$filter'_'$(echo $p_image_size | sed -e 's/,/x/')'_weights_'$p_add_str'.fits'
     p_fname_arr+=( $p_res_img )
     
-    echo "  Beginning swarp for filter $filter at" $(date)
+    echo "  Beginning swarp for filter $filter at" $(date) | tee -a $p_log
     p_res_start_time=$(dks_time)
     $p_swarp ${p_nav_file_arr[@]} \
         -SUBTRACT_BACK N -COMBINE_TYPE $p_combine_type \
@@ -342,14 +349,14 @@ for filter in ${p_filter_arr[@]}; do
     
     # Check that resampled image and weights exist.
     if [ -e $p_res_img ]; then
-        echo "  Generated resampled co-added image $p_res_img"
+        echo "  Generated resampled co-added image $p_res_img" | tee -a $p_log
     else
-        echo "  Warning, could not find resampled co-added image $p_res_img"
+        echo "  Warning, could not find resampled co-added image $p_res_img" | tee -a $p_log
     fi
     if [ -e $p_wgt_img ]; then
-        echo "  Generated co-added weights image $p_wgt_img"
+        echo "  Generated co-added weights image $p_wgt_img" | tee -a $p_log
     else
-        echo "  Warning, could not find co-added weights image $p_wgt_img"
+        echo "  Warning, could not find co-added weights image $p_wgt_img" | tee -a $p_log
     fi
     
     # Timing info. Might be useful if we switch parameters or even the
@@ -357,7 +364,7 @@ for filter in ${p_filter_arr[@]}; do
     p_res_end_time=$(dks_time)
     p_res_time=$(dks_time $p_res_start_time $p_res_end_time)
     p_time_arr+=( $p_res_time )
-    echo "  Swarp for filter $filter completed at" $(date)", took $p_res_time seconds."
+    echo "  Swarp for filter $filter completed at" $(date)", took $p_res_time seconds." | tee -a $p_log
 
     # Remove temp file
     if [ -e $p_tmp ]; then
@@ -365,20 +372,21 @@ for filter in ${p_filter_arr[@]}; do
     fi
 
     cd $p_odir
+    echo ""  | tee -a $p_log
     # Done for each filter
 done
 
 
 # Print summary of number of files successfully processed, skipped or failed.
 echo "" | tee -a $p_log
-echo "-----------------------------------------------------------------" | tee -a $p_log
+echo "--------------------------------------------------------------------------" | tee -a $p_log
 echo "Run summary:" | tee -a $p_log
 p_num=${#p_fname_arr[@]}
 idx=0
-printf "%-6s  %-50s  %-6s  %8s  %8s  %-6s\n" "Filter" \
-    "Resampled Output" "Ninput" "Texpmin" "RsmpTime" "Status"| tee -a $p_log
+printf "%-10s  %-50s  %-6s  %8s  %8s  %-6s\n" "Filter" \
+    "Resampled Output" "Ninput" "TexpMin" "SwrpTSec" "Status"| tee -a $p_log
 while [ $idx -lt $p_num ]; do
-    printf "%-6s  %-50s  %6d  %8.2f  %8.3f  %6d\n" ${p_filtname_arr[$idx]} \
+    printf "%-10s  %-50s  %6d  %8.2f  %8.2f  %6d\n" ${p_filtname_arr[$idx]} \
         ${p_fname_arr[$idx]} ${p_num_arr[$idx]} ${p_texp_arr[$idx]} \
         ${p_time_arr[$idx]} ${p_fstat_arr[$idx]} | tee -a $p_log
     ((idx++))
@@ -388,11 +396,16 @@ echo "Master log file: $p_log" | tee -a $p_log
 #-----------------------------------------------------------------------
 # Clean up and exit.
 echo "Deactivating virtual environment." | tee -a $p_log
+echo "" | tee -a $p_log
 deactivate
 
 # All done
+p_scriptname=$(basename $0)
+p_tmp_mb=$(du -sm $p_tmpfile_fullpath | cut -f 1)
 p_end=$(date)
 p_end_time=$(dks_time)
 p_run_time=$(dks_time $p_start_time $p_end_time)
-echo "$0 finished at $p_end, run time $p_run_time seconds." | tee -a $p_log
+echo "  Temporary files occupy ${p_tmp_mb} MB in $p_tmpfile_fullpath" | tee -a $p_log
+echo "  Commands were logged to $p_log"
+echo "$p_scriptname finished at $p_end, run time $p_run_time seconds." | tee -a $p_log
 exit 0

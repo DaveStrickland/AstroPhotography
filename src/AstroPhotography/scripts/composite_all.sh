@@ -112,7 +112,7 @@ for p_exe in $p_stiff; do
 done
 
 # Allowed 3-color combination for color selection
-p_allowed_colsel=( 'sho' 'rgb' )
+p_allowed_colsel=( 'sho' 'rgb' 'hgb' )
 
 #-----------------------------------------------------------------------
 # Main work area
@@ -171,6 +171,11 @@ if [[ $p_pref == "m82" ]]; then
 fi
 ##p_min_level="0.005,0.005,0.005"
 ##p_min_type=="MANUAL,MANUAL,MANUAL"
+p_max_level="0.999,0.999,0.999"
+p_max_type=="QUANTILE,QUANTILE,QUANTILE"
+p_min_level="0.60,0.60,0.60"
+p_min_type=="QUANTILE,QUANTILE,QUANTILE"
+
 
 
 # Loop over 3-color combinations to process
