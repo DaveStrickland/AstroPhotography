@@ -32,6 +32,26 @@ Notes:
 
  - (*) Temporarily using an external non-python-based tool. 
  - (**) A temporary bash implementation.
+ 
+### Expected FITS Header Keywords 
+
+The following FITS header keywords are required.
+
+| Ap Class         | FITS Keywords       | Notes                            |
+| ---------------- | ------------------- | -------------------------------- |
+| ApAddMetadata    | (none)              |                                  |
+| ApAstrometry     | IMG_FILE (a)        | Fom ApFindStars source list file |
+| ApAutoBadcols    | (none)              |                                  |
+| ApCalibrate      | EXPOSURE or EXPTIME |                                  |
+|                  | GAIN or EGAIN (o)   |                                  |
+| ApFindBadPixels  | (none)              |                                  |
+| ApFindStars      | EXPOSURE            |                                  |
+
+Notes:
+
+- (a) Required, but generates by another stage of AstroPhotography processing
+- (o) Optional, but not ideal if not present.
+
 
 ## Data Preparation
 

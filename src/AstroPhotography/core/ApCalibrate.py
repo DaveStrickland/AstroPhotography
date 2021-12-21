@@ -22,7 +22,7 @@ from astropy.io import fits
 from .. import __version__
 from . import ApFixBadPixels
 from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
-# TODO: I have no idea wht the ApFiBadPixels line works, but the same for
+# TODO: I have no idea why the ApFixBadPixels line works, but the same for
 # ApFixCosmicRays did not, instead requiring the more verbose line shown.
 
 class ApCalibrate:
