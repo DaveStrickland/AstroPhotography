@@ -53,6 +53,20 @@ Notes:
 - (o) Optional, but not ideal if not present.
 
 
+## Software Preparation
+
+The `requirements.txt` file should handle all software requirements except
+`Astromatic` software. However use of `Astrometry.net` requires a key
+and that key is best stored in your local `astroquery` configuration file.
+
+### Astrometry.net Key Configuration
+
+Note that this is the `astroquery` config file, not the `astropy` config
+file. Edit `~/.astropy/config/astroquery.cfg` and set `api_key` in 
+the `[astrometry_net]` section.
+
+
+
 ## Data Preparation
 
 After downloading the new data (or calibration data) from the iTelescope

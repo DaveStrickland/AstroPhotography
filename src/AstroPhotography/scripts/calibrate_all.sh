@@ -98,7 +98,7 @@ echo "$0 started at $p_start" | tee -a $p_log
 echo "Running from" $(pwd) | tee -a $p_log
 echo "Logging to $p_log" | tee -a $p_log
 echo "Activating virtual environment." | tee -a $p_log
-source ~/venv/astro/bin/activate
+source ~/venv/astro38/bin/activate
 
 # Scripts that do the work.
 p_apcal="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_calibrate.py"

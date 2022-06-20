@@ -400,7 +400,16 @@ class ApFindStars:
         phot_table['psbl_sat'] = self._sources['psbl_sat']
         phot_table['bgmed_per_pix'] = bkg_median
         
-        exposure = float(self._hdr['EXPOSURE'])
+        exposure = None
+        for kw in ['EXPOSURE', 'EXPTIME']:
+            if exposure is None:
+                if kw in self._hdr:
+                    exposure = float( self._hdr[kw] )
+                    self._logger.debug(f'Image exposure time [seconds]: {exposure:.2f}')
+        if exposure is None:
+            self._logger.warning('EXPOSURE not found in FITS header. Assuming 1 second.')
+            exposure = 1
+            
         phot_table['adu_per_sec'] = phot_table['aperture_sum'] / exposure
         phot_table['magnitude']   = -2.5 * np.log10(phot_table['adu_per_sec'])
         
@@ -910,6 +919,9 @@ class ApFindStars:
         - FWHM statistics if present
         """
         
+        # Null val for missing data
+        null_val = -999
+        
         # Slightly better than the default float representation
         yaml.add_representer(float, yaml_float_representer)
                 
@@ -979,11 +991,27 @@ class ApFindStars:
                 
         # PSF aka star fitted FWHM info in units of pixels and arcseconds
         psf_info_dict['num_fit'] = self._kw_dict['AP_NFIT'][0]
+        
+        # Check have approximate plate scale
+        have_platescale = False
+        if ('APRX_XPS' in self._kw_dict) and ('APRX_YPS' in self._kw_dict):
+            have_platescale = True
+        else:
+            self._logger.warning('Skipping some quality reporting that requires an estimate platescale.')
+        
+        
+        
+        # Do conversions to estimated arcseconds
         if self._psf_table is not None:
-            aprx_xpixsize = self._kw_dict['APRX_XPS'][0]
-            aprx_ypixsize = self._kw_dict['APRX_YPS'][0]
-            avg_pixsize   = math.sqrt(0.5 * 
-                (aprx_xpixsize**2 + aprx_ypixsize**2) )
+            if have_platescale:
+                aprx_xpixsize = self._kw_dict['APRX_XPS'][0]
+                aprx_ypixsize = self._kw_dict['APRX_YPS'][0]
+                avg_pixsize   = math.sqrt(0.5 * 
+                    (aprx_xpixsize**2 + aprx_ypixsize**2) )
+            else:
+                aprx_xpixsize = null_val
+                aprx_ypixsize = null_val
+                avg_pixsize   = null_val
             
             # Is fwhm_x within 3 sigma of fwhm_y
             fwhm_x    = self._fwhm_x[0]
@@ -999,15 +1027,24 @@ class ApFindStars:
                 if 'both' in direction:
                     result_tuple = self._fwhm_both
                     dict_name    = 'fwhm_xandy'
-                    pixsiz_arcs  = avg_pixsize
+                    if have_platescale:
+                        pixsiz_arcs  = avg_pixsize
+                    else:
+                        pixsiz_arcs  = null_val
                 elif 'x' in direction:
                     result_tuple = self._fwhm_x
                     dict_name    = 'fwhm_x'
-                    pixsiz_arcs  = aprx_xpixsize
+                    if have_platescale:
+                        pixsiz_arcs  = aprx_xpixsize
+                    else:
+                        pixsiz_arcs  = null_val
                 elif 'y' in direction:
                     result_tuple = self._fwhm_y
                     dict_name    = 'fwhm_y'
-                    pixsiz_arcs  = aprx_ypixsize
+                    if have_platescale:
+                        pixsiz_arcs  = aprx_ypixsize
+                    else:
+                        pixsiz_arcs  = null_val
                 
                 psf_dir_dict = {}
                 fwhm_pix      = result_tuple[0]

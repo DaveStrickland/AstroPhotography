@@ -359,7 +359,17 @@ class ApAstrometry:
         aplog.setLevel('ERROR')
         ast           = AstrometryNet()
         aplog.setLevel('INFO')
-        ast.api_key   = astnetkey
+        if astnetkey is not None:
+            # Use user-specified key.
+            ast.api_key   = astnetkey
+        
+        # Check that we have a key now    
+        if not ast.api_key:
+            # Empty string evaluates False
+            err_msg = 'Your astroquery config file does not contain an Astrometry.net key and you did not supply one.'
+            self._logger.error(err_msg)
+            raise RuntimeError(err_msg)
+            
         try_again     = True
         submission_id = None
         pos_err_pix   = 10               # TODO get better estimate from srclist?

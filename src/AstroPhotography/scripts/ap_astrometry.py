@@ -27,10 +27,12 @@
 # 2020-12-20 dks : Fix read fits when BZERO undefined, increase timeout.
 # 2020-12-28 dks : Disable SIP by default because swarp does not support it.
 # 2021-01-19 dks : Moved ApAstrometry class over to core.
+# 2022-02-08 dks : Make key optional, depending on whether already in config.
 
 import argparse
 import sys
 import logging
+from astroquery.astrometry_net import AstrometryNet
 
 import AstroPhotography as ap
     
@@ -52,10 +54,10 @@ def command_line_opts(argv):
         
     parser.add_argument('--key',
         default=None,
-        required=True,
         type=str,
         metavar='ASTROMETRY_API_KEY',
-        help='Your personal Astrometry.net API key is required.')
+        help=('Your personal Astrometry.net API key, if you have not already'
+        ' added it to your ~/.astropy/config/astroquery.cfg config file.'))
 
     # Optional
     parser.add_argument('-l', '--loglevel', 
@@ -99,6 +101,15 @@ def command_line_opts(argv):
             ' leads to inaccurate estimated plat scales.'))                
         
     args = parser.parse_args(argv)
+    
+    # Check that the Astrometry.ent key is present in the default
+    # config if the user has not specified it here.
+    if args.key is None:
+        ast = AstrometryNet()
+        if not ast.api_key:
+            # Empty string evaluates False
+            parser.error('Your astroquery config file does not contain an Astrometry.net key. You must correct that or supply one using --key.')
+    
     return args    
 
 def main(args=None):

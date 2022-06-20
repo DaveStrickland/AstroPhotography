@@ -87,7 +87,7 @@ fi
 echo "$0 started at" $(date) | tee -a $p_log
 echo "Running from" $(pwd) | tee -a $p_log
 echo "Activating virtual environment." | tee -a $p_log
-source ~/venv/astro/bin/activate
+source ~/venv/astro38/bin/activate
 
 # Log files for python runs
 p_srclog='tmp_find.log'
@@ -114,7 +114,6 @@ fi
 # Common settings for the scripts.
 p_loglevel='DEBUG'
 p_maxstars=200
-p_astnetkey=esomuzpsccgwbahx
 
 # Amount of time to sleep between calls to Astrometry.net to avoid
 # spamming the service (once it saturates all processing fails, so
@@ -237,7 +236,7 @@ for p_cal_file in $(find . -name "cal-*fits"); do
             fi
             
             echo "  Performing astrometry on $p_cal_file" | tee -a $p_log
-            python3 $p_astrometry -l $p_loglevel --key=$p_astnetkey \
+            python3 $p_astrometry -l $p_loglevel \
                 $p_cal_file $p_src_path $p_nav_path >& $p_navlog
             p_status=$?
             if [ $p_status -ne 0 ]; then
