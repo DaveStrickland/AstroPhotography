@@ -17,6 +17,8 @@ astroscrappy>=1.0.7
 ccdproc>=2.1.0
 photutils>=0.7.2
 regions>=0.4
-sphinx-astropy
 sphinx-argparse
+sphinx-sizzle-theme
+sphinxcontrib-autoprogram
+sphinxcontrib-apidoc
 ExifRead>=2.3.2     # Read RAW file exif data

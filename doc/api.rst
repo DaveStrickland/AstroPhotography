@@ -4,4 +4,6 @@ API
 .. autosummary::
    :toctree: generated
 
-   AstroPhotography
+.. automodule:: AstroPhotography
+   :members:
+
