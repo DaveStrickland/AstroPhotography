@@ -2,6 +2,22 @@
 
 Release notes for versions starting at v0.2.2 and later.
 
+# Version 0.5
+
+The objectives of version 0.5 are:
+
+- Working `sphinx` documentation!
+- *Package layout reorganization* to move past some limitations imposed
+  by the original `cookiecutter` template, that are no longer helpful.
+- The ability to process the metadata-less "Premium" datasets now 
+  available from iTelescope.
+- Easier and more pythonic configuration for processing a set of images.
+  The example `bash` shell scripts are not sustainable.
+
+## Version 0.5.0 XXXX-XX-XX
+
+- WIP on getting `sphinx` to build local HTML documentation.
+
 # Version 0.4
 
 Version 0.4 returns to issues related to processing of FITS images,

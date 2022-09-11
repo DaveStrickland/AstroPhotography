@@ -16,4 +16,4 @@ Version 0.x should be considered a development version with an unstable API,
 and backwards compatibility is not guaranteed for minor versions.
 
 """
-__version__ = "0.4.2"
+__version__ = "0.5.0"
