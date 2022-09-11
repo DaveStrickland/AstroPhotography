@@ -7,7 +7,7 @@ Release notes for versions starting at v0.2.2 and later.
 Version 0.4 returns to issues related to processing of FITS images,
 in particular from iTelescope.
 
-## v0.4.2 xxxx-xx-xx
+## v0.4.2 2022-09-11
 
 - WIP on describing how to prepare for data processing and new calibration
   files in iTelescope_processing.md.
