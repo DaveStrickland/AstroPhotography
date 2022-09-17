@@ -11,9 +11,9 @@ Welcome to AstroPhotography's documentation!
    iTelescope_processing.md
    metadata.md
    usage
+   module_documentation
    contributing
    authors
-   ./api/modules
 
 
 Indices and tables
