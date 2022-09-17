@@ -21,4 +21,5 @@ sphinx-argparse
 sphinx-sizzle-theme
 sphinxcontrib-autoprogram
 sphinxcontrib-apidoc
+myst-parser
 ExifRead>=2.3.2     # Read RAW file exif data
