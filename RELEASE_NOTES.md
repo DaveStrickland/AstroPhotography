@@ -2,28 +2,37 @@
 
 Release notes for versions starting at v0.2.2 and later.
 
-# Version 0.5
+## Version 0.5
 
 The objectives of version 0.5 are:
 
 - Working `sphinx` documentation!
 - *Package layout reorganization* to move past some limitations imposed
   by the original `cookiecutter` template, that are no longer helpful.
-- The ability to process the metadata-less "Premium" datasets now 
-  available from iTelescope.
 - Easier and more pythonic configuration for processing a set of images.
   The example `bash` shell scripts are not sustainable.
+- The ability to process the metadata-less "Premium" datasets now 
+  available from iTelescope.
 
-## Version 0.5.0 XXXX-XX-XX
+### Version 0.5.0 XXXX-XX-XX
 
-- WIP on getting `sphinx` to build local HTML documentation.
+- The module itself has moved from `./src/AstroPhotography` to `./AstroPhotography`.
+- `sphinx`-generated documenation, including the module docstrings, now
+  works. Change directory into the `doc` directory and run `make html`,
+  then view the file in `_build/html/index.html`.
 
-# Version 0.4
+Limitations:
+
+- Python docstrings may be incorrect in some places, but that will be 
+  addressed at a later date.
+- The default font size used in the sphinx `sizzle` theme is too large.
+
+## Version 0.4
 
 Version 0.4 returns to issues related to processing of FITS images,
 in particular from iTelescope.
 
-## v0.4.2 2022-09-11
+### v0.4.2 2022-09-11
 
 - WIP on describing how to prepare for data processing and new calibration
   files in iTelescope_processing.md.
@@ -44,7 +53,7 @@ in particular from iTelescope.
   longer treated as `CygnusLoop x1 y1` but as `CygnusLoop` instead.
 - Added `ap_fix_itelescope_dirs.sh` and `ap_rename_files_with_spaces.sh`
 
-## v0.4.1 2021-07-24
+### v0.4.1 2021-07-24
 
 - Updated the requirements.txt file with long term aim of supporting python39.
 - Added ap_measure_background.py and ApMeasureBackground.py to resolve
@@ -54,7 +63,7 @@ in particular from iTelescope.
 - Big changes in the ApFindStars interface to support it being used by
   external classes instead of doing all I/O on files.
 
-## v0.4.0 2021-05-22
+### v0.4.0 2021-05-22
 
 - Added ap_imarith.py and ApImArith to supply a native way of performing
   simple arithmetical operations on one or two FITS files.
@@ -67,13 +76,13 @@ Limitations:
   extension (Primary HDU) of the FITS file. This does not allow for 
   multi-extension files (MEF).
 
-# Version 0.3
+## Version 0.3
 
 Version 0.3 is an interim release that attempts to finally provide
 the basic "required" functionality to the RAW file conversion 
 tool `dksraw`, before attention switches back to FITS file processing.  
 
-## v0.3.0 2021-04-04
+### v0.3.0 2021-04-04
 
 - FITS files can now be written by the `dksraw grey`, `dksraw rgb`,
   and `dksraw split` commands. This expects you to specify file names 
@@ -114,9 +123,9 @@ Limitations:
 - We are still using `imageio` for graphics-file format output, which is
   **very slow for formats other than TIFF**. 
 
-# Version 0.2
+## Version 0.2
 
-## v0.2.4 2021-02-27
+### v0.2.4 2021-02-27
 
 The emphasis of this release improvements in the calibration process,
 in particular bad pixel removal and the newly added cosmic ray removal.
@@ -130,7 +139,7 @@ in particular bad pixel removal and the newly added cosmic ray removal.
 - Fix issue #5, allowing darks that either have bias subtraction or
   have not (--dark_still_biased).
 
-## v0.2.3 2020-12-22
+### v0.2.3 2020-12-22
 
 The emphasis of this release is on the capability to process FITS images
 from amatuer astronomical observations, in particular iTelescope.net.
@@ -147,7 +156,7 @@ Outstanding Issues:
 - The Ap classes and ap_ scripts were tested by analysis, not with 
   automated unit tests.
 
-## v0.2.2 2020-07-12
+### v0.2.2 2020-07-12
 
 Continued work on conversion of camera RAW files, including conversion
 to grey-scale 16-bit formats, splitting by Bayer channels and white 

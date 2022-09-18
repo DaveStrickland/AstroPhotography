@@ -56,20 +56,20 @@ beginning with ap_).
 (To be described, but see [doc/iTelescope_processing.md](doc/iTelescope_processing.md)
 for a very high level summary of what is currently implemented.)
 
-# Installation Instructions
+## Installation Instructions
 
-## Minimum Requirements
+### Minimum Requirements
 
 See `requirements.txt` for full dependency list. This is a Python 3 
 project, with no intention to support Python 2.
 
-## Optional Requirements
+### Optional Requirements
 
 - `pytest` http://pytest.org (for running the test suite)
 - `Sphinx` http://sphinx-doc.org (for generating documentation)
 
 
-## Basic Setup
+### Basic Setup
 
 Install:
 
@@ -91,6 +91,16 @@ $ dksraw --help
 $ dksraw split --help
 ```
 
+Build documentation:
+
+```bash
+cd doc
+make html
+# view doc/_build/html/index.html in a browser
+```
+
+#### Developers Only
+
 Run the test suite. For reasons I haven't resolved running pytest as a stand-alone
 runs into the path issues related to https://docs.pytest.org/en/latest/pythonpath.html
 
@@ -110,10 +120,3 @@ python3 -m pytest --cov-report html --cov=AstroPhotography test/
 # Open htmlcov/index.html with a browser...
 ```
 
-Build documentation:
-
-*Note* This is currently not working correctly.
-
-```bash
-    $ sphinx-build -b html doc doc/_build/html
-```

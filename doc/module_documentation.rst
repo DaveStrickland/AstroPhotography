@@ -1,7 +1,4 @@
 Module Documentation
 ====================
 
-.. toctree::
-   :maxdepth: 4
-
-   api/AstroPhotography
+.. include:: api/AstroPhotography
