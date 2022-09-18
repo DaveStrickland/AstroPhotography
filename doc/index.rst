@@ -1,17 +1,19 @@
-.. AstroPhotography documentation master file, created by
-   sphinx-quickstart on Sun Aug 16 14:37:50 2015.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Welcome to AstroPhotography's documentation!
-=======================================
-
-Contents:
+============================================
 
 .. toctree::
    :maxdepth: 2
+   :titlesonly:
+   :caption: Contents:
 
-
+   readme
+   iTelescope_processing.md
+   metadata.md
+   api/modules
+   contributing
+   authors
+   release_notes
+   license
 
 Indices and tables
 ==================
@@ -19,4 +21,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
