@@ -135,14 +135,14 @@ class ApImageDifference:
                 f' First file={imdata1.shape},'
                 f' second file={imdata2.shape}')
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
         
         if imdata1.dtype != imdata2.dtype:
             err_msg = ('Error, data types do not match:'
                 f' First file={imdata1.dtype},'
                 f' second file={imdata2.dtype}')
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
 
         return
         
@@ -163,13 +163,13 @@ class ApImageDifference:
         if (mask1 is None) and (mask2 is None):
             err_msg = 'Error, no input masks were passed to _combine_existing_bad_masks'
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
         elif (mask1 is not None) and (mask2 is not None):
             # Check the shapes are the same.
             if mask1.shape != mask2.shape:
                 err_msg = f'Error, mask shapes do not match. mask1 is {mask1.shape}, while mask2 is {mask2.shape}'
                 self._logger.error(err_msg)
-                raise RunTimeError(err_msg)
+                raise RuntimeError(err_msg)
             good1 = mask1 == 0
             good2 = mask2 == 0
         else:
@@ -524,7 +524,7 @@ class ApCalcReadNoise:
                 f' First file={data1.shape},'
                 f' second file={data2.shape}')
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
         
         # Work out the gain value to use (e/ADU)
         self._gain = self._select_gain(hdr1, hdr2)
@@ -674,7 +674,7 @@ class ApCalcReadNoise:
                 err_msg += ' the second FITS file.'
             
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
 
         # Now check the gains are the same to within a tolerance.
         # Gains can differ by this much and be OK (e/ADU)
@@ -682,7 +682,7 @@ class ApCalcReadNoise:
         if math.fabs(gain1-gain2) > tolerance:
             err_msg = f'Error, gains differ by more than {tolerance:.3f} e/ADU, where gain1={gain1:.3f}, gain2={gain2:.3f}.'
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
         
         return gain1
         

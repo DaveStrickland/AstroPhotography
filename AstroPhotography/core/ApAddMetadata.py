@@ -192,7 +192,7 @@ class ApAddMetadata:
         
         if err_msg is not None:
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
         
         return observatory
         
@@ -235,7 +235,7 @@ class ApAddMetadata:
             f' only generated {num_fields} fields, expecting > 3 fields.'
             f' Split file name: {split_list}')
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
         
         return telescope, observer, target
         
@@ -338,7 +338,7 @@ class ApAddMetadata:
         else:
             err_msg = f'Error, unexpected/unsupported mode {mode}.'
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
         
         # Observer-related keywords
         kwdict['OBSERVER'] = (observer_str, 'Name of observer')
@@ -370,7 +370,7 @@ class ApAddMetadata:
         else:
             err_msg = f'Error, {fitsfile} header did not contain DATE-OBS keyword.'
             self._logger.error(err_msg)
-            raise RunTimeError(err_msg)
+            raise RuntimeError(err_msg)
 
         # Airmass
         airmass = site.altaz(date_obs, target).secz.value

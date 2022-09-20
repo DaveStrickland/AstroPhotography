@@ -155,7 +155,7 @@ class ApCalibrate:
             msg = 'Could not determine exposure time for dark (img exposure found).'
         if msg is not None:
             self._logger.error(msg)
-            raise RunTimeError(msg)
+            raise RuntimeError(msg)
 
         # Calculate exposure ratio
         exp_ratio = img_exp / dark_exp
@@ -182,7 +182,7 @@ class ApCalibrate:
         else:
             msg = f'Error, flat field normalization method {flat_method} has not been implemented yet.'
             self._logger.error(msg)
-            raise RunTimeError(msg)
+            raise RuntimeError(msg)
             
         self._logger.info(f'Flat field normalization factor: {norm_factor:.2f}')
         out_flat = flat_data / norm_factor

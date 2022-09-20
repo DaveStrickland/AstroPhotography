@@ -322,7 +322,7 @@ class ApFixBadPixels:
             msg = (f'Error, the shape of the input data array ({data.shape})'
                 f' does not match that of the bad pixel mask array ({badpixmask.shape}).')
             self._logger.error(msg)
-            raise RunTimeError(msg)
+            raise RuntimeError(msg)
         
         if not np.issubdtype(data.dtype, np.floating):
             # Not a floating point datatype.

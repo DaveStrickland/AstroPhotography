@@ -105,7 +105,7 @@ class ApMasterCal:
        presence of different types of file (e.g. a directory containing
        both darks and biases, or darks of different exposure time or
        binning). If the input directory does contain different types of
-       FITS file this class will log it and throw a RunTimeError
+       FITS file this class will log it and throw a RuntimeError
        exception.
     """
     
