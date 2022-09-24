@@ -14,6 +14,10 @@ The objectives of version 0.5 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
+### Version 0.5.1 (Work In Progress)
+
+- Improve documentation now that we can run sphinx on the module.
+
 ### Version 0.5.0 2022-09-18
 
 - The module itself has moved from `./src/AstroPhotography` to `./AstroPhotography`.

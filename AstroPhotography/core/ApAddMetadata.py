@@ -51,11 +51,17 @@ class ApAddMetadata:
     Cygnus Loop might have a file name including `CygnusLoop_x1_y1.`
     The `x* y*` suffix will be stripped so that only `CygnusLoop` 
     is sent to CDS/Simbad for name resolution.
+    
+    Note:
+      iTelescope premium datasets do not follow the normal iTelescope
+      file naming convention. Runing process() with `mode='iTelescope'`
+      will likely fail.
     """
     
     def __init__(self,
         loglevel):
-        """Initializes an ApAddMetadata instance.
+        """
+        Initializes an ApAddMetadata instance.
         """
         
         self._name     = 'ApAddMetadata'
@@ -65,7 +71,8 @@ class ApAddMetadata:
         return
         
     def _check_file_exists(self, filename):
-        """Raises an exception if the name file does not exist.
+        """
+        Raises an exception if the name file does not exist.
         """
         
         if not Path(filename).exists():
@@ -75,7 +82,8 @@ class ApAddMetadata:
         return
 
     def _initialize_logger(self, loglevel):
-        """Initialize and return the logger
+        """
+        Initialize and return the logger
         """
         
         self._logger = logging.getLogger(self._name)
@@ -105,8 +113,9 @@ class ApAddMetadata:
         return
         
     def _get_itelescope_site(self, telescope):
-        """Return an astroplan Observer instance for a given iTelescope
-           telescope.
+        """
+        Return an astroplan Observer instance for a given iTelescope
+        telescope.
         """
         
         nm_loc = {'mpc': 'H06',
@@ -210,7 +219,8 @@ class ApAddMetadata:
         particular case this function will return telescope=T05,
         observer=davestrickland, and target=NGC_6888.
         
-        :param filename: File name string to process. 
+        :param filename: File name string to process. Must follow the
+          iTelescope format generated in user-driven observing sessions.
         """
         
         split_list = filename.split('-')
@@ -240,7 +250,8 @@ class ApAddMetadata:
         return telescope, observer, target
         
     def _read_fits(self, image_filename, image_extension):
-        """Read a single extension's data and header from a FITS file.
+        """
+        Read a single extension's data and header from a FITS file.
         """
         
         self._check_file_exists(image_filename)
@@ -261,8 +272,9 @@ class ApAddMetadata:
         return ext_data, ext_hdr
 
     def _write_corrected_header(self, fitsfile, kwdict):
-        """Updates the header keywords of the specified file with 
-           the computed values.
+        """
+        Updates the header keywords of the specified file with 
+        the computed values.
         """
         
         self._logger.debug(f'FITS header keywords to be added to output: {kwdict}')
@@ -302,6 +314,7 @@ class ApAddMetadata:
         ApQualitySummarizer.
         
         This function supports the following modes:
+        
         - 'iTelescope': The telescope, target, and observer are parsed 
           from the file name. In combination with the date/time of the
           observation this allows the target RA, Dec, site 

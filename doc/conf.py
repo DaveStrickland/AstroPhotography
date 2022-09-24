@@ -32,6 +32,9 @@ apidoc_module_dir = '../AstroPhotography/'
 apidoc_excluded_paths = ['tests']
 apidoc_separate_modules = True
 
+# Document private methods
+napoleon_include_private_with_doc = True
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
