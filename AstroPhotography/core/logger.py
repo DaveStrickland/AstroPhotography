@@ -14,13 +14,15 @@ __all__ = "logger", "Logger"
 
 
 class Logger(_Logger):
-    """ Message logger.
+    """
+    Message logger.
 
     """
-    LOGFMT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    LOGFMT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s" #: Default log format
 
     def __init__(self, name=None):
-        """ Initialize this logger.
+        """
+        Initialize this logger.
 
         Loggers with the same name refer to the same underlying object. 
         Names are hierarchical, e.g. 'parent.child' defines a logger that is a 
@@ -37,7 +39,8 @@ class Logger(_Logger):
         return
 
     def start(self, level="WARN", stream=None):
-        """ Start logging to a stream.
+        """
+        Start logging to a stream.
 
         Until the logger is started, no messages will be emitted. This applies
         to all loggers with the same name and any child loggers. 
@@ -52,11 +55,11 @@ class Logger(_Logger):
         logger's priority level after it has been stared. Available levels and 
         their suggested meanings:
 
-            DEBUG - output useful for developers
-            INFO - trace normal program flow, especially external interactions
-            WARN - an abnormal condition was detected that might need attention
-            ERROR - an error was detected but execution continued
-            CRITICAL - an error was detected and execution was halted
+            - DEBUG:    output useful for developers
+            - INFO:     trace normal program flow, especially external interactions
+            - WARN:     an abnormal condition was detected that might need attention
+            - ERROR:    an error was detected but execution continued
+            - CRITICAL: an error was detected and execution was halted
 
         :param level: logger priority level
         :param stream: output stream (stderr by default)
@@ -68,7 +71,8 @@ class Logger(_Logger):
         return
 
     def stop(self):
-        """ Stop logging with this logger.
+        """
+        Stop logging with this logger.
 
         """
         for handler in self.handlers[1:]:

@@ -178,6 +178,7 @@ def CapitalCase_to_snake_case(input_str):
     Based on: https://www.geeksforgeeks.org/python-program-to-convert-camel-case-string-to-snake-case/
     
     Limitations:
+    
     - Messes up consecutive capital letters, e.g. ISO become i_s_o, or
       FocalLengthMM becomes focal_length_m_m
     

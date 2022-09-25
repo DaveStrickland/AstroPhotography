@@ -14,11 +14,13 @@ __all__ = "config", "YamlConfig"
 
 
 class _AttrDict(dict):
-    """ A dict-like object with attribute access.
+    """
+    A dict-like object with attribute access.
 
     """
     def __getitem__(self, key):
-        """ Access dict values by key.
+        """
+        Access dict values by key.
 
         :param key: key to retrieve
         """
@@ -35,14 +37,16 @@ class _AttrDict(dict):
         return value
 
     def __getattr__(self, key):
-        """ Get dict values as attributes.
+        """
+        Get dict values as attributes.
 
         :param key: key to retrieve
         """
         return self[key]
 
     def __setattr__(self, key, value):
-        """ Set dict values as attributes.
+        """
+        Set dict values as attributes.
 
         :param key: key to set
         :param value: new value for key
@@ -52,13 +56,15 @@ class _AttrDict(dict):
 
 
 class YamlConfig(_AttrDict):
-    """ Store YAML configuration data.
+    """
+    Store YAML configuration data.
 
     Data can be accessed as dict values or object attributes.
 
     """
     def __init__(self, path=None, root=None, macros=None):
-        """ Initialize this object.
+        """
+        Initialize this object.
 
         :param path: config file path to load
         :param root: place config values at this root
@@ -70,7 +76,8 @@ class YamlConfig(_AttrDict):
         return
 
     def load(self, path, root=None, macros=None):
-        """ Load data from YAML configuration files.
+        """
+        Load data from YAML configuration files.
 
         Configuration values are read from a sequence of one or more YAML
         files. Files are read in the given order, and a duplicate value will

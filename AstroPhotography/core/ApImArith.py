@@ -31,7 +31,7 @@ class ApImArith:
         """
     
         self._name = 'ApImArith'
-        self._allowed_ops = ['ADD', 'SUB', 'MUL', 'DIV']
+        self._allowed_ops = ['ADD', 'SUB', 'MUL', 'DIV']    #: Allowed math operators
     
         # Initialize logging
         self._loglevel = loglevel
@@ -48,7 +48,8 @@ class ApImArith:
         return
 
     def _initialize_logger(self, loglevel):
-        """Initialize and return the logger
+        """
+        Initialize and return the logger
         """
         
         self._logger = logging.getLogger(self._name)
@@ -89,7 +90,8 @@ class ApImArith:
             return False
             
     def _read_fits(self, image_filename, image_extension):
-        """Read a single extension's data and header from a FITS file
+        """
+        Read a single extension's data and header from a FITS file
         """
         
         self._check_file_exists(image_filename)
@@ -152,7 +154,8 @@ class ApImArith:
         return ext_data, ext_hdr
 
     def _remove_pedestal_kw(self, hdr):
-        """Removes the PEDESTAL keyword from the input FITS header
+        """
+        Removes the PEDESTAL keyword from the input FITS header
         
         AstroPhotography always removes any artificial PEDESTAL applied
         to the data when reading a FITS file, so it is important to make
@@ -267,11 +270,11 @@ class ApImArith:
           point value or the file name of another FITS file. If
           a single value is specified the same value is applied to
           all pixels in the input image primary image extension. If a
-           FITS file is specified a pixel by pixel addition, subtraction,
-           multiplication or division is applied using the values in the
-           primary image extension of the second file. The array dimensions
-           of the second file's primary image extension must match the
-           input image.
+          FITS file is specified a pixel by pixel addition, subtraction,
+          multiplication or division is applied using the values in the
+          primary image extension of the second file. The array dimensions
+          of the second file's primary image extension must match the
+          input image.
         :param out_img: Output FITS file to write the result to. This
           will be a copy of the input image file with the primary 
           extension header and data modified.

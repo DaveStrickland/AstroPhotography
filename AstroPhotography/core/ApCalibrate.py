@@ -42,8 +42,8 @@ class ApCalibrate:
     """
     
     # Flat fielding method enumeration
-    MEAN_FULL   = 0  # Mean value of entire flat field.
-    MEDIAN_FULL = 1  # Median value of entire flat field. TBA
+    MEAN_FULL   = 0  #: Mean value of entire flat field.
+    MEDIAN_FULL = 1  #: Median value of entire flat field. TBA
     
     def __init__(self, master_bias_file,
         master_dark_file,

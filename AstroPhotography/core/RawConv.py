@@ -11,8 +11,9 @@ import exifread     # Read camera RAW exif data
 from .. import __version__
 
 class RawConv:
-    """ Higher level conversions and processing of RAW image files to graphics formats 
-        and/or FITS image format.
+    """
+    Higher level conversions and processing of RAW image files to graphics formats 
+    and/or FITS image format.
     """
     
     def __init__(self, rawfile):
@@ -134,6 +135,7 @@ class RawConv:
         For the Canon Digital Rebel XTi, the format of the camera
         whitebalance and the daylight whitebalance format are
         inconsistent:
+        
         - camera:   1997.0, 1080.0, 2333.0, 1080.0
         - daylight: 2.4238, 0.9213, 1.1510, 0.0
 
@@ -246,8 +248,9 @@ class RawConv:
         return
 
     def _safe_subtract(self, data_arr, data_mask, val_to_subtract):
-        """Safe subtraction of one array or scalar from another array
-           avoiding unsigned integer wrap-around.
+        """
+        Safe subtraction of one array or scalar from another array
+        avoiding unsigned integer wrap-around.
         
         It is possible for a value within a data array to be less
         than the value to subtract, so we need to carefully reset those
@@ -286,7 +289,8 @@ class RawConv:
             where=data_mask).copy()
             
     def _get_whitebalance_from_region(self, wb_method):
-        """Determine the whitebalance from a rectangular patch or the entire image
+        """
+        Determine the whitebalance from a rectangular patch or the entire image
         
         :param wb_method: The method can be 'auto' to select the entire 
           visible image, or 'region[rowmin, rowmax, colmin, colmax]'
@@ -327,7 +331,8 @@ class RawConv:
         return wb_list
         
     def _get_sum_in_region(self, data_arr, mask_arr, rpix_list):
-        """Find the data sum in a rectangular region described by a list
+        """
+        Find the data sum in a rectangular region described by a list
         and optionally within a mask
         
         :param data_arr: 2-dimensional array of data values.
@@ -361,8 +366,9 @@ class RawConv:
         return sumpix, numpix
         
     def get_whitebalance(self, wb_method):
-        """Return the whitebalance multiplies for a given white-balance
-           calculation method.
+        """
+        Return the whitebalance multiplies for a given white-balance
+        calculation method.
         """
         
         # Check whitebalance method supplied.
@@ -400,9 +406,11 @@ class RawConv:
 
         :param luminance_method: Luminance method to use. At present only the
            following method(s) are supported:
+           
            - linear: Applies Bayer correction with a gamma=1 value to
              generate an RGB image, then applies the CCIR 601 coefficients
              to convert that to greyscale.
+             
         :param subtract_black: If true the camera black levels will be 
           subtracted from the channel data.
         :param wb_method: Whitebalance method to user to determine white 
@@ -485,11 +493,13 @@ class RawConv:
 
         :param luminance_method: Luminance method to use. At present only the
            following method(s) are supported:
+           
            - linear: Applies Bayer correction with a gamma=1 value to
              generate an RGB image, then applies the CCIR 601 coefficients
              to convert that to greyscale.
            - direct: Each channel is multiplied by its white-balance factor
              and the added to the final image. There is no interpolation.
+             
         :param subtract_black: If true the camera black levels will be 
           subtracted from the channel data.
         :param wb_method: Whitebalance method to user to determine white 
@@ -577,7 +587,8 @@ class RawConv:
         return grey_im.astype(np.uint16), self._exif_dict
 
     def split(self, subtract_black=True):
-        """Exports the raw, unprocessed, bayer RGBG as four separate 
+        """
+        Exports the raw, unprocessed, bayer RGBG as four separate 
         uint16 numpy arrays.
         
         For each band (R, G etc) the only non-zero pixels will be that 
@@ -586,7 +597,7 @@ class RawConv:
         :param subtract_black: If true the camera black levels will be 
           subtracted from the channel data.
         
-        Returns four numpy arrasy of the image, along with a dictionary of EXIF
+        Returns four numpy arrays, along with a dictionary of EXIF
         tags.
         """
         

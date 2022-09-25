@@ -15,6 +15,8 @@ from .. import __version__
 
 class ApAutoBadcols:
     """
+    Automatically detect the worst bad columns and bad rows in an 
+    astronomical image.
     """
     
     def __init__(self,

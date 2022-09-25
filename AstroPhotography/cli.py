@@ -3,19 +3,21 @@ Implementation of the command line interface for the dksraw
 command within the AstroPhotography python module.
     
 The dksraw command is intended to provide the following subcommands:
+
 - grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
-        FITS file using one of several methods.
+  FITS file using one of several methods.
 - split: Splits the input RAW file into separate 16-bit PNG files for each
-         of the R, G, B and G channel in the Bayer mask.
+  of the R, G, B and G channel in the Bayer mask.
 - rgb: Convert a RAW file into an RGB PNG image.
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
-                of several ways.
+  of several ways.
 - info: Print metadata about the input RAW file to stdout.
 
 Only the first threee (rg, grey and split) are currently implemented, although
 parts of the whitebalance calculations are implemented.
 
 Typical use-cases might be:
+
 - Taking a RAW image using a digital camera attached to a telescope,
   and generating a quick look image using `dksraw grey --renomalize --loglevel DEBUG`
   to check both framing and raw image count percentiles.
@@ -42,7 +44,8 @@ __all__ = "main",
 
 
 def main(argv=None) -> int:
-    """ Execute the application CLI.
+    """
+    Execute the application CLI.
 
     :param argv: argument list to parse (sys.argv by default)
     :return: exit status
@@ -72,7 +75,8 @@ def main(argv=None) -> int:
  
 
 def _args(argv):
-    """ Parse command line arguments.
+    """
+    Parse command line arguments.
 
     :param argv: argument list to parse
     """
@@ -214,7 +218,8 @@ def _rgb(subparsers, common):
     return
 
 def _grey(subparsers, common):
-    """Defines command line options for the grey command.
+    """
+    Defines command line options for the grey command.
 
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
@@ -274,7 +279,8 @@ def _grey(subparsers, common):
     return
     
 def _split(subparsers, common):
-    """Defines command line options for the split command.
+    """
+    Defines command line options for the split command.
 
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments

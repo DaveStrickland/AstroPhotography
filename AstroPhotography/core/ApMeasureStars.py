@@ -53,16 +53,18 @@ from photutils import make_source_mask, find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
         
 class ApMeasureStars:
-    """Measures stellar PSF size and symmetry in selected stars across
-       and input image.
+    """
+    Measures stellar PSF size and symmetry in selected stars across
+    and input image.
     
     The primary purpose of this class is to measure the size (full width
     at half maximum) of stars in the input image and sourcelist, and to
     attempt to detect if there is significant asymetry in the star images.
     This information can be used to:
-    1. Measure the seeing (star FWHM) in the image.
-    2. Refine source searching with ApFindStars based on the "true" FWHM,
-    3. Identify images with poor seeing or tracking in comparison to
+    
+    #. Measure the seeing (star FWHM) in the image.
+    #. Refine source searching with ApFindStars based on the "true" FWHM,
+    #. Identify images with poor seeing or tracking in comparison to
        other images of the same target from the same telescope. Such 
        images should be excluded from image stacking.
     
@@ -90,7 +92,8 @@ class ApMeasureStars:
             fwhm_plot_title,
             loglevel,
             quiet):
-        """ApMeasureStars constructor
+        """
+        ApMeasureStars constructor
         """
         
         self._img_data    = img_data        # Image data 2-D array
@@ -157,8 +160,9 @@ class ApMeasureStars:
         return
         
     def _cutout_to_image_positions(self):
-        """Convert the best fit positions from the cutout subimage frame
-           to the full image pixel frame.
+        """
+        Convert the best fit positions from the cutout subimage frame
+        to the full image pixel frame.
         """
         
         self._fit_table['xc_fit'] += self._fit_table['xmin']
@@ -166,8 +170,9 @@ class ApMeasureStars:
         return
         
     def _calculate_boxes(self):
-        """Calculate the pixel indices of the boxes from which data will
-           be extracted for fitting each star.
+        """
+        Calculate the pixel indices of the boxes from which data will
+        be extracted for fitting each star.
         """
         
         half_width = self._box_width_pix / 2
@@ -215,8 +220,9 @@ class ApMeasureStars:
         return rchisq
         
     def _do_fitting(self):
-        """Performs 1-D and 2-G gaussian fits to the stars in the
-           internal fit_table.
+        """
+        Performs 1-D and 2-G gaussian fits to the stars in the
+        internal fit_table.
            
         A 2-dimensional Gaussian plus flat background model is fit to
         each cut-out image. The model is initialized with the global
@@ -227,6 +233,7 @@ class ApMeasureStars:
         root of the pixel counts.
            
         There are some limitations to this at present:
+        
         - The reduced chi-squared values obtained are unrealistic. It is
           not clear whether the errors are underestimated and/or the
           fitting has trouble converging to the true solution.
@@ -450,8 +457,9 @@ class ApMeasureStars:
         
     @classmethod
     def is_circular(cls, fwhm_x, fwhm_y, fwhm_xerr, fwhm_yerr):
-        """Returns True if fwhm_y is within _circ_thresh_sigma
-           standard deviations of fwhm_x, otherwise False
+        """
+        Returns True if fwhm_y is within _circ_thresh_sigma
+        standard deviations of fwhm_x, otherwise False
         """
         circular = True
         # Circularity is whether fwhm_y is within _circ_thresh_sigma
@@ -472,8 +480,9 @@ class ApMeasureStars:
         max_iterations,
         n_fit_pars,
         index):
-        """Utility to perform a single fit of a model to the data,
-           checking for error conditions along the way.
+        """
+        Utility to perform a single fit of a model to the data,
+        checking for error conditions along the way.
         """
         
         fitted_mod = fitter(input_mod, 
@@ -505,7 +514,8 @@ class ApMeasureStars:
         return fitted_mod, fit_status, fit_message, fit_ok, err_param
 
     def _extract_cutouts(self):
-        """Create 3-D data array to store N stars x MxM pixels
+        """
+        Create 3-D data array to store N stars x MxM pixels
         """
         num_stars = len(self._fit_table)
         wdth      = self._box_width_pix
@@ -529,8 +539,9 @@ class ApMeasureStars:
 
         
     def _fit_box_initialization(self):
-        """Sets up variables related to the size of the region used in
-           fitting and the edge exclusion used in candidate selection.
+        """
+        Sets up variables related to the size of the region used in
+        fitting and the edge exclusion used in candidate selection.
         """
         
         # We want the fit box to be at least 2x the initial estimated
@@ -550,8 +561,9 @@ class ApMeasureStars:
         return
         
     def _get_fit_artists(self, index):
-        """Returns a list of matplotlib artists to be added to a plot
-           based on the Gaussian fits
+        """
+        Returns a list of matplotlib artists to be added to a plot
+        based on the Gaussian fits
         """
         artist_list = []
         
@@ -573,9 +585,10 @@ class ApMeasureStars:
         return artist_list
         
     def _get_subplot_fitinfo(self, index):
-        """Extract a short summary of the fit results for the star at
-           the given index in the fit_table, suitable for use in the
-           subplots.
+        """
+        Extract a short summary of the fit results for the star at
+        the given index in the fit_table, suitable for use in the
+        subplots.
         """
         
         # Get info from fit
@@ -593,7 +606,8 @@ class ApMeasureStars:
         return fitinfo_str
         
     def _get_subplot_title(self, index):
-        """Return a title string for a subplot showing a single fitted star.
+        """
+        Return a title string for a subplot showing a single fitted star.
         """
         xcen  = self._fit_table['xcenter'][index]
         ycen  = self._fit_table['ycenter'][index]
@@ -605,7 +619,8 @@ class ApMeasureStars:
         return title_str
         
     def _initialize_logger(self, loglevel):
-        """Initialize and return the logger
+        """
+        Initialize and return the logger
         """
         
         logger = logging.getLogger('ApMeasureStars')
@@ -631,7 +646,8 @@ class ApMeasureStars:
         return logger
         
     def _plot_fits(self):
-        """Plot all the fits.
+        """
+        Plot all the fits.
         """
 
         # Make axis box stand out as viridis can be dark.
@@ -796,7 +812,8 @@ class ApMeasureStars:
         return
         
     def _select_candidates(self):
-        """Select candidate stars in the center and four quadrants
+        """
+        Select candidate stars in the center and four quadrants
         
         Fitting is computationally expensive and will not give good
         results on saturated stars, blended/crowded stars, and faint
@@ -818,21 +835,21 @@ class ApMeasureStars:
         diameter C=H then the area of the central circle is
         A_C = pi * H^2 / 16,
         and
-        A_Q = H/4 * (W - (pi*H/16))
+        A_Q = H/4 * (W - (pi*H/16))::
         
-        +-----------+-----------+
-        [           |           ]
-        [ TL        |        TR ]
-        [          -+-          ]
-        [         / | \         ]
-        [        |CN|  |        ]
-        +--------+--+--+--------+
-        [        |  |  |        ]
-        [ BL      \ | /      BR ]
-        [          -+-          ]
-        [           |           ]
-        [           |           ]
-        +-----------+-----------+
+            +-----------+-----------+
+            [           |           ]
+            [ TL        |        TR ]
+            [          -+-          ]
+            [         / | \         ]
+            [        |CN|  |        ]
+            +--------+--+--+--------+
+            [        |  |  |        ]
+            [ BL      \ | /      BR ]
+            [          -+-          ]
+            [           |           ]
+            [           |           ]
+            +-----------+-----------+
         
         Candidate stars should not be too close to the edge of the 
         detector. Stars with centroids within _edge_excl_pix of the 
@@ -957,8 +974,9 @@ class ApMeasureStars:
         return candidate_table
         
     def _trim_neighbors(self):
-        """Remove stars from _init_srcs that have a neighbor from 
-           _full_srcs within a radius of _box_width pixels.
+        """
+        Remove stars from _init_srcs that have a neighbor from 
+        _full_srcs within a radius of _box_width pixels.
            
         This uses a kdtree to identify the nearest neighbors.
         
@@ -1010,9 +1028,10 @@ class ApMeasureStars:
         
         
     def median_fwhm(self, direction):
-        """Returns the sigma-clipped median fitted FWHM over both X 
-           and Y in pixels over all stars that fitted successfully, 
-           along with median absolute deviation (MAD) standard deviation.
+        """
+        Returns the sigma-clipped median fitted FWHM over both X 
+        and Y in pixels over all stars that fitted successfully, 
+        along with median absolute deviation (MAD) standard deviation.
            
         Note that the deviation return is standard deviation based on
         the MAD, not the MAD itself. See astropy.stats.mad_std
@@ -1044,6 +1063,7 @@ class ApMeasureStars:
         return (median_fwhm, madstd_fwhm, num_used)
         
     def results_table(self):
-        """Return the fitting results as an astropy Table
+        """
+        Return the fitting results as an astropy Table
         """
         return self._fit_table
