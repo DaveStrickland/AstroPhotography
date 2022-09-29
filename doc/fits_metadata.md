@@ -11,8 +11,13 @@ processing philosophy:
   set of metadata
 - the metadata informs each stage of processing and is amended or added
   to by each stage
-- in most cases missing metadata will cause processing to fail, or
-  work less well. 
+- in most cases missing required metadata will cause processing to fail, 
+  or work less well
+- there is a limited set of optional metadata, that
+  can be used if present but is not critical
+- any metadata already
+  present that is not part of the required or optional metadata will be
+  propagated downstream, but is not used.
   
 The purpose of the `ApAddMetadata` class (`ap_add_metadata` command line 
 script) is to add to or update the metadata to the standard expected by
@@ -20,9 +25,39 @@ later `AstroPhotography` processing stages.
 
 #### ApAddMetadata / ap_add_metadata
 
+ApAddMetadata currently needs the following information.
+
+- Target name in a form that can be parsed by the Simbad name resolver. This
+  is used to get the RA-OBJ and DEC-OBJ target coordinates. The target name
+  is written to the OBJECT keyword.
+- The name of the observer is written to the OBSERVER keyword.
+- (iTelescope) telescope name, needed to determine the site latitude, longitude
+  and elevation. It writes the value to the TELESCOP keyword.
+- The site coordinates are written to the LAT-OBS, LON-OBS, and ALT-OBS
+  keywords.
+- In combination, the data of the observation, the target coordinates,
+  and the location of the observing site is used to derive the airmass
+  at the time of observation. This is written to the AIRMASS keyword.
+  
+Note that for iTelescope user-initiated observations the target name,
+observer and telescope name are not present in the *raw* FITS files
+but only in their file names.
+
+The RA-OBJ and DEC-OBJ coordinates are useful when performing astronometry,
+as a good initial guess at the pointing improves the speed and chance of
+success of Astrometry.net solutions.
+
+DATE-OBS is in principle very important as it is needed to determine which
+calibration files to apply to raw data, howvever it is not currently
+used in this manner. 
+
+The DATE-OBS and AIRMASS keyword values are reported in later 
+ApQualitySummarizer / ap_quality_summary output. 
+  
+
 ##### Metadata provided in iTelescope raw FITS files
 
-The FITS headers of FITS images obtained from iTelescope user observsing
+The FITS headers of FITS images obtained from iTelescope user-initiated observing
 sessions typically contain the observing time, some fixed telescope 
 characteristics, and the detector temperature
 
