@@ -252,6 +252,13 @@ class ApAddMetadata:
     def _read_fits(self, image_filename, image_extension):
         """
         Read a single extension's data and header from a FITS file.
+        
+        :param image_filename: Name/path of file to read
+        :param image_extension: Extension number or name to read data and
+          header from.
+        
+        :returns ext_data: FITS image data returned as a numpy array.
+        :returns ext_hdr: FITS header from the specified extension
         """
         
         self._check_file_exists(image_filename)
@@ -270,6 +277,49 @@ class ApAddMetadata:
             ext_data = hdu_list[image_extension].data
             
         return ext_data, ext_hdr
+        
+    def _check_header(self, fitshdr, required_kw_list, optional_kw_list):
+        """
+        Checks the presence of required and/or optional FITS keywords in
+        a FITS header. 
+        
+        If the header does not contain one or more of the required keywords
+        then an error is logged and an exception is generated. 
+        
+        If the header does not contain one or more of the optional keywords
+        then a warning message is logged. No exception is thrown.
+        
+        :param fitshdr: FITS header to check
+        :param required_kw_list: List of FITS keywords that must be present.
+          If no keywords are required then pass in None or an empty list.
+        :param optional_kw_list: List of FITS keywords whose presence is
+          optional.
+          If no keywords are required then pass in None or an empty list.
+        """
+        
+        missing_req = []
+        missing_opt = []
+        
+        if optional_kw_list is not None:
+            for kw in optional_kw_list:
+                if kw not in fitshdr:
+                    missing_opt.append( kw )
+
+        if required_kw_list is not None:
+            for kw in required_kw_list:
+                if kw not in fitshdr:
+                    missing_req.append( kw )
+
+        if len(missing_opt) > 0:
+            missing_str = ', '.join(missing_opt)
+            self._logger.warning(f'FITS header does not contain these optional keywords: {missing_str}')
+            
+        if len(missing_req) > 0:
+            missing_str = ', '.join(missing_req)
+            err_msg     = f'FITS header does not contain these optional keywords: {missing_str}'
+            self._logger.error(err_msg)
+            raise RuntimeError(err_msg)
+        return
 
     def _write_corrected_header(self, fitsfile, kwdict):
         """
@@ -376,18 +426,20 @@ class ApAddMetadata:
         # Get FITS header and date of observation
         ext_num = 0
         fdata, fhdr = self._read_fits(fitsfile, ext_num)
-        date_obs = None
+        required_kw = []
+        optional_kw = ['DATE-OBS']
+        self._check_header(fhdr, required_kw, optional_kw)
+
+        # Need the time of observation to calculate the airmass
         if 'DATE-OBS' in fhdr:
             date_obs = Time(fhdr['DATE-OBS'])
             self._logger.debug(f'Date of observation start: {date_obs}')
-        else:
-            err_msg = f'Error, {fitsfile} header did not contain DATE-OBS keyword.'
-            self._logger.error(err_msg)
-            raise RuntimeError(err_msg)
 
-        # Airmass
-        airmass = site.altaz(date_obs, target).secz.value
-        kwdict['AIRMASS'] = (airmass, 'Airmass at start of observation')
+            # Airmass
+            airmass = site.altaz(date_obs, target).secz.value
+            kwdict['AIRMASS'] = (airmass, 'Airmass at start of observation')
+        else:
+            self._logger.warning('Can not compute AIRMASS at start of observation without DATE-OBS value.')
 
         # Update original file.
         self._write_corrected_header(fitsfile, kwdict)
