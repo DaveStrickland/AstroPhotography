@@ -8,7 +8,7 @@ Welcome to AstroPhotography's documentation!
 
    readme
    iTelescope_processing.md
-   metadata.md
+   metadata
    api/modules
    contributing
    authors

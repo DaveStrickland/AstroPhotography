@@ -1,7 +1,9 @@
-# Camera RAW Metadata
+## Camera RAW Metadata
 
+Reading and writing Camera metadata is a challenge. These notes are
+more of a work in progress than a summary of reults.
 
-## Standard dcraw metadata
+### Standard dcraw metadata, CR2 format file
 
 From a Canon CR2 file, `dcraw -i -v` will print metadata.
 
@@ -146,7 +148,7 @@ does NOT currently provide any usable metadata handling. We may have to skip
 metadata, look to another module, or fall back on system calls to a
 utility like exiftool (which is not portable).
 
-## Metadata Read By ExifRead
+### Metadata Read By ExifRead
 
 Using ExifRead (v2.3.2):
 ```
