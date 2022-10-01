@@ -28,6 +28,7 @@
 #  2020-12-16 dks : Initial skeleton.
 #  2021-08-12 dks : Updated documentation regarding name resolution.
 #                   Added --target option to match ApAddMetadata.py
+#  2022-09-30 dks : Added yamlkeyval mode and yamlfile.
 
 import argparse
 import sys
@@ -42,11 +43,15 @@ def command_line_opts(argv):
     """
     parser = argparse.ArgumentParser(prog='ap_add_metadata',
         description=('Adds metadata to the FITS header of a calibrated fits file.'
-        ' Currently this is written to use the information in iTelescope'
+        ' Currently two methods of adding metadata exist.'
+        ' The iTelescope mode extracts information from iTelescope FITS'
         ' file names, plus information derived from that using astropy.'
         ' In the longer term other ways of inputting the data could be added.'
         ' The target name must resolve correctly using the Object search from'
-        ' http://simbad.u-strasbg.fr/simbad/sim-fid or processing will fail.'))
+        ' http://simbad.u-strasbg.fr/simbad/sim-fid or processing will fail.'
+        ' This will not work on iTelescope premium images. In that and more'
+        ' general cases use the yamlkeyval mode along with a yaml file of'
+        ' key/value pairs.'))
     
     # Required
     parser.add_argument('fitsimage',
@@ -64,7 +69,8 @@ def command_line_opts(argv):
         ' and observer will be parsed from the file name.'
         ' If the target name parsed from the iTelescope files contains'
         ' mosaic-like values, e.g. CygnusLoop x1 y1, then the x* and y*'
-        ' parts will be dropped prior to attempted name resolution.'))
+        ' parts will be dropped prior to attempted name resolution.'
+        ' If "yamlkeyval" then "--yamlfile" must also be specified.'))
     parser.add_argument('--target',
         metavar='TARGET NAME STRING',
         default=None,
@@ -73,11 +79,23 @@ def command_line_opts(argv):
         ' This is a string so use quotation marks to enclose names'
         ' with spaces. If specified this name is used irrespective of'
         ' whether the file name based target name would work or not.'))
+    parser.add_argument('--yamlfile',
+        metavar='YAMLFILE',
+        default=None,
+        help=('If "mode==yamlkeyval" then this parameter must be the'
+        ' name/path of a yaml file containing `key: value` pairs,'
+        ' order one per line. The keys will be converted to upper'
+        ' case and used as new FITS header keywords with the specified'
+        ' value. Note that these can overwrite existing FITS header'
+        ' keywords.'))
     parser.add_argument('-l', '--loglevel', 
         default='INFO',
         help='Logging message level. Default: INFO')
                 
     args = parser.parse_args(argv)
+    
+    if ('yamlkeyval' in args.mode) and (args.yamlfile is None):
+        parser.error('--yamlfile must be specified if "mode=iTelescope"')
     return args
 
 def main(args=None):
@@ -85,6 +103,7 @@ def main(args=None):
     p_fitsimg    = p_args.fitsimage
     p_mode       = p_args.mode
     p_target     = p_args.target
+    p_yamlfile   = p_args.yamlfile
     p_loglevel   = p_args.loglevel
     retcode      = 0
     
@@ -93,7 +112,7 @@ def main(args=None):
     
     # Update the image.
     try:
-        meta_adder.process(p_fitsimg, p_mode, p_target)
+        meta_adder.process(p_fitsimg, p_mode, p_target, p_yamlfile)
     except astropy.coordinates.name_resolve.NameResolveError as err:
         retcode = 1
         # TODO: Have logger pick up log format used in rest of AstroPhotography?
