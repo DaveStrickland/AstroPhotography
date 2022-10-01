@@ -17,6 +17,8 @@ The objectives of version 0.5 are:
 ### Version 0.5.1 (Work In Progress)
 
 - Improve documentation now that we can run sphinx on the module.
+- Resolved #017, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
+  that works on iTelescope premium images. 
 
 ### Version 0.5.0 2022-09-18
 
