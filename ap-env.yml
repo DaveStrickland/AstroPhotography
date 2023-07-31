@@ -1,0 +1,46 @@
+## Base conda environment known to work with the AstroPhotography application.
+##
+## To create a new conda environment with this file do:
+##      conda env create -f ap-env.yml
+##      conda activate ap-env
+##
+## Then install the AstroPhotography application in either normal...
+##      pip3 install . -r requirements.txt
+## ... or developer (user) mode...
+##      pip3 install -e . -r requirements.txt
+##
+name: ap-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10   
+  - matplotlib>=3.0.3
+  - numpy>=1.16.2
+  - astropy>=4.0
+  - notebook
+  - pip
+  - pip:
+    - PyYAML>=3.11
+    - rawpy>=0.13.1
+    - imageio>=2.5.0
+    - pytest>=5.2.1
+    - pytest-cov>=2.8.1  
+    - coverage>=5.0.3
+    - astroplan>=0.7
+    - astroquery>=0.4.1
+    - astroscrappy>=1.0.7
+    - ccdproc>=2.1.0
+    - photutils>=0.7.2
+    - regions>=0.4
+    - sphinx-argparse
+    - sphinx-sizzle-theme
+    - sphinxcontrib-autoprogram
+    - sphinxcontrib-apidoc
+    - myst-parser
+    - ExifRead>=2.3.2     # Read RAW file exif data
+    - jupyterlab
+    - jupyterlab-code-formatter
+    - jupyterlab-execute-time
+    - jupyterlab-spellchecker
+    
