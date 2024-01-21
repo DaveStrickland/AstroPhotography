@@ -22,6 +22,7 @@ dependencies:
   - pip
   - pip:
     - bump2version
+    - regions>=0.8
     - PyYAML>=3.11
     - rawpy>=0.13.1
     - imageio>=2.5.0

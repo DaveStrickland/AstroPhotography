@@ -11,6 +11,7 @@ pytest>=5.2.1
 pytest-cov>=2.8.1  
 coverage>=5.0.3
 astropy>=4.0
+regions>=0.8
 astroplan>=0.7
 astroquery>=0.4.1
 astroscrappy>=1.0.7
