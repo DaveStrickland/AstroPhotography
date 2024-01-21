@@ -21,6 +21,7 @@ dependencies:
   - notebook
   - pip
   - pip:
+    - bump2version
     - PyYAML>=3.11
     - rawpy>=0.13.1
     - imageio>=2.5.0

@@ -84,7 +84,7 @@ To install in developer mode replace the last line with
 `pip3 install -e . -r requirements.txt`.
 
 If you use `conda` or `miniconda` you may want to set up a new
-environment prior to running the pip install using the supplied
+environment *prior to running the pip install* using the supplied
 YaML file, e.g.
 ```bash
 conda env create -f ap-env.yml
