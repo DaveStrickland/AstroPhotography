@@ -61,7 +61,10 @@ for a very high level summary of what is currently implemented.)
 ### Minimum Requirements
 
 See `requirements.txt` for full dependency list. This is a Python 3 
-project, with no intention to support Python 2.
+project, with no intention to support Python 2. 
+
+*Note:* As of version 0.5 of this package the required version of `astropy`
+is version 6.0, to catch up to the latest `astropy` API changes.
 
 ### Optional Requirements
 

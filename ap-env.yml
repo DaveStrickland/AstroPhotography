@@ -17,7 +17,7 @@ dependencies:
   - python=3.10   
   - matplotlib>=3.0.3
   - numpy>=1.16.2
-  - astropy>=4.0
+  - astropy>=6.0
   - notebook
   - pip
   - pip:

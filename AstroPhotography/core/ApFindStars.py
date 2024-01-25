@@ -58,7 +58,7 @@ from astropy import units as u
 from astropy.modeling import models, fitting
 from astropy.stats import sigma_clip, mad_std
 
-from regions import PixCoord, CirclePixelRegion, ds9_objects_to_string
+from regions import PixCoord, CirclePixelRegion
 
 from photutils import make_source_mask, find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
@@ -897,12 +897,14 @@ class ApFindStars:
                 visual=vis_dict)
             regions.append( cpr )
         
-        reg_str = ds9_objects_to_string(regions, 
-            coordsys='image',
-            fmt=pix_fmt,
-            radunit='pix')
+        #reg_str = ds9_objects_to_string(regions, 
+            # coordsys='image',
+            # fmt=pix_fmt,
+            # radunit='pix')
+        reg_str = regions.serialize(format='ds9')
         with open(region_file, 'w', encoding='utf-8') as f_out:
             f_out.write(reg_str)
+        regions.write
             
         self._logger.debug(f'Wrote ds9-format region file to {region_file}')
         return    

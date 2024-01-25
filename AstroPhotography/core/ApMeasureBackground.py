@@ -40,7 +40,7 @@ from astropy.stats import sigma_clipped_stats
 from astropy.stats import sigma_clip, mad_std
 from astropy.stats import SigmaClip
 
-from regions import PixCoord, CirclePixelRegion, ds9_objects_to_string
+from regions import PixCoord, CirclePixelRegion
 
 from photutils import make_source_mask, find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
