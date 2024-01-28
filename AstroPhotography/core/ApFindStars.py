@@ -33,6 +33,7 @@
 # 2020-09-02 dks : Select candidates with no nearby stars using a kdtree.
 # 2021-01-18 dks : Move ApFindStars into core, split ApMeasureStars into its
 #                  own file.
+# 2024-01-25 dks : Catch up to latest astropy/photutils changes
 
 import logging
 import os.path
@@ -56,11 +57,12 @@ from astropy.visualization.mpl_normalize import ImageNormalize
 from astropy.stats import sigma_clipped_stats
 from astropy import units as u
 from astropy.modeling import models, fitting
-from astropy.stats import sigma_clip, mad_std
+from astropy.stats import sigma_clipped_stats, SigmaClip, mad_std
 
-from regions import PixCoord, CirclePixelRegion
+from regions import PixCoord, CirclePixelRegion, Regions
 
-from photutils import make_source_mask, find_peaks, DAOStarFinder
+from photutils.segmentation import detect_threshold, detect_sources
+from photutils import find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 
 # AstroPhotography includes    
@@ -141,7 +143,11 @@ class ApFindStars:
             sigma=3.0)
         self._logger.debug('Sigma clipped image stats: mean={:.3f}, median={:.3f}, stddev={:.3f}'.format(self._bg_mean, self._bg_median, self._bg_stddev))  
     
-        tmp_mask = make_source_mask(self._data, nsigma=2, npixels=5, dilate_size=11)
+        sigma_clip  = SigmaClip(sigma=3.0, maxiters=10)
+        threshold   = detect_threshold(self._data, nsigma=2.0, sigma_clip=sigma_clip)
+        segment_img = detect_sources(self._data, threshold, npixels=5)
+        tmp_mask    = segment_img.make_source_mask(size=11)
+        #tmp_mask    = make_source_mask(self._data, nsigma=2, npixels=5, dilate_size=11) # old
         self._bg_mean, self._bg_median, self._bg_stddev = sigma_clipped_stats(self._data, 
             sigma=3.0, 
             mask=tmp_mask)
@@ -258,7 +264,7 @@ class ApFindStars:
         ax.set_ylabel('Y-axis (pixels)', fontsize=8)
         #plt.show()
         plt.savefig(self._plotfile,
-            dpi=200, quality=95, optimize=True,
+            dpi=200,
             bbox_inches='tight')
         self._logger.info(f'Plotting asinh-stretched bitmap of image and sources to {self._plotfile}')
         return
@@ -881,7 +887,7 @@ class ApFindStars:
         
         num_stars = len(self._phot_table)
         ap_radius = math.ceil(self._ap_fwhm_mult * self._search_fwhm)
-        regions = []
+        regions   = Regions()
         for x,y,id in zip(self._phot_table['xcenter'], 
             self._phot_table['ycenter'],
             self._phot_table['id']):

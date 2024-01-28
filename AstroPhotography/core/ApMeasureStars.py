@@ -22,6 +22,7 @@
 #  
 
 # 2021-01-18 dks : Move ApMeasureStars into core in separate file.
+# 2024-01-25 dks : Catch up to latest astropy/photutils changes
 
 import logging
 import os.path
@@ -49,7 +50,7 @@ from astropy.stats import sigma_clip, mad_std
 
 from regions import PixCoord, CirclePixelRegion
 
-from photutils import make_source_mask, find_peaks, DAOStarFinder
+from photutils import find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
         
 class ApMeasureStars:
@@ -255,7 +256,7 @@ class ApMeasureStars:
         # Add extra columns to the output table for the fit results
         self._prepare_fit_columns()
         
-        self._logger.info(f'Starting to fit Const2D+XX models to {num_stars} star cutouts.')
+        self._logger.info(f'Starting to fit Const2D+Gaussian2D model to {num_stars} star cutouts.')
         perf_time_start = time.perf_counter() # highest res timer, counts sleeps
 
         # X and Y pixel index grids needed by the fitter
@@ -270,11 +271,10 @@ class ApMeasureStars:
         xpos      = self._box_width_pix/2
         ypos      = self._box_width_pix/2
         ampl      = 1
-        num_fit_pars = 0
 
         # The background model starts off fixed.
         bg_mod    = models.Const2D(amplitude=self._init_bglvl)
-        bg_mod.amplitude.fixed = True        
+        bg_mod.amplitude.fixed = True
             
         # 2-D gaussian model for the star.
         star_mod  = models.Gaussian2D(amplitude=ampl,
@@ -292,10 +292,9 @@ class ApMeasureStars:
         # Start fits at the initial centroid positions
         star_mod.x_mean.fixed = True
         star_mod.y_mean.fixed = True
-        num_fit_pars += 4            # 4 free fit parameters
         comb_mod  = star_mod + bg_mod
 
-        fitter = fitting.LevMarLSQFitter()
+        fitter = fitting.LevMarLSQFitter(calc_uncertainties=True)
 
         # Iterate over stars, first updating initial values, then fitting,
         # then storing the fit results.
@@ -314,7 +313,7 @@ class ApMeasureStars:
             comb_mod[0].y_mean    = ypos
             comb_mod[0].amplitude = ampl
             comb_mod[1].amplitude = bglvl
-            current_num_fit_pars  = num_fit_pars
+            current_num_free_pars = 4
             
             # Estimated standard devation of the data.
             var_arr = np.where(self._pixel_array[idx] > 0,
@@ -341,13 +340,12 @@ class ApMeasureStars:
                 x_grid,
                 y_grid,
                 max_iterations,
-                current_num_fit_pars,
                 idx)
              
             # If the ift is OK, and fit_for_bg is true, then fit for the BG level.
             if (fit_ok) and (self._fit_for_bg is True):
                 fitted_mod[1].amplitude.fixed = False
-                current_num_fit_pars += 1
+                current_num_free_pars += 1
                 fitted_mod, fit_status, fit_message, fit_ok, uncert_vals = self._do_single_fit(fitter,
                     fitted_mod,
                     self._pixel_array[idx],
@@ -355,7 +353,6 @@ class ApMeasureStars:
                     x_grid,
                     y_grid,
                     max_iterations,
-                    current_num_fit_pars,
                     idx)
              
             # If the fit did NOT fail we can relax the constraints on the
@@ -363,7 +360,7 @@ class ApMeasureStars:
             if fit_ok and is_pos_fitted_for:
                 fitted_mod[0].x_mean.fixed = False
                 fitted_mod[0].y_mean.fixed = False
-                current_num_fit_pars += 2
+                current_num_free_pars += 2
                 fitted_mod, fit_status, fit_message, fit_ok, uncert_vals = self._do_single_fit(fitter,
                     fitted_mod,
                     self._pixel_array[idx],
@@ -371,7 +368,6 @@ class ApMeasureStars:
                     x_grid,
                     y_grid,
                     max_iterations,
-                    current_num_fit_pars,
                     idx)
             
             # Calculate reduced chi squared.
@@ -380,32 +376,9 @@ class ApMeasureStars:
                 y_grid,
                 std_arr,
                 fitted_mod,
-                current_num_fit_pars)
+                current_num_free_pars)
             
             # Extract fit parameters
-            # Unfortunately we have to hardcode the parameter order. :(
-            # And which columns they should go into.
-            fit_par_dict = {'xc_fit': 1, # Not used.
-                'yc_fit':     2,
-                'ampl':       0,
-                'fwhm_x':     3,
-                'fwhm_y':     4,
-                'theta':      5}
-            
-            if is_pos_fitted_for:
-            # Error par dict if xc and yc are fitted for
-                err_par_dict = {'xc_err':     1,
-                    'yc_err':     2,
-                    'ampl_err':   0,
-                    'fwhm_x_err': 3,
-                    'fwhm_y_err': 4,
-                    'theta_err':  5}
-            else:
-                # Error par dict if xc and yc are fixed
-                err_par_dict = {'ampl_err':   0,
-                    'fwhm_x_err': 1,
-                    'fwhm_y_err': 2,
-                    'theta_err':  3}
             self._fit_table['ampl'][idx]   = fitted_mod[0].amplitude.value
             self._fit_table['xc_fit'][idx] = fitted_mod[0].x_mean.value
             self._fit_table['yc_fit'][idx] = fitted_mod[0].y_mean.value
@@ -417,12 +390,13 @@ class ApMeasureStars:
             
             # Get the errors.
             if fit_ok:
-                for col in err_par_dict:
-                    paridx = err_par_dict[col]
-                    if 'fwhm' in col:
-                        self._fit_table[col][idx] = sigma_to_fwhm * uncert_vals[paridx]
-                    else:
-                        self._fit_table[col][idx] = uncert_vals[paridx]
+                # Following https://github.com/astropy/astropy/pull/10552
+                self._fit_table['ampl_err'][idx]   = fitted_mod[0].amplitude.std
+                self._fit_table['xc_err'][idx]     = fitted_mod[0].x_mean.std
+                self._fit_table['yc_err'][idx]     = fitted_mod[0].y_mean.std
+                self._fit_table['fwhm_x_err'][idx] = sigma_to_fwhm * fitted_mod[0].x_stddev.std
+                self._fit_table['fwhm_y_err'][idx] = sigma_to_fwhm * fitted_mod[0].y_stddev.std
+                self._fit_table['theta_err'][idx]  = fitted_mod[0].theta.std
             
             # Calculate axis ratio and circularity.
             # Note this calculation is not quite right because the two
@@ -478,7 +452,6 @@ class ApMeasureStars:
         x_grid,
         y_grid,
         max_iterations,
-        n_fit_pars,
         index):
         """
         Utility to perform a single fit of a model to the data,
@@ -498,7 +471,10 @@ class ApMeasureStars:
         fit_ok      = False
         cov_arr     = fitter.fit_info['param_cov']
         is_array    = isinstance(cov_arr, np.ndarray)
-                    
+                
+        # diagnostic message
+        ##print(f'Diagnostic: Fit status {fit_status} for star {index}')
+        ##print(f'Diagnostic: Fitter info message was: [{fit_message}]')
         if (fit_status > 0) and (fit_status <= 4) and is_array:
             # These may be bogus without correctly weighting the data.
             # These are in the order of the model parameters, except that
@@ -509,8 +485,8 @@ class ApMeasureStars:
         else:
             self._logger.warning(f'Non-nominal fit status {fit_status} for star {index}')
             self._logger.warning(f'Fitter info message was: [{fit_message}]')
-            err_param = np.zeros(n_fit_pars) 
             fit_ok    = False
+            err_param = None
         return fitted_mod, fit_status, fit_message, fit_ok, err_param
 
     def _extract_cutouts(self):
@@ -769,7 +745,7 @@ class ApMeasureStars:
             ax.label_outer()
         
         plt.savefig(self._fwhm_plot,
-            dpi=200, quality=95, optimize=True,
+            dpi=200,
             bbox_inches='tight')
         self._logger.info(f'Plotted star FWHM fit cut-outs to {self._fwhm_plot}')
         return

@@ -6,6 +6,7 @@ Release notes for versions starting at v0.2.2 and later.
 
 The objectives of version 0.5 are:
 
+- Catch up to latest astropy (>=6.0) and affiliated package changes.
 - Working `sphinx` documentation!
 - *Package layout reorganization* to move past some limitations imposed
   by the original `cookiecutter` template, that are no longer helpful.
@@ -19,6 +20,7 @@ The objectives of version 0.5 are:
 - Improve documentation now that we can run sphinx on the module.
 - Resolved #017, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
   that works on iTelescope premium images. 
+- #021, catch up to latest astropy (>=6.0) and affiliated package changes.
 
 ### Version 0.5.0 2022-09-18
 
