@@ -65,7 +65,10 @@ Note that this is the `astroquery` config file, not the `astropy` config
 file. Edit `~/.astropy/config/astroquery.cfg` and set `api_key` in 
 the `[astrometry_net]` section.
 
-
+If this configuration file is not present on your system, use the [information
+here (astroquery 0.4.6 documentation)](https://astroquery.readthedocs.io/en/stable/#default-configuration-file) 
+to copy the [file here](https://astroquery.readthedocs.io/en/stable/configuration.html) into
+a new file at the listed location.
 
 ## Data Preparation
 
