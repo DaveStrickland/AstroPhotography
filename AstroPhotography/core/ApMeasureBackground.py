@@ -83,7 +83,7 @@ class ApMeasureBackground:
         self._default_minhght = 48
         self._default_nbgcols = 16
         self._default_nbgrows = 16
-        self._default_filtsiz = 4
+        self._default_filtsiz = 3       # issue-021 Astropy 6 wants odd sized filter
         self._default_pctlile = 25.0
         self._default_nsigma  = 3.0
         self._boxsize         = (self._default_minhght, self._default_minwdth)

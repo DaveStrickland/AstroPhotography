@@ -60,7 +60,7 @@ def command_line_opts(argv):
     p_nbg_rows          = 16
     p_min_bghght        = 48
     p_min_bgwdth        = 48
-    p_bg_filter_width   = 4
+    p_bg_filter_width   = 3     # Astropy 6 wants an odd sized filter
     p_bg_badbox_pctile  = 25.0
     p_bg_sigmaclip      = 3.0
     

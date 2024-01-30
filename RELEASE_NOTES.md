@@ -21,6 +21,8 @@ The objectives of version 0.5 are:
 - Resolved #017, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
   that works on iTelescope premium images. 
 - #021, catch up to latest astropy (>=6.0) and affiliated package changes.
+  Fixes to `ApFindStars`, `ApMeasureStars`, `ApFixCosmicRays`, ...
+- Add AP_CALIB_DIR to `calibrate_all.sh` script, document in `doc/iTelescope_processing.md`
 
 ### Version 0.5.0 2022-09-18
 

@@ -287,11 +287,16 @@ class ApFixCosmicRays:
         self._logger.debug(msg)
         
         # Run the algorithm.
-        crimg, crmask = ccdproc.cosmicray_lacosmic(inpdata,
+        tmp_crimg, crmask = ccdproc.cosmicray_lacosmic(inpdata,
             **settings_dict)
-
+        crimg = np.asarray(tmp_crimg) # issue-021 convert out of CCDData form.
+        
         # Convert back from electrons to ADU
         self._cleandata = crimg / gain
+
+        # issue-021 diagnostic print outs. 
+        ##print(f'Diagnostic type(crimg)={type(crimg.data)}, type(crmask)={type(crmask)}')
+        ##print(f'Diagnostic type(_imdata)={type(self._imdata)}, type(_cleandata)={type(self._cleandata)} type(gain)={type(gain)}')
 
         # Convert mask to uint8
         self._crmask = crmask.astype('uint8')
