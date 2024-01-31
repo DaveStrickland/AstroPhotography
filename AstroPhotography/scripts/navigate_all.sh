@@ -29,6 +29,7 @@
 # 2021-02-21 dks : Make sleep between calls a variable.
 # 2021-05-26 dks : Write log file locations to screen.
 # 2021-08-24 dks : Improve logging.
+# 2024-01-29 dks : Changes associated with issue-021
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -86,17 +87,17 @@ fi
 
 echo "$0 started at" $(date) | tee -a $p_log
 echo "Running from" $(pwd) | tee -a $p_log
-echo "Activating virtual environment." | tee -a $p_log
-source ~/venv/astro38/bin/activate
+##echo "Activating virtual environment." | tee -a $p_log
+##source ~/venv/astro38/bin/activate
 
 # Log files for python runs
 p_srclog='tmp_find.log'
 p_navlog='tmp_astr.log'
 
 # Scripts that do the work.
-p_find_stars="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_find_stars.py"
-p_astrometry="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_astrometry.py"
-p_quality="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_quality_summary.py"
+p_find_stars="$HOME/git/AstroPhotography/AstroPhotography/scripts/ap_find_stars.py"
+p_astrometry="$HOME/git/AstroPhotography/AstroPhotography/scripts/ap_astrometry.py"
+p_quality="$HOME/git/AstroPhotography/AstroPhotography/scripts/ap_quality_summary.py"
 echo "Checking that scripts exist..."
 p_err=0
 for p_script in $p_find_stars $p_astrometry $p_quality; do
@@ -248,7 +249,7 @@ for p_cal_file in $(find . -name "cal-*fits"); do
                 echo "    Sleeping for $p_sleep seconds..." | tee -a $p_log
                 sleep $p_sleep
             fi
-            mv $p_navlog $
+            mv $p_navlog $p_navlog_path
             echo "      Log file written to $p_navlog_path" | tee -a $p_log
                 
             # end if whether navigated image exists
@@ -275,8 +276,8 @@ fi
 # Clean up and shut down
 
 # Deactivate virtual env.
-echo "Deactivating virtual environment." | tee -a $p_log
-deactivate
+##echo "Deactivating virtual environment." | tee -a $p_log
+##deactivate
 
 # All done
 echo "$0 finished at" $(date) | tee -a $p_log

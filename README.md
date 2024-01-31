@@ -61,7 +61,10 @@ for a very high level summary of what is currently implemented.)
 ### Minimum Requirements
 
 See `requirements.txt` for full dependency list. This is a Python 3 
-project, with no intention to support Python 2.
+project, with no intention to support Python 2. 
+
+*Note:* As of version 0.5 of this package the required version of `astropy`
+is version 6.0, to catch up to the latest `astropy` API changes.
 
 ### Optional Requirements
 
@@ -84,7 +87,7 @@ To install in developer mode replace the last line with
 `pip3 install -e . -r requirements.txt`.
 
 If you use `conda` or `miniconda` you may want to set up a new
-environment prior to running the pip install using the supplied
+environment *prior to running the pip install* using the supplied
 YaML file, e.g.
 ```bash
 conda env create -f ap-env.yml

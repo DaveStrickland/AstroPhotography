@@ -6,6 +6,7 @@ Release notes for versions starting at v0.2.2 and later.
 
 The objectives of version 0.5 are:
 
+- Catch up to latest astropy (>=6.0) and affiliated package changes.
 - Working `sphinx` documentation!
 - *Package layout reorganization* to move past some limitations imposed
   by the original `cookiecutter` template, that are no longer helpful.
@@ -14,11 +15,15 @@ The objectives of version 0.5 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
-### Version 0.5.1 (Work In Progress)
+### Version 0.5.1 2024-01-30
 
 - Improve documentation now that we can run sphinx on the module.
 - Resolved #017, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
   that works on iTelescope premium images. 
+- #021, catch up to latest astropy (>=6.0) and affiliated package changes.
+  Fixes to `ApFindStars`, `ApMeasureStars`, `ApFixCosmicRays`, and
+  `ApMeasureBackground`.
+- Add AP_CALIB_DIR to `calibrate_all.sh` script, document in `doc/iTelescope_processing.md`
 
 ### Version 0.5.0 2022-09-18
 

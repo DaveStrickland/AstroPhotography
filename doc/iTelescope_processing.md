@@ -35,6 +35,8 @@ Notes:
  
 ### Expected FITS Header Keywords 
 
+**Note:** This section is incompete.
+
 The following FITS header keywords are required.
 
 | Ap Class         | FITS Keywords       | Notes                            |
@@ -65,7 +67,10 @@ Note that this is the `astroquery` config file, not the `astropy` config
 file. Edit `~/.astropy/config/astroquery.cfg` and set `api_key` in 
 the `[astrometry_net]` section.
 
-
+If this configuration file is not present on your system, use the [information
+here (astroquery 0.4.6 documentation)](https://astroquery.readthedocs.io/en/stable/#default-configuration-file) 
+to copy the [file here](https://astroquery.readthedocs.io/en/stable/configuration.html) into
+a new file at the listed location.
 
 ## Data Preparation
 
@@ -88,6 +93,62 @@ rm *.zip
 ```
 
 ### Calibration Data Preparation
+
+Calibration data from the iTelescope website should be placed in a
+directory of your choosing. The telescope and date specfic directory 
+structure from iTelesope should be retained under this master calibration
+directory.
+
+To point the `bash` shell scripts to the calibration data set an
+environment variable `AP_CAL_DIR` pointing to your calibration parent directory.
+For example:
+```bash
+> cd /scratch/iTelescopeScratch/calibration-library/
+> ls 
+T05  T09  T14  T16  T20  T32  T33
+> tree -d T05
+T05
+├── Masters
+│   ├── Bias
+│   │   ├── 2017-07
+│   │   ├── 2017-11
+│   │   ├── 2018-06-27
+│   │   ├── 2018-06-29
+│   │   ├── 2018-10-01
+│   │   ├── 2018-10-18
+│   │   ├── 2019-01
+│   │   ├── 2019-03
+│   │   ├── 2019-08
+│   │   ├── 2020-03
+│   │   └── 2021-02-14
+│   ├── Darks
+│   │   ├── 2017-07
+│   │   ├── 2017-11
+│   │   ├── 2018-06-27
+│   │   ├── 2018-06-29
+│   │   ├── 2018-10-01
+│   │   ├── 2018-10-18
+│   │   ├── 2019-01
+│   │   ├── 2019-03
+│   │   ├── 2019-08
+│   │   ├── 2020-03
+│   │   └── 2021-02-14
+│   └── Flats
+│       ├── 2018-01
+│       ├── 2018-09
+│       ├── 2019-01
+│       ├── 2019-02
+│       ├── 2019-04
+│       ├── 2019-08
+│       ├── 2020-03
+│       └── 2021-02-14
+└── Raws
+    └── Darks
+        └── 2020-03
+
+38 directories
+export AP_CAL_DIR=/scratch/iTelescopeScratch/calibration-library/
+```
 
 A few addition steps must be taken when downloading new calibration
 data from the iTelescope website:

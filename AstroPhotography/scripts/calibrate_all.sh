@@ -26,6 +26,8 @@
 # 2021-07-22 dks : Work on better supporting other iTelescope telescopes.
 # 2021-08-19 dks : Actually apply sky background correction.
 # 2021-08-25 dks : Simpler calibration setup for Cygnus Loop mosaic.
+# 2024-01-28 dks : Use AP_CAL_DIR to define parent calibration directory.
+#                  Remove use of pip virtual environment.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -97,14 +99,12 @@ p_start=$(date)
 echo "$0 started at $p_start" | tee -a $p_log
 echo "Running from" $(pwd) | tee -a $p_log
 echo "Logging to $p_log" | tee -a $p_log
-echo "Activating virtual environment." | tee -a $p_log
-source ~/venv/astro38/bin/activate
 
 # Scripts that do the work.
-p_apcal="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_calibrate.py"
-p_apmeta="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_add_metadata.py"
-p_apskybg="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_measure_background.py"
-p_apimarith="$HOME/git/AstroPhotography/src/AstroPhotography/scripts/ap_imarith.py"
+p_apcal="$HOME/git/AstroPhotography/AstroPhotography/scripts/ap_calibrate.py"
+p_apmeta="$HOME/git/AstroPhotography/AstroPhotography/scripts/ap_add_metadata.py"
+p_apskybg="$HOME/git/AstroPhotography/AstroPhotography/scripts/ap_measure_background.py"
+p_apimarith="$HOME/git/AstroPhotography/AstroPhotography/scripts/ap_imarith.py"
 echo "Checking that scripts exist..." | tee -a $p_log
 p_err=0
 for p_script in $p_apcal $p_apmeta $p_apskybg $p_apimarith; do
@@ -126,10 +126,23 @@ p_loglevel='DEBUG'
 p_filter_arr=("Red" "Green" "Blue" "Ha" "OIII" "SII" "Clear" "Luminance" "B" "V" "I" )
 ##p_filter_arr=("Red") # Testing purposes only.
 
-# Calibration files to use
-p_itel=/Users/dks/Tmp/iTelescopeScratch
+# Directories set by environment variables.
+if [ -n "${AP_CAL_DIR}" ]; then
+    echo "Calibration directory environment variable AP_CAL_DIR set to ${AP_CAL_DIR}"
+else
+    echo "Error, calibration directory environment variable AP_CAL_DIR not defined or empty."
+    exit 8
+fi
+if [ -n "${AP_DATA_DIR}" ]; then
+    echo "Main data directory environment variable AP_DATA_DIR set to ${AP_DATA_DIR}"
+else
+    echo "Error, main data directory environment variable AP_DATA_DIR not defined or empty."
+    exit 16
+fi
+
+p_itel=$AP_DATA_DIR
 p_data_dir=$p_itel/$p_telescope/$p_targ/
-p_cal_dir=$p_itel/calibration-library/$p_telescope/Masters
+p_cal_dir=$AP_CAL_DIR/$p_telescope/Masters
 declare -A p_flat_arr
 
 echo "Checking that base-level data and calibration directories exist:" | tee -a $p_log
@@ -483,8 +496,8 @@ echo "Master log file: $p_log" | tee -a $p_log
 
 #-----------------------------------------------------------------------
 # Clean up and exit.
-echo "Deactivating virtual environment." | tee -a $p_log
-deactivate
+##echo "Deactivating virtual environment." | tee -a $p_log
+##deactivate
 
 # All done
 p_end=$(date)

@@ -17,10 +17,12 @@ dependencies:
   - python=3.10   
   - matplotlib>=3.0.3
   - numpy>=1.16.2
-  - astropy>=4.0
+  - astropy>=6.0
   - notebook
   - pip
   - pip:
+    - bump2version
+    - regions>=0.8
     - PyYAML>=3.11
     - rawpy>=0.13.1
     - imageio>=2.5.0

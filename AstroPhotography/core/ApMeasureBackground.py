@@ -23,6 +23,7 @@
 
 # 2021-05-29 dks : Initial coding of skeleton
 # 2021-08-20 dks : Add configurable BG box parameters, update documentation
+# 2024-01-25 dks : Catch up to latest astropy/photutils changes
 
 import logging
 import os.path
@@ -40,9 +41,10 @@ from astropy.stats import sigma_clipped_stats
 from astropy.stats import sigma_clip, mad_std
 from astropy.stats import SigmaClip
 
-from regions import PixCoord, CirclePixelRegion, ds9_objects_to_string
+from regions import PixCoord, CirclePixelRegion
 
-from photutils import make_source_mask, find_peaks, DAOStarFinder
+from photutils.segmentation import detect_threshold, detect_sources
+from photutils import find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.background import Background2D, MedianBackground
 
@@ -81,7 +83,7 @@ class ApMeasureBackground:
         self._default_minhght = 48
         self._default_nbgcols = 16
         self._default_nbgrows = 16
-        self._default_filtsiz = 4
+        self._default_filtsiz = 3       # issue-021 Astropy 6 wants odd sized filter
         self._default_pctlile = 25.0
         self._default_nsigma  = 3.0
         self._boxsize         = (self._default_minhght, self._default_minwdth)
@@ -144,14 +146,19 @@ class ApMeasureBackground:
         
         The background estimation depends on excluding genuine large
         pointlike sources such as big galaxies and bright stars
-        that are NOT well detected/excluded by the methods usedc in
+        that are NOT well detected/excluded by the methods used in
         ApFindStars. Luckily photutils provies another method, which
         is good for this purpose.
         """
         
-        mask = make_source_mask(self._imdata, nsigma=2, npixels=5, 
-            filter_fwhm=2.0, filter_size=5, 
-            dilate_size=13)
+        sigma_clip  = SigmaClip(sigma=3.0, maxiters=10)
+        threshold   = detect_threshold(self._imdata, nsigma=2.0, sigma_clip=sigma_clip)
+        segment_img = detect_sources(self._imdata, threshold, npixels=5)
+        mask        = segment_img.make_source_mask(size=13)
+        
+        ##mask = make_source_mask(self._imdata, nsigma=2, npixels=5, 
+        ##    filter_fwhm=2.0, filter_size=5, 
+        ##    dilate_size=13)
         
         # Print some statistics about the mask.
         npix = mask.size

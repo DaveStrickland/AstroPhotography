@@ -22,6 +22,7 @@
 # 2021-02-09 dks : Add preliminary version of sum mode as well.
 # 2021-02-28 dks : Added target
 # 2021-08-27 dks : Added CygnusLoop, fix some directory creation bugs.
+# 2024-01-30 dks : Comment out use of virtual environment.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -99,8 +100,8 @@ p_start_time=$(dks_time)
 echo "$0 started at $p_start" | tee -a $p_log
 echo "Running from" $(pwd) | tee -a $p_log
 echo "Logging to $p_log" | tee -a $p_log
-echo "Activating virtual environment." | tee -a $p_log
-source ~/venv/astro/bin/activate
+##echo "Activating virtual environment." | tee -a $p_log
+##source ~/venv/astro/bin/activate
 
 # Name of swarp executable
 p_swarp=swarp
@@ -395,9 +396,9 @@ echo "Master log file: $p_log" | tee -a $p_log
 
 #-----------------------------------------------------------------------
 # Clean up and exit.
-echo "Deactivating virtual environment." | tee -a $p_log
-echo "" | tee -a $p_log
-deactivate
+##echo "Deactivating virtual environment." | tee -a $p_log
+##echo "" | tee -a $p_log
+##deactivate
 
 # All done
 p_scriptname=$(basename $0)
