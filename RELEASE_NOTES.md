@@ -15,6 +15,10 @@ The objectives of version 0.5 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
+### Version 0.5.2 (Work in progress)
+
+- WIP Python wrapper for processing iTelescope premium image sets.
+
 ### Version 0.5.1 2024-01-30
 
 - Improve documentation now that we can run sphinx on the module.
