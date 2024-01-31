@@ -31,10 +31,15 @@
 # - Rather clunky way of determining which images to use, because I
 #   expect to have multiple different resampled versions of a given
 #   filter present in a given directory.
+# - As of 2024 an RPM version of stiff is not available for Fedora 39,
+#   and the github source fails to compile and would require a lot of
+#   modification to get compiling.
 #
 # History:
 # 2021-01-26 dks : Initial version begun.
 # 2021-08-28 dks : Added hgb color selections.
+# 2024-01-30 dks : Note stiff no longer available via RPM and that the
+#                  github version fails to compile.  
 #
 #-----------------------------------------------------------------------
 # Initialization
