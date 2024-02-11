@@ -35,7 +35,7 @@ Notes:
  
 ### Expected FITS Header Keywords 
 
-**Note:** This section is incompete.
+**Note:** This section is incomplete.
 
 The following FITS header keywords are required.
 
