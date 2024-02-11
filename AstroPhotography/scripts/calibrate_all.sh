@@ -371,7 +371,7 @@ for filter in ${p_filter_arr[@]}; do
         # files are used: a background estimate, and a copy of the original
         # calibrated image (without sky background subtraction).
         p_skybg_file=$(echo ${p_cal_file%.*} | sed -e 's/cal-/skybg-/')'.fits'
-        p_orig_cal_file=$(echo ${p_cal_file%.*} | sed -e 's/cal-/withskybg_skybg-/')'.fits'
+        p_orig_cal_file=$(echo ${p_cal_file%.*} | sed -e 's/cal-/withskybg_cal-/')'.fits'
 
         # Name for log file
         p_log_file=$(echo ${p_raw_file%.*} | sed -e 's/raw-/logcal-/')'.log'
