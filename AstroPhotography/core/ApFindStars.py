@@ -1005,7 +1005,7 @@ class ApFindStars:
         if ('APRX_XPS' in self._kw_dict) and ('APRX_YPS' in self._kw_dict):
             have_platescale = True
         else:
-            self._logger.warning('Skipping some quality reporting that requires an estimate platescale.')
+            self._logger.warning('Skipping some quality reporting that requires an estimated platescale.')
         
         
         
@@ -1057,8 +1057,12 @@ class ApFindStars:
                 psf_dir_dict = {}
                 fwhm_pix      = result_tuple[0]
                 fwhm_err      = result_tuple[1]
-                fwhm_val_arcs = fwhm_pix * pixsiz_arcs
-                fwhm_err_arcs = fwhm_err * pixsiz_arcs
+                if have_platescale:
+                    fwhm_val_arcs = fwhm_pix * pixsiz_arcs
+                    fwhm_err_arcs = fwhm_err * pixsiz_arcs
+                else:
+                    fwhm_val_arcs = null_val
+                    fwhm_err_arcs = null_val
                 psf_dir_dict['fwhm_val_pix']  = fwhm_pix
                 psf_dir_dict['fwhm_err_pix']  = fwhm_err
                 psf_dir_dict['fwhm_val_arcs'] = fwhm_val_arcs
