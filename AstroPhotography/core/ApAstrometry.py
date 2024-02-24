@@ -152,19 +152,23 @@ class ApAstrometry:
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
+        self._logger.propagate = False
+        print(f'DKSDEBUG num handlers for {__name__} is {len(self._logger.handlers)}')
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        self._logger.addHandler(ch)
+        # check if handlers already present
+        if not len(self._logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            self._logger.addHandler(ch)
         return
         
     def _check_file_exists(self, filename):
