@@ -23,6 +23,7 @@
 # 2021-02-28 dks : Added target
 # 2021-08-27 dks : Added CygnusLoop, fix some directory creation bugs.
 # 2024-01-30 dks : Comment out use of virtual environment.
+# 2024-02-23 dks : Add M101sn, fix exposure time checking.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -163,6 +164,12 @@ elif [[  $p_target == "CygnusLoop" ]] ; then
     p_dec=30.67
     p_pixscale=3.6
     p_image_size=5000,5000
+elif [[  $p_target == "M101sn" ]] ; then
+    p_targ="M101_Supernova_2023ixf"
+    p_ra=210.8022671
+    p_dec=54.3489500
+    p_pixscale=0.62
+    p_image_size=4096,4096
 else
     echo "Error, unexpected target $p_target" | tee -a $p_log
     echo "  This could be recoded to allow for general targets." | tee -a $p_log
@@ -188,7 +195,7 @@ fi
 
 
 # Filters to process:
-p_filter_arr=( "Red" "Green" "Blue" "Ha" "OIII" "SII" "B" "V" "I" "Clear" "Luminance" )
+p_filter_arr=( "Red" "Green" "Blue" "Ha" "OIII" "SII" "B" "V" "I" "Clear" "Lum" )
 #p_filter_arr=( "Red" ) # Testing purposes only.
 
 # Directory for input navigated images:
@@ -255,7 +262,7 @@ for filter in ${p_filter_arr[@]}; do
     
     # Search for navigated file in $p_navdir, excluding its subdirectories
     # because I store old/bad versions of the navigated files in those.
-    p_nav_file_arr=( $(find ../$p_navdir -maxdepth 1 -name "nav_*-$filter-*.fit*" | xargs) )
+    p_nav_file_arr=( $(find ../$p_navdir -maxdepth 1 -name "nav*-$filter-*.fit*" | xargs) )
     p_num_imgs=${#p_nav_file_arr[@]}
     p_num_arr+=( $p_num_imgs )
     p_texp=0 # Total exposure
@@ -280,20 +287,24 @@ for filter in ${p_filter_arr[@]}; do
         p_base_name=$(basename ${p_nav_file})
         
         # astropy's fitsheader tool has some peculiarities...
-        # EXPOSURE or EXPTIME
+        # EXPOSURE or EXPTIME or ONTIME or LIVETIME
         if [ -e $p_tmp ]; then
             rm $p_tmp
         fi
-        $p_fitsheader $p_nav_file --extension=0 --keyword=EXPOSURE >& $p_tmp
+        $p_fitsheader $p_nav_file --extension=0 --table ascii >& $p_tmp
         if [ $? -ne 0 ]; then
-            echo "Warning, could not find EXPOSURE keyword in $p_nav_file."  | tee -a $p_log
-            $p_fitsheader $p_nav_file --extension=0 --keyword=EXPTIME >& $p_tmp
-            if [ $? -ne 0 ]; then
-                echo "Error, could not find EXPOSURE keyword in $p_nav_file." | tee -a $p_log
-                exit 20
-            fi
+            # fitsheader does not use normal unix return status codes, but
+            # an untreated exception might generate a non-zero return code.
+            echo "Error, fitsheader threw an exception with $p_nav_file." | tee -a $p_log
+            exit 20
         fi
-        p_exp=$(grep EXP $p_tmp | awk '{print $2}')
+        p_nexpkw=$(grep -c "EXPOSURE\|EXPTIME\|ONTIME\|LIVETIME" $p_tmp)
+        if [ $p_nexpkw -eq 0 ]; then
+            echo "Error, could not find EXPOSURE, EXPTIME, ONTIME or LIVETIME keywords in $p_nav_file." | tee -a $p_log
+            exit 20
+        fi
+        # Ascii table format is "filenamepath extensionnum keyword value"
+        p_exp=$(grep "EXPOSURE\|EXPTIME\|ONTIME\|LIVETIME" $p_tmp | sort -k 3,3 | head -1 | awk '{print $4}')
         p_fscale=$(echo $p_exp | awk '{printf"%.6f\n",1/$1}')
         p_texp=$(echo $p_texp $p_exp | awk '{print $1+$2}')
         
@@ -406,7 +417,10 @@ p_tmp_mb=$(du -sm $p_tmpfile_fullpath | cut -f 1)
 p_end=$(date)
 p_end_time=$(dks_time)
 p_run_time=$(dks_time $p_start_time $p_end_time)
+echo "" | tee -a $p_log
+echo "--------------------------------------------------------------------------" | tee -a $p_log
 echo "  Temporary files occupy ${p_tmp_mb} MB in $p_tmpfile_fullpath" | tee -a $p_log
-echo "  Commands were logged to $p_log"
+echo "  Commands were logged to $p_log" | tee -a $p_log
+echo "  Resampled images were written to $p_resdir" | tee -a $p_log
 echo "$p_scriptname finished at $p_end, run time $p_run_time seconds." | tee -a $p_log
 exit 0
