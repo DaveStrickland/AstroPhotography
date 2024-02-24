@@ -24,7 +24,7 @@ The objectives of version 0.5 are:
 - Improve documentation now that we can run sphinx on the module.
 - Resolved #017, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
   that works on iTelescope premium images. 
-- #021, catch up to latest astropy (>=6.0) and affiliated package changes.
+- Issue #021, catch up to latest astropy (>=6.0) and affiliated package changes.
   Fixes to `ApFindStars`, `ApMeasureStars`, `ApFixCosmicRays`, and
   `ApMeasureBackground`.
 - Add AP_CALIB_DIR to `calibrate_all.sh` script, document in `doc/iTelescope_processing.md`

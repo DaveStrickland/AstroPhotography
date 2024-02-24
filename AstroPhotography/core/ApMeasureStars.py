@@ -606,19 +606,23 @@ class ApMeasureStars:
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: {}'.format(loglevel))
         logger.setLevel(numeric_level)
+        logger.propagate = False
+        print(f'DKSDEBUG num handlers for {__name__} is {len(logger.handlers)}')
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        logger.addHandler(ch)
+        # check if handlers already present
+        if not len(logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            logger.addHandler(ch)
         return logger
         
     def _plot_fits(self):

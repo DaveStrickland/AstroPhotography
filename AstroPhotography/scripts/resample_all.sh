@@ -195,7 +195,7 @@ fi
 
 
 # Filters to process:
-p_filter_arr=( "Red" "Green" "Blue" "Ha" "OIII" "SII" "B" "V" "I" "Clear" "Lum" )
+p_filter_arr=( "Red" "Green" "Blue" "Ha" "OIII" "SII" "B" "V" "I" "Clear" "Lum" "Luminance" )
 #p_filter_arr=( "Red" ) # Testing purposes only.
 
 # Directory for input navigated images:

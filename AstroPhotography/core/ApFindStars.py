@@ -456,19 +456,23 @@ class ApFindStars:
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: {}'.format(loglevel))
         logger.setLevel(numeric_level)
+        logger.propagate = False
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        logger.addHandler(ch)
+        # check if handlers already present
+        print(f'DKSDEBUG num handlers for {__name__} is {len(logger.handlers)}')
+        if not len(logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            logger.addHandler(ch)
         return logger
         
     def measure_fwhm(self, fwhm_plot_file, direction=None):
@@ -632,8 +636,9 @@ class ApFindStars:
             kw_dict,        # Dictionary of keyword values to add to sourcelist header
             src_table,      # Astropy table of source photometry
             psf_table):     # None or Astropy table of source PSF fitting.   
-        """Write detected source information to a FITS table with info on the
-           original data file
+        """
+        Write detected source information to a FITS table with info on the
+        original data file
            
         This function also:
          - Prints a summary of values useful for astrometry.net at INFO level.
@@ -717,7 +722,7 @@ class ApFindStars:
         tnow    = datetime.now().isoformat(timespec='milliseconds')
         for kw in kw_dict:
             pri_hdr[kw] = kw_dict[kw]
-        pri_hdr['HISTORY'] = f'Created by ApFindStars at {tnow}'
+        pri_hdr['HISTORY'] = f'Created by ApFindStars {__version__} at {tnow}'
         return pri_hdr
         
     def _read_optional_keywords(self, hdr, kw_dict):
@@ -762,8 +767,9 @@ class ApFindStars:
             hdr,            # FITS header associated with image
             bg_median,      # Estimated median BG level [ADU]
             bg_stddev):     # Estimated BG level standard deviation [ADU]
-        """Build a dictionary of useful keywords and values to be
-           used in the output sourcelist and optional quality report.
+        """
+        Build a dictionary of useful keywords and values to be
+        used in the output sourcelist and optional quality report.
             
         The dictionary is of the form key: (value, comment). Numpy types
         are converted to native float or int.
