@@ -28,6 +28,7 @@ from astropy.coordinates import EarthLocation
 from astroplan import Observer
 from astroplan import FixedTarget
 
+# AstroPhotography includes    
 from .. import __version__
 
 class ApAddMetadata:

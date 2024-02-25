@@ -66,6 +66,7 @@ from photutils import find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 
 # AstroPhotography includes    
+from .. import __version__
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
     
 def yaml_float_representer(dumper, value):

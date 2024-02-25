@@ -53,6 +53,9 @@ from regions import PixCoord, CirclePixelRegion
 from photutils import find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
         
+# AstroPhotography includes    
+from .. import __version__
+        
 class ApMeasureStars:
     """
     Measures stellar PSF size and symmetry in selected stars across

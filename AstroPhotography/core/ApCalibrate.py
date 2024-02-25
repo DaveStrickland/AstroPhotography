@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 import numpy as np
 from astropy.io import fits
 
+# AstroPhotography includes    
 from .. import __version__
 from . import ApFixBadPixels
 from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
