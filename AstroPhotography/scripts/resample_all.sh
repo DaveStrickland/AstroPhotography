@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #-----------------------------------------------------------------------
 # 
-# resample_all.sh [target] [median|wgtavg|sum] [noclean|clean]
+# resample_all.sh [target] [median|wgtavg|sum] [noclean|clean] [verbose|quiet]
 # 
 # Use swarp to resample a set of images to the same footprint and pixel
 # scale.
@@ -15,6 +15,7 @@
 # - Script does not carry over useful header info into resampled image
 #   or provide estimate of rough net exposure.
 # - Bug in summary function, gets the wrong band if some bands were skipped.
+# - clean option does work correctly.
 #
 # History:
 # 2021-01-22 dks : Initial version begun.
@@ -23,7 +24,7 @@
 # 2021-02-28 dks : Added target
 # 2021-08-27 dks : Added CygnusLoop, fix some directory creation bugs.
 # 2024-01-30 dks : Comment out use of virtual environment.
-# 2024-02-23 dks : Add M101sn, fix exposure time checking.
+# 2024-02-23 dks : Add M101sn, fix exposure time checking. Add verbose.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -48,10 +49,10 @@ function dks_time(){
 }
 
 # Main script
-p_usage="$0 [target] [median|wgtavg] [noclean|clean]"
+p_usage="$0 [target] [median|wgtavg] [noclean|clean] [verbose|quiet]"
 
-if [ $# -lt 3 ]; then
-    echo "Error: Expecting at least 3 command line argument(s), got $#"
+if [ $# -lt 4 ]; then
+    echo "Error: Expecting at least 4 command line argument(s), got $#"
     echo "  usage: $p_usage"
     exit 1
 fi
@@ -87,6 +88,17 @@ else
         p_clean=1
     else
         p_clean=0
+    fi
+fi
+
+# Verbose mode: echo swarp command to stdout
+if [ -z $4 ]; then
+    p_verbose=0
+else
+    if [[ "$4" == "verbose" ]]; then
+        p_verbose=1
+    else
+        p_verbose=0
     fi
 fi
 
@@ -280,6 +292,19 @@ for filter in ${p_filter_arr[@]}; do
         p_tmpfile_fullpath=$(pwd)/$p_tmpfile_dir
     fi
     
+    # Skip processing if p_clean==0 and the resampled file exists
+    if [ $p_clean -eq 0 ]; then
+        if [ -e $p_res_img ]; then
+            echo "  Skipping processing, as resampled co-added image $p_res_img exists" | tee -a $p_log
+            echo "  and noclean specified on the command line" | tee -a $p_log
+            p_fstat_arr+=( 0 )
+            p_time_arr+=( 0 )
+            p_fname_arr+=( $p_res_img )
+            cd $p_odir
+            continue
+        fi
+    fi
+    
     for p_nav_file in ${p_nav_file_arr[@]}; do
         # Set up names for expected inputs and outputs ---------------------
     
@@ -338,6 +363,21 @@ for filter in ${p_filter_arr[@]}; do
     
     echo "  Beginning swarp for filter $filter at" $(date) | tee -a $p_log
     p_res_start_time=$(dks_time)
+    if [ $p_verbose -eq 1 ]; then
+        echo "Running the following command: "  $p_swarp ${p_nav_file_arr[@]} \
+        -SUBTRACT_BACK N -COMBINE_TYPE $p_combine_type \
+        -FSCALASTRO_TYPE $p_fscalastro_type -VERBOSE_TYPE FULL \
+        -NOPENFILES_MAX p_nopenmax -GAIN_KEYWORD $p_gain_kw \
+        -FSCALE_DEFAULT $p_fscale_str \
+        -PIXELSCALE_TYPE MANUAL -PIXEL_SCALE $p_pixscale \
+        -CENTER_TYPE MANUAL -CENTER "$p_ra,$p_dec" \
+        -RESAMPLING_TYPE $p_res_type -OVERSAMPLING $p_oversampling \
+        -IMAGE_SIZE $p_image_size -PROJECTION_TYPE $p_projection \
+        -IMAGEOUT_NAME $p_res_img \
+        -WRITE_FILEINFO $p_fileinfo -WRITE_XML N \
+        -DELETE_TMPFILES $p_delete_tmp -RESAMPLE_DIR $p_tmpfile_dir \
+        -WEIGHTOUT_NAME $p_wgt_img  | tee -a $p_log
+    fi
     $p_swarp ${p_nav_file_arr[@]} \
         -SUBTRACT_BACK N -COMBINE_TYPE $p_combine_type \
         -FSCALASTRO_TYPE $p_fscalastro_type -VERBOSE_TYPE FULL \
@@ -395,10 +435,10 @@ echo "--------------------------------------------------------------------------
 echo "Run summary:" | tee -a $p_log
 p_num=${#p_fname_arr[@]}
 idx=0
-printf "%-10s  %-50s  %-6s  %8s  %8s  %-6s\n" "Filter" \
+printf "%-10s  %-65s  %-6s  %8s  %8s  %-6s\n" "Filter" \
     "Resampled Output" "Ninput" "TexpMin" "SwrpTSec" "Status"| tee -a $p_log
 while [ $idx -lt $p_num ]; do
-    printf "%-10s  %-50s  %6d  %8.2f  %8.2f  %6d\n" ${p_filtname_arr[$idx]} \
+    printf "%-10s  %-65s  %6d  %8.2f  %8.2f  %6d\n" ${p_filtname_arr[$idx]} \
         ${p_fname_arr[$idx]} ${p_num_arr[$idx]} ${p_texp_arr[$idx]} \
         ${p_time_arr[$idx]} ${p_fstat_arr[$idx]} | tee -a $p_log
     ((idx++))
