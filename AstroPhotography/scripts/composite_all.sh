@@ -32,14 +32,16 @@
 #   expect to have multiple different resampled versions of a given
 #   filter present in a given directory.
 # - As of 2024 an RPM version of stiff is not available for Fedora 39,
-#   and the github source fails to compile and would require a lot of
-#   modification to get compiling.
+#   The github source needs to be made in the way specified in issue #3,
+#   https://github.com/DaveStrickland/AstroPhotography/issues/3#issuecomment-1937851684
 #
 # History:
 # 2021-01-26 dks : Initial version begun.
 # 2021-08-28 dks : Added hgb color selections.
 # 2024-01-30 dks : Note stiff no longer available via RPM and that the
 #                  github version fails to compile.  
+# 2024-02-25 dks : Add link to instructions to compile stiff. Change id
+#                  use as -F doesn't work on Linux, and fix table formatting.
 #
 #-----------------------------------------------------------------------
 # Initialization
@@ -158,7 +160,7 @@ p_bitpix_labels=( "b8" "b16" )
 p_gamma=2.2
 p_gamma_type=POWER-LAW
 p_description=$p_pref
-p_copyright=$(id -F)
+p_copyright=$(id -un)
 p_verbose=FULL # Writes some annoying control characters...
 p_write_xml=N
 
@@ -309,10 +311,10 @@ echo "-----------------------------------------------------------------" | tee -
 echo "Run summary:" | tee -a $p_log
 p_num=${#p_fname_arr[@]}
 idx=0
-printf "%-3s  %-60s  %8s  %6s\n" "Img" \
+printf "%-3s  %-75s  %8s  %6s\n" "Img" \
     "Resampled Output" "Time" "Status"| tee -a $p_log
 while [ $idx -lt $p_num ]; do
-    printf "%-3d  %-60s  %8.3f  %6d\n" $idx \
+    printf "%-3d  %-75s  %8.3f  %6d\n" $idx \
         ${p_fname_arr[$idx]} ${p_time_arr[$idx]} \
         ${p_fstat_arr[$idx]} | tee -a $p_log
     ((idx++))
