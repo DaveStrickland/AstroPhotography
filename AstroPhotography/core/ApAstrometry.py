@@ -47,7 +47,10 @@ aplog.setLevel('ERROR')
 from astroquery.astrometry_net import AstrometryNet
 aplog.setLevel('INFO')
 import astroquery.exceptions
-    
+
+# AstroPhotography includes    
+from .. import __version__
+
 class ApAstrometry:
     """
     Uses astrometry.net and a list of valid stars to calculate an

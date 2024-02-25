@@ -7,8 +7,9 @@ this object to store application-wide configuration values.
 from re import compile
 from yaml import safe_load
 
+# AstroPhotography includes    
+from .. import __version__
 from .logger import logger
-
 
 __all__ = "config", "YamlConfig"
 

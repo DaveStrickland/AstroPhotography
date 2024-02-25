@@ -48,6 +48,7 @@ from photutils import find_peaks, DAOStarFinder
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.background import Background2D, MedianBackground
 
+# AstroPhotography includes    
 from .. import __version__
 
 class ApMeasureBackground:

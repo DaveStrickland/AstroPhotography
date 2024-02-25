@@ -13,6 +13,7 @@ import numpy as np
 import ccdproc
 from astropy.io import fits
 
+# AstroPhotography includes    
 from .. import __version__
 
 class ApFixCosmicRays:

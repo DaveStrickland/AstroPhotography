@@ -9,6 +9,7 @@ import os.path
 from datetime import datetime, timezone
 from astropy.io import fits
 
+# AstroPhotography includes    
 from .. import __version__
 
 def file_writer(out_file, data_array, exif_dict):
