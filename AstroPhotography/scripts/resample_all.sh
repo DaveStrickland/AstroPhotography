@@ -368,7 +368,7 @@ for filter in ${p_filter_arr[@]}; do
         -SUBTRACT_BACK N -COMBINE_TYPE $p_combine_type \
         -FSCALASTRO_TYPE $p_fscalastro_type -VERBOSE_TYPE FULL \
         -NOPENFILES_MAX p_nopenmax -GAIN_KEYWORD $p_gain_kw \
-        -FSCALE_DEFAULT $p_fscale_str \
+        -GAIN_DEFAULT 1.0 -FSCALE_DEFAULT $p_fscale_str \
         -PIXELSCALE_TYPE MANUAL -PIXEL_SCALE $p_pixscale \
         -CENTER_TYPE MANUAL -CENTER "$p_ra,$p_dec" \
         -RESAMPLING_TYPE $p_res_type -OVERSAMPLING $p_oversampling \
