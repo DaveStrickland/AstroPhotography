@@ -30,8 +30,8 @@ class ApFindBadPixels:
     
     def __init__(self,
         darkfile,
-        sigma,
-        loglevel):
+        sigma = 4.0,
+        loglevel = 'INFO'):
         """Constructs an ApFindBadPixels object and performs preliminary
            processing on it.
         

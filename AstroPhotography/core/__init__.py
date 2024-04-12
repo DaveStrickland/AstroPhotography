@@ -17,6 +17,7 @@ from .ApAstrometry import ApAstrometry as ApAstrometry
 from .file_writer import file_writer as file_writer
 from .ApImArith import ApImArith as ApImArith
 from .ApMeasureBackground import ApMeasureBackground as ApMeasureBackground 
+from .ApUtil import (load_image_and_plot, load_three_images_and_plot, plot_lupton_threecolor)
 
 __all__ = ["RawConv", 
     "file_writer", 
@@ -31,4 +32,5 @@ __all__ = ["RawConv",
     "ApQualitySummarizer",
     "ApAstrometry",
     "ApImArith",
-    "ApMeasureBackground"]
+    "ApMeasureBackground",
+    "load_image_and_plot", "load_three_images_and_plot", "plot_lupton_threecolor"]
