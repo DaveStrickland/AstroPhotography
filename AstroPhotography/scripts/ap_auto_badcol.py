@@ -25,6 +25,7 @@
 #  MA 02110-1301, USA.
 #  
 #  2021-08-14 dks : Initial skeleton.
+#  2024-04-11 dks : Issue-023 improvements
 
 import argparse
 import sys
@@ -48,14 +49,47 @@ def command_line_opts(argv):
         metavar='FITSIMAGE.FITS',
         help=('Path/name of input FITS image to look for bad columns or rows in.'
         ' The image data is assumed to be in the primary extension of the FITS file.'))
-        
+                
     # Optional
     p_sigma      = 5.0
     p_window_len = 11
 
+    parser.add_argument('--user_badcol_file',
+        metavar='USER_BADCOL.YML',
+        default=None,
+        help=('The name of the optional user-defined bad column/row/rectangle YaML'
+        ' file that identified bad columns, rows, or rectangular regions will be written to.'
+        ' If this file already exists it will not be over-written unless the user'
+        ' also specifies --overwrite on the command line.'))
+        
+    parser.add_argument('--overwrite',
+        action='store_true',
+        default=False,
+        help=('If specified, overwrite the user badcol YaML file even if it already'
+        ' exists. By default the behaviour is not to overwrite existing files.'))
+
+    parser.add_argument('--column_stats',
+        metavar='COLUMN_STATS.CSV',
+        default=None,
+        help=('If specified, generate a CSV file of statistics with the'
+        ' specified name, for all columns in the input image to allow' 
+        ' independent analysis.'))
+    parser.add_argument('--row_stats',
+        metavar='ROW_STATS.CSV',
+        default=None,
+        help=('If specified, generate a CSV file of statistics with the'
+        ' specified name, for all rows in the input image to allow' 
+        ' independent analysis.'))
+    parser.add_argument('--plot_stats',
+        metavar='STATS_PLOT.PNG',
+        default=None,
+        help=('If specified, generate graphs of the row and column statistics'
+        ' written to a file of the specified name'))
+                
     parser.add_argument('--sigma',
         metavar='NSIGMA',
         default=p_sigma,
+        type=float,
         help=('Columns or rows are identified as being bad if the median'
         ' pixel value is more than NSIGMA standard deviations away from'
         ' the locally determined average.'
@@ -63,6 +97,7 @@ def command_line_opts(argv):
     parser.add_argument('--window',
         metavar='LENGTH',
         default=p_window_len,
+        type=int,
         help=('Size of the moving average window function used to generate'
         ' the local estimate of the column or row value.'
         f' Default value: {p_window_len}'))
@@ -76,6 +111,11 @@ def command_line_opts(argv):
 def main(args=None):
     p_args       = command_line_opts(args)
     p_fitsimg    = p_args.fitsimage
+    p_badcolfile = p_args.user_badcol_file
+    p_over       = p_args.overwrite
+    p_colstats   = p_args.column_stats
+    p_rowstats   = p_args.row_stats
+    p_plotstats  = p_args.plot_stats
     p_sigma      = p_args.sigma
     p_window     = p_args.window
     p_loglevel   = p_args.loglevel
@@ -84,10 +124,20 @@ def main(args=None):
     # Create an instance of the ApAutoBadcols.
     auto_badcols = ap.ApAutoBadcols(p_loglevel)
     
-    # Process based on a file
+    # Process based on a file - we're not actually using the data
     badcols, badrows = auto_badcols.process_fits(p_fitsimg, 
         p_sigma, 
         p_window)
+        
+    if p_badcolfile is not None:
+        wrtten = auto_badcols.write_badcols_file(auto_badcols, over)
+        
+    if p_plotstats is not None:
+        auto_badcols.generate_stats_plot(p_plotstats)
+        
+    if (p_colstats is not None) or (p_rowstats is not None):
+        auto_badcols.write_stats(p_colstats, p_rowstats)
+                
     # TODO output to STDOUT in yaml-like format.
     print(f'# Auto bad columns from {p_fitsimg}, sigma={p_sigma}, window_len={p_window}')
     if badcols is not None:
