@@ -73,18 +73,21 @@ def command_line_opts(argv):
         default=None,
         help=('If specified, generate a CSV file of statistics with the'
         ' specified name, for all columns in the input image to allow' 
-        ' independent analysis.'))
+        ' independent analysis. Existing files of the same'
+        ' name will be overwritten.'))
     parser.add_argument('--row_stats',
         metavar='ROW_STATS.CSV',
         default=None,
         help=('If specified, generate a CSV file of statistics with the'
         ' specified name, for all rows in the input image to allow' 
-        ' independent analysis.'))
+        ' independent analysis. Existing files of the same'
+        ' name will be overwritten.'))
     parser.add_argument('--plot_stats',
         metavar='STATS_PLOT.PNG',
         default=None,
         help=('If specified, generate graphs of the row and column statistics'
-        ' written to a file of the specified name'))
+        ' written to a file of the specified name. Existing files of the same'
+        ' name will be overwritten.'))
                 
     parser.add_argument('--sigma',
         metavar='NSIGMA',
@@ -130,7 +133,7 @@ def main(args=None):
         p_window)
         
     if p_badcolfile is not None:
-        wrtten = auto_badcols.write_badcols_file(auto_badcols, over)
+        auto_badcols.write_badcols_file(p_badcolfile, p_over)
         
     if p_plotstats is not None:
         auto_badcols.generate_stats_plot(p_plotstats)
@@ -138,32 +141,7 @@ def main(args=None):
     if (p_colstats is not None) or (p_rowstats is not None):
         auto_badcols.write_stats(p_colstats, p_rowstats)
                 
-    # TODO output to STDOUT in yaml-like format.
-    print(f'# Auto bad columns from {p_fitsimg}, sigma={p_sigma}, window_len={p_window}')
-    if badcols is not None:
-        if len(badcols) > 0:
-            # Add one to get FITS-like indexing
-            badcols = badcols + 1
 
-            print('bad_columns:')
-            for val in badcols:
-                print(f'- {val:d}')
-        else:
-            print('bad_columns: {}') # show it is empty
-    else:
-        print('# No bad columns detected.')
-    if badrows is not None:
-        if len(badrows) > 0:
-            # Add one to get FITS-like indexing
-            badrows = badrows + 1
-
-            print('bad_rows:')
-            for val in badrows:
-                print(f'- {val:d}')
-        else:
-            print('bad_rows: {}')   # show it is empty
-    else:
-        print('# No bad rows detected.')
             
     return retcode
 
