@@ -2,11 +2,13 @@
 """
 
 # 2021-08-15 dks : Initial implementation.
+# 2024-04-11 dks : Issue-023 improve functionality
 
 import sys
 import logging
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
@@ -21,27 +23,55 @@ class ApAutoBadcols:
     
     def __init__(self,
         loglevel):
-        """Initializes an ApAutoBadcols instance.
+        """
+        Initializes an ApAutoBadcols instance.
         """
         
         self._name     = 'ApAutoBadcols'
         self._version  = __version__
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
+        
+        # Information about file or data processed, to be carried
+        # forward to any output files.
+        self._meta = None
+        
+        # Computed statistics
+        self._badcols  = None
+        self._badrows  = None
+        self._colstats = None
+        self._rowstats = None
         return
         
-    def _check_file_exists(self, filename):
-        """Raises an exception if the name file does not exist.
+    def _check_file_exists(self, filename, throws=True):
         """
+        Checks if the named file exists, returning True if it does.
         
-        if not Path(filename).exists():
+        By default it raises an exception if the named file does not exist,
+        but this can be disabled by setting throws=False
+        """
+        exists = Path(filename).exists()
+        if (not exists) and throws:
             err_msg = f'Cannot find {filename}. Not a valid path or file.'
             self._logger.error(err_msg)
             raise RuntimeError(err_msg)
-        return
+        return exists
+
+    def _get_metadata_from_hdr(self, filename, fitshdr):
+        """
+        Extract some file metadata from the file name and a FITS header
+        """
+        
+        fpath = Path(filename)
+        metadict = {'filename': fpath.name}
+        for kw in ['BITPIX', 'NAXIS1', 'NAXIS2']:
+            if kw in fitshdr:
+                metadict[kw] = fitshdr[kw]
+        return metadict
 
     def _initialize_logger(self, loglevel):
-        """Initialize and return the logger
+        """
+        nitialize and return the logger
         """
         
         self._logger = logging.getLogger(self._name)
@@ -138,6 +168,8 @@ class ApAutoBadcols:
                 medval = np.median(ext_data)
                 self._logger.debug(f'After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}')
         
+        self._meta = self._get_metadata_from_hdr(image_filename, ext_hdr)
+        self._logger.debug(f'File metadata: {self._meta}')
         return ext_data, ext_hdr
     
     def _sliding_stats_1d(self, idata, window_len):
@@ -161,6 +193,13 @@ class ApAutoBadcols:
             # Use sigma clipping, because even a single discrepant
             # value can through a normal standard deviation off.
             cmean, cmedian, cstd = sigma_clipped_stats(local_data)
+            
+            # In some cases where the data in the local mask is very similar
+            # the sigma clipped standard deviation is returned as zero, 
+            # which causes problems. In such case, return the normal
+            # standard deviation within the masked area
+            if ( cstd == 0 ):
+                cstd = np.nanstd(local_data)
             
             mean_data[idx] = cmean
             std_data[idx]  = cstd
@@ -200,6 +239,13 @@ class ApAutoBadcols:
         medn_over_rows = np.nanmedian(data_array, axis=1)
         badrows        = self._process(medn_over_rows, 1, nsigma, window_len)
         
+        # Store for possible later use
+        if badcols is not None:
+            self._badcols = badcols.copy()
+        
+        if badrows is not None:
+            self._badrows = badrows.copy()
+        
         return badcols, badrows
 
     def _process(self, median_array, axis_used, nsigma, window_len):
@@ -234,6 +280,28 @@ class ApAutoBadcols:
         bad_mask              = nsigma_from_mean >= nsigma
         self._logger.info(f'Found {np.sum(bad_mask)} bad {type_str}s out of {nvals} {type_str}s.')
         
+        # Create recarray, data not initialized
+        values_arr = np.recarray((nvals,),
+            dtype=[('idx', int),
+                ('median', float),
+                ('local_mean', float),
+                ('local_std', float),
+                ('nsigma', float),
+                ('isbad', int)])
+        idx_arr = np.arange(nvals, dtype=int)
+        values_arr['idx'] = idx_arr
+        values_arr['median'] = median_array
+        values_arr['local_mean'] = sldng_mean
+        values_arr['local_std'] = sldng_std
+        values_arr['nsigma'] = nsigma_from_mean
+        values_arr['isbad'] = bad_mask
+        if 'column' in type_str:
+            self._colstats = values_arr.copy()
+        elif 'row' in type_str:
+            self._rowstats = values_arr.copy()
+        else:
+            raise RuntimeError(f'Error, unexpected type_str ({type_str}) in _process')
+        
         # Create information for column by column (or row by row) debug level output.
         # This does the first nalways columns/rows irrespective of whether
         # they are good or bad, and then only the bad ones.
@@ -243,6 +311,8 @@ class ApAutoBadcols:
             'median', 'local_mean', 'local_std', 'nsigma', 'isbad?')
         dbg_str_list.append(f'Diagnostics for first {nalways} {type_str}s and all bad {type_str}:')
         dbg_str_list.append( hdr_str )
+        
+        # Use primitave arrays instead of values_arr because of nested ''
         for idx in range(nvals):
             if (idx < nalways) or (bad_mask[idx]):
                 dbg_str = f'{idx:04d}, {median_array[idx]:10.2f}, {sldng_mean[idx]:10.2f}, {sldng_std[idx]:10.2f}, {nsigma_from_mean[idx]:10.2f}, {bad_mask[idx]}'
@@ -255,5 +325,193 @@ class ApAutoBadcols:
         else:
             bad_indices = None
         
+        # store nsigma and window length used
+        if self._meta is None:
+            self._meta = {}
+        self._meta['nsigma'] = nsigma
+        self._meta['window_len'] = window_len
         return bad_indices
         
+    def generate_stats_plot(self, plotstatfile):
+        """
+        Generate a two-panel plot of the column and row statistics
+        """
+        
+        fig, ax_arr = plt.subplots(nrows=2, ncols=1)
+        
+        # Generate title string
+        if 'filename' in self._meta:
+            fname = self._meta['filename']
+        else:
+            fname = 'unknown file'
+        nsigma = self._meta['nsigma']
+        window_len = self._meta['window_len']
+        title_str = f'Input file {fname}\nSigma threshold={nsigma:.2f}, sliding window_len={window_len}' 
+        fig.suptitle(title_str, fontsize=7)
+        
+        # Plot bad columns
+        idx = 0
+        self._generate_stats_panel(ax_arr[idx], self._colstats,
+            'Along-column statistics and bad columns',
+            'column')
+        idx = 1
+        self._generate_stats_panel(ax_arr[idx], self._rowstats,
+            'Along-row statistics and bad rows',
+            'row')
+                    
+        fig.tight_layout()
+        plt.savefig(plotstatfile,
+            dpi=200,
+            bbox_inches='tight')
+        self._logger.info(f'Column/row statistics info plot written to {plotstatfile}')        
+        return
+        
+    def _generate_stats_panel(self, ax, stats_arr, titlestr, coltype):
+        """
+        Generate one of the panels for the column/row statistics plot
+        """
+
+        if 'column' in coltype:
+            xlabel_str = 'X-axis column index (pixels)'
+        else:
+            xlabel_str = 'Y-axis row index (pixels)'
+        ylabel_str = f'Median along {coltype}'
+        
+        # Number of sigma around local sliding mean to plot envelope
+        env_sigma = 3.0
+        medn_sub_mean = stats_arr['median'] - stats_arr['local_mean']
+        envelope_low = -env_sigma*stats_arr['local_std']
+        envelope_hi  = env_sigma*stats_arr['local_std']
+        
+        mask           = stats_arr['isbad'] == 1
+        numbad         = np.sum( stats_arr['isbad'] )
+        masked_bad_idx = stats_arr['idx'][mask]
+        masked_bad_median = stats_arr['median'][mask]
+        masked_bad_med_sub_mean = medn_sub_mean[mask]
+        
+        # min/max median values
+        minval  = 0.995 * np.nanmin( stats_arr['median'] )
+        maxval  = 1.005 * np.nanmax( stats_arr['median'] )
+        maxval2 = 1.005 * self._meta['nsigma'] * np.nanmax( stats_arr['local_std'] )
+        minval2 = -maxval2
+
+        ax.set_title(titlestr, fontsize=7, pad=2)
+        ax.tick_params('both', labelsize=4, labelcolor='blue')
+        ax.step(stats_arr['idx'], stats_arr['median'], color='blue', where='mid',
+            label=ylabel_str, linewidth=0.5, alpha=0.7)
+        ax.set_ylim( (minval, maxval) )
+        ax.minorticks_on()
+        ax.scatter(masked_bad_idx, masked_bad_median, s=1.5, c='red', marker='o', label=f'Bad {coltype}s ({numbad})')
+        ax.set_xlabel(xlabel_str, fontsize=6)
+        ax.set_ylabel(ylabel_str, fontsize=6, color='blue')
+
+        plt.rc('legend', fontsize = 6)
+        lgnd1 = ax.legend(loc='lower left')
+
+        ax2 = ax.twinx()
+        if 'column' in coltype:
+            ylabel_str2 = 'Column median minus local mean' 
+        else:
+            ylabel_str2 = 'Row median minus local mean' 
+        ax2.set_ylabel(ylabel_str2, fontsize=6, color='green')
+
+        ##ax2.fill_between(stats_arr['idx'], envelope_low, envelope_hi, color='cyan', alpha=0.2)
+        ax2.step(stats_arr['idx'], medn_sub_mean, where='mid', color='green', alpha=0.7, linewidth=0.75)
+        ax2.scatter(masked_bad_idx, masked_bad_med_sub_mean, s=1.5, c='red', marker='o', label=f'Bad {coltype}s ({numbad})')
+
+        ax2.set_ylim( (minval2, maxval2) )
+        ax2.tick_params('both', labelsize=4, labelcolor='green')
+
+        return
+        
+    def write_badcols_file(self, badcolfile, overwrite=False):
+        """
+        Write the bad columns and bad rows in a YaML-like format
+        """
+        
+        exists = self._check_file_exists(badcolfile, False);
+        if exists and not overwrite:
+            self._logger.error('Bad column/row YaML file exists and overwrite=False')
+            self._logger.error('  No output file will be written unless the file is first deleted or overwrite is specified.')
+            return
+            
+        # TODO use an actual YaML writer?
+        with open(badcolfile, 'w', encoding="utf-8") as f:
+            # generate info string
+            f.write( '---\n' )
+            f.write( f'# Column statistics file generated by {__name__} version {__version__}\n' )
+            if 'filename' in self._meta:
+                fname = self._meta['filename']
+            else:
+                fname = 'unknown file'
+            f.write( f'# Generated from {fname}\n' )
+            nsigma = self._meta['nsigma']
+            window_len = self._meta['window_len']
+            f.write( f'# Processing parameters: badness sigma threshold={nsigma:.2f}, sliding window_len={window_len}\n' )
+
+            if self._badcols is not None:
+                if len(self._badcols) > 0:
+                    # Add one to get FITS-like indexing
+                    badcols = self._badcols + 1
+
+                    f.write('bad_columns:\n')
+                    for val in badcols:
+                        f.write(f'- {val:d}\n')
+                else:
+                    f.write('bad_columns: {}\n') # show it is empty
+            else:
+                f.write('# No bad columns detected.\n')
+            if self._badrows is not None:
+                if len(self._badrows) > 0:
+                    # Add one to get FITS-like indexing
+                    badrows = self._badrows + 1
+
+                    f.write('bad_rows:\n')
+                    for val in badrows:
+                        f.write(f'- {val:d}\n')
+                else:
+                    f.write('bad_rows: {}\n')   # show it is empty
+            else:
+                f.write('# No bad rows detected.\n')
+                    
+            f.write( '---\n' )
+            self._logger.info(f'Wrote bad column/row YaML file to {badcolfile}' )
+        return
+        
+    def write_stats(self, fcolstat, frowstat):
+        """
+        Write CSV files of the computed along-column and along-row statistics.
+        
+        :param fcolstat: Name for the output CSV of along-column statistics.
+          Note that this will be overwritten if it already exists.
+        :param frowstat: Name for the output CSV of along-row statistics.
+          Note that this will be overwritten if it already exists.
+        """
+        
+        # generate info string
+        info_strings = [ f'# Column statistics file generated by {__name__} version {__version__}\n']
+        if 'filename' in self._meta:
+            fname = self._meta['filename']
+        else:
+            fname = 'unknown file'
+        info_strings.append( f'# Generated from {fname}\n' )
+        nsigma = self._meta['nsigma']
+        window_len = self._meta['window_len']
+        info_strings.append( f'# Processing parameters: badness sigma threshold={nsigma:.2f}, sliding window_len={window_len}\n')
+        
+        chdr_str = '{:3s},{:>10s},{:>10s},{:>10s},{:>10s},{:>5s}'.format('col', 'median', 'local_mean', 'local_std', 'nsigma', 'isbad')
+        rhdr_str = chdr_str.replace('col', 'row')
+        
+        with open(fcolstat, 'w', encoding="utf-8") as f:
+            f.writelines(info_strings)
+            np.savetxt(f, self._colstats, header=chdr_str,
+                fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
+            self._logger.debug(f'Wrote column statistics CSV data to {fcolstat}')
+
+        with open(frowstat, 'w', encoding="utf-8") as f:
+            f.writelines(info_strings)
+            np.savetxt(f, self._rowstats, header=rhdr_str,
+                fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
+            self._logger.debug(f'Wrote row statistics CSV data to {frowstat}')
+        
+        return
