@@ -8,6 +8,7 @@ import sys
 import logging
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
@@ -336,8 +337,91 @@ class ApAutoBadcols:
         Generate a two-panel plot of the column and row statistics
         """
         
-        self._logger.error('generate_stats_plot not yet fully implemented')
+        fig, ax_arr = plt.subplots(nrows=2, ncols=1)
         
+        # Generate title string
+        if 'filename' in self._meta:
+            fname = self._meta['filename']
+        else:
+            fname = 'unknown file'
+        nsigma = self._meta['nsigma']
+        window_len = self._meta['window_len']
+        title_str = f'Input file {fname}\nSigma threshold={nsigma:.2f}, sliding window_len={window_len}' 
+        fig.suptitle(title_str, fontsize=7)
+        
+        # Plot bad columns
+        idx = 0
+        self._generate_stats_panel(ax_arr[idx], self._colstats,
+            'Along-column statistics and bad columns',
+            'column')
+        idx = 1
+        self._generate_stats_panel(ax_arr[idx], self._rowstats,
+            'Along-row statistics and bad rows',
+            'row')
+                    
+        fig.tight_layout()
+        plt.savefig(plotstatfile,
+            dpi=200,
+            bbox_inches='tight')
+        self._logger.info(f'Column/row statistics info plot written to {plotstatfile}')        
+        return
+        
+    def _generate_stats_panel(self, ax, stats_arr, titlestr, coltype):
+        """
+        Generate one of the panels for the column/row statistics plot
+        """
+
+        if 'column' in coltype:
+            xlabel_str = 'X-axis column index (pixels)'
+        else:
+            xlabel_str = 'Y-axis row index (pixels)'
+        ylabel_str = f'Median along {coltype}'
+        
+        # Number of sigma around local sliding mean to plot envelope
+        env_sigma = 3.0
+        medn_sub_mean = stats_arr['median'] - stats_arr['local_mean']
+        envelope_low = -env_sigma*stats_arr['local_std']
+        envelope_hi  = env_sigma*stats_arr['local_std']
+        
+        mask           = stats_arr['isbad'] == 1
+        numbad         = np.sum( stats_arr['isbad'] )
+        masked_bad_idx = stats_arr['idx'][mask]
+        masked_bad_median = stats_arr['median'][mask]
+        masked_bad_med_sub_mean = medn_sub_mean[mask]
+        
+        # min/max median values
+        minval  = 0.995 * np.nanmin( stats_arr['median'] )
+        maxval  = 1.005 * np.nanmax( stats_arr['median'] )
+        maxval2 = 1.005 * self._meta['nsigma'] * np.nanmax( stats_arr['local_std'] )
+        minval2 = -maxval2
+
+        ax.set_title(titlestr, fontsize=7, pad=2)
+        ax.tick_params('both', labelsize=4, labelcolor='blue')
+        ax.step(stats_arr['idx'], stats_arr['median'], color='blue', where='mid',
+            label=ylabel_str, linewidth=0.5, alpha=0.7)
+        ax.set_ylim( (minval, maxval) )
+        ax.minorticks_on()
+        ax.scatter(masked_bad_idx, masked_bad_median, s=1.5, c='red', marker='o', label=f'Bad {coltype}s ({numbad})')
+        ax.set_xlabel(xlabel_str, fontsize=6)
+        ax.set_ylabel(ylabel_str, fontsize=6, color='blue')
+
+        plt.rc('legend', fontsize = 6)
+        lgnd1 = ax.legend(loc='lower left')
+
+        ax2 = ax.twinx()
+        if 'column' in coltype:
+            ylabel_str2 = 'Column median minus local mean' 
+        else:
+            ylabel_str2 = 'Row median minus local mean' 
+        ax2.set_ylabel(ylabel_str2, fontsize=6, color='green')
+
+        ##ax2.fill_between(stats_arr['idx'], envelope_low, envelope_hi, color='cyan', alpha=0.2)
+        ax2.step(stats_arr['idx'], medn_sub_mean, where='mid', color='green', alpha=0.7, linewidth=0.75)
+        ax2.scatter(masked_bad_idx, masked_bad_med_sub_mean, s=1.5, c='red', marker='o', label=f'Bad {coltype}s ({numbad})')
+
+        ax2.set_ylim( (minval2, maxval2) )
+        ax2.tick_params('both', labelsize=4, labelcolor='green')
+
         return
         
     def write_badcols_file(self, badcolfile, overwrite=False):
