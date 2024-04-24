@@ -79,7 +79,9 @@ def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxl
     """
     
     hdu = fits.open(fname)[extnum]
-    w   = wcs.WCS(hdu.header)
+    w = None
+    if usewcs:
+        w   = wcs.WCS(hdu.header)
 
     # Compute vmin and vmax if necessary
     # percentiles

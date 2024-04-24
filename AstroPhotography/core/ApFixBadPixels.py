@@ -72,18 +72,20 @@ class ApFixBadPixels:
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        self._logger.addHandler(ch)
+        # check if handlers already present
+        if not len(logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            logger.addHandler(ch)
         
         # Used in cases where we get the same message twice or more
         # See https://stackoverflow.com/a/44426266

@@ -245,19 +245,22 @@ class ApFindBadPixels:
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
+        logger.propagate = False
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        self._logger.addHandler(ch)
+        # check if handlers already present
+        if not len(logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            logger.addHandler(ch)
         return
             
     def _read_fits(self, image_filename, image_extension):
@@ -360,11 +363,11 @@ class ApFindBadPixels:
                 self._logger.debug('There were no bad rectangles in the user-defined badpixel file.')
 
         # We don't want to deal with zero length objects.
-        if len(badcols) == 0:
+        if badcols is not None and len(badcols) == 0:
             badcols = None
-        if len(badrows) == 0:
+        if badrows is not None and len(badrows) == 0:
             badrows = None
-        if len(badrect) == 0:
+        if badrect is not None and len(badrect) == 0:
             badrect = None
         
         return badcols, badrows, badrect

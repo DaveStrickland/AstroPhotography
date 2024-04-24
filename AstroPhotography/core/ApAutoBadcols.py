@@ -83,18 +83,20 @@ class ApAutoBadcols:
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        self._logger.addHandler(ch)
+        # check if handlers already present
+        if not len(logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            logger.addHandler(ch)
         
         # Used in cases where we get the same message twice or more
         # See https://stackoverflow.com/a/44426266
@@ -206,7 +208,7 @@ class ApAutoBadcols:
             std_data[idx]  = cstd
         return mean_data, std_data
     
-    def process_fits(self, fitsimg, nsigma=None, window_len=None):
+    def process_fits(self, fitsimg, nsigma=5, window_len=11):
         """
         Identify bad columns and rows in a numpy 2-dimensional array,
         returning a 1-d array of the (zero-based) bad column and row
@@ -217,7 +219,7 @@ class ApAutoBadcols:
         badcols, badrows = self.process(idata, nsigma, window_len)
         return badcols, badrows
     
-    def process(self, data_array, nsigma=None, window_len=None):
+    def process(self, data_array, nsigma=5, window_len=11):
         """
         Identify bad columns and rows in a numpy 2-dimensional array,
         returning a 1-d array of the (zero-based) bad column and row 
@@ -475,7 +477,7 @@ class ApAutoBadcols:
             else:
                 f.write('# No bad rows detected.\n')
                     
-            f.write( '---\n' )
+            f.write( '...\n' )
             self._logger.info(f'Wrote bad column/row YaML file to {badcolfile}' )
         return
         
@@ -503,16 +505,18 @@ class ApAutoBadcols:
         chdr_str = '{:3s},{:>10s},{:>10s},{:>10s},{:>10s},{:>5s}'.format('col', 'median', 'local_mean', 'local_std', 'nsigma', 'isbad')
         rhdr_str = chdr_str.replace('col', 'row')
         
-        with open(fcolstat, 'w', encoding="utf-8") as f:
-            f.writelines(info_strings)
-            np.savetxt(f, self._colstats, header=chdr_str,
-                fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
-            self._logger.debug(f'Wrote column statistics CSV data to {fcolstat}')
+        if fcolstat is not None:
+            with open(fcolstat, 'w', encoding="utf-8") as f:
+                f.writelines(info_strings)
+                np.savetxt(f, self._colstats, header=chdr_str,
+                    fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
+                self._logger.debug(f'Wrote column statistics CSV data to {fcolstat}')
 
-        with open(frowstat, 'w', encoding="utf-8") as f:
-            f.writelines(info_strings)
-            np.savetxt(f, self._rowstats, header=rhdr_str,
-                fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
-            self._logger.debug(f'Wrote row statistics CSV data to {frowstat}')
+        if frowstat is not None:
+            with open(frowstat, 'w', encoding="utf-8") as f:
+                f.writelines(info_strings)
+                np.savetxt(f, self._rowstats, header=rhdr_str,
+                    fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
+                self._logger.debug(f'Wrote row statistics CSV data to {frowstat}')
         
         return

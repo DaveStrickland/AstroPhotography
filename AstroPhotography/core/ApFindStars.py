@@ -460,7 +460,6 @@ class ApFindStars:
         logger.propagate = False
     
         # check if handlers already present
-        print(f'DKSDEBUG num handlers for {__name__} is {len(logger.handlers)}')
         if not len(logger.handlers):
             # create console handler and set level to debug
             ch = logging.StreamHandler()
