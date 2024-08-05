@@ -12,6 +12,10 @@ import time
 from datetime import datetime, timezone
 
 import numpy as np
+from ccdproc import ImageFileCollection
+from astropy.table import Table
+from astropy import wcs
+import astropy
 from astropy.io import fits
 
 # AstroPhotography includes    
@@ -26,9 +30,11 @@ class ApProcess:
     Astronomical image processor that works on calibrated images to
     perform the following tasks:
     
-    - 
+    - Star Detection on a directory or specified set of calibrated 
+      images, see find_stars().
+    - Generate astrometric solutions and WCS headers for files that
+      have had star detection performed on them.
     """
-    
     
     def __init__(self, loglevel):
         """
@@ -78,7 +84,7 @@ class ApProcess:
 
     def _initialize_logger(self, loglevel):
         """
-        Initialize and return the logger
+        Initialize the logger
         """
         
         self._logger = logging.getLogger(self._name)
@@ -91,7 +97,7 @@ class ApProcess:
         self._logger.propagate = False
             
         # check if handlers already present
-        if not len(logger.handlers):
+        if not len(self._logger.handlers):
             # create console handler and set level to debug
             ch = logging.StreamHandler()
             ch.setLevel(numeric_level)
@@ -103,7 +109,7 @@ class ApProcess:
             ch.setFormatter(formatter)
         
             # add ch to logger
-            logger.addHandler(ch)
+            self._logger.addHandler(ch)
         return
         
     def _read_fits(self, image_filename, image_extension):
@@ -255,3 +261,88 @@ class ApProcess:
         self._logger.info(f'Wrote bias/dark/flat corrected file to {outdata_file}')
         return
         
+    def find_stars(self, data_dir, include_pattern=None, exclude_pattern=None, 
+        file_list=None):
+        """
+        Runs ApFindStars on a set of files
+        
+        Parameters
+        ----------
+        data_dir : str or path
+                   Path to base directory containing FITS files to process,
+                   e.g. `./`.
+        include_pattern : str, optional
+                   Globbing pattern of files we want included, specified
+                   relative to data_dir. If not specified all FITS files
+                   will be included. This parameter is ignored if file_list
+                   is not None.
+        exclude_pattern : str, optional
+                   Globbing pattern of files we want excluded, specified
+                   relative to data_dir. If not specified no FITS files
+                   will be excluded. This parameter is ignored if file_list
+                   is not None.
+        file_list : list of str, optional
+                   An explicit list of files, paths relative to data_dir,
+                   may be specified. If provided only those files in file_list
+                   are looked for, and the include and exclude patterns are
+                   ignored.
+        """
+
+        # Generate an image file collection
+        keys = ['naxis1', 'naxis2', 'imagetyp', 'object', 'filter', 'exposure']
+        
+        self._logger.info(f'Attempting to find stars in FITS files within directory={data_dir}')
+        if file_list is None:
+            # Use patterns
+            self._logger.info(f'Using files that match include_pattern="{include_pattern}"')
+            self._logger.info(f'Excluding files that match exclude_pattern="{exclude_pattern}"')
+            ifc_cal = ImageFileCollection(data_dir, keywords=keys, glob_include=include_pattern, glob_exclude=exclude_pattern)
+        else:
+            # Use explicit file list
+            self._logger.info(f'Using specified file list: {file_list}')
+            ifc_cal = ImageFileCollection(data_dir, keywords=keys, filenames=file_list)
+        print(ifc_cal.summary)
+        
+        return
+        
+    def _find_stars_wrapper(self, p_loglevel, p_fitsimg, p_fitstbl, 
+        p_extnum=0, p_search_fwhm=3.0, p_search_nsigma=7.0,
+        p_detector_bitdepth=16, p_sat_frac=0.8, p_max_sources=200,
+        p_nosatmask=True, p_plotfile=None, p_quiet=False,
+        p_fwhm_plot=None, p_qual_rprt=None, p_regfile=None):
+        """
+        Wrapper for finding stars in a single image using ApFindStars.
+        """
+
+        # Perform initial source detection using default parameters.
+        find_stars = ap.ApFindStars(p_fitsimg, p_extnum, p_search_fwhm,
+            p_search_nsigma, p_detector_bitdepth, 
+            p_max_sources, p_nosatmask, p_sat_frac, p_loglevel,
+            p_plotfile, p_quiet)
+        
+        # Measure 2-Gaussian FWHM for select stars, get average over x and y
+        (p_new_fwhm, p_madstd_fwhm, p_npts) = find_stars.measure_fwhm(p_fwhm_plot, 'both')
+        
+        # Refine source detection
+        find_stars.source_search(p_new_fwhm, p_search_nsigma)
+        
+        # Re-run photometry
+        find_stars.aperture_photometry()
+        
+        # As the source searching and photometry was redone, we should redo
+        # the plotting.
+        if p_plotfile is not None:
+            find_stars.plot_image(p_plotfile)
+        
+        # Write optional quality report
+        if p_qual_rprt is not None:
+            find_stars.write_quality_report(p_qual_rprt)
+
+        # Write optional ds9 format region file
+        if p_regfile is not None:
+            find_stars.write_ds9_region_file(p_regfile)
+        
+        # Write final sourcelist with photometry.
+        find_stars.write_source_list(p_fitstbl)
+
+        return

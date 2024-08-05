@@ -51,6 +51,17 @@ from astropy.visualization import make_lupton_rgb
 # AstroPhotography includes    
 from .. import __version__
 
+def does_file_exists(filename, verbose=False):
+    """
+    Returns True if the file name or path exists, false otherwise
+    """
+    if verbose and not Path(filename).exists():
+        print(f"Cannot find {filename}. Not a valid path or file.")
+        return False
+    else:
+        print(f"Found {filename}.")
+    return True
+
 def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxlim=None, yaxlim=None, verbose=True):
     """
     Quick and dirty FITS image plot.

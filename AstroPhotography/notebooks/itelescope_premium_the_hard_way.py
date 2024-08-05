@@ -375,18 +375,18 @@ p_scale_err_ratio = None
 p_clean = False
 
 
-# In[ ]:
+# In[1]:
 
 
 def does_file_exists(filename, verbose=False):
     """
-    Returns True if the file name or path l e   n a m e otherwise
-    """    
+    Returns True if the file name or path exists, false otherwise
+    """
     if verbose and not Path(filename).exists():
-        print(f'Cannot find {filename}. Not a valid path or file.')
+        print(f"Cannot find {filename}. Not a valid path or file.")
         return False
     else:
-        print(f'Found {filename}.')
+        print(f"Found {filename}.")
     return True
 
 
