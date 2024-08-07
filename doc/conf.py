@@ -23,9 +23,13 @@ release = '0.5.2'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode', 
-    'sphinx.ext.napoleon', 'sphinx.ext.autosummary',
-    'sphinxcontrib.apidoc', 'myst_parser']
+extensions = ['sphinx.ext.autodoc', 
+    'sphinx.ext.viewcode', 
+    'sphinx.ext.napoleon', 
+    'sphinx.ext.autosummary',
+    'sphinxcontrib.apidoc',
+    'sphinxarg.ext', 
+    'myst_parser']
 
 apidoc_module_dir = '../AstroPhotography/'
 ##apidoc_output_dir = 'reference'

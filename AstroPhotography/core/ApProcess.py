@@ -5,6 +5,7 @@ Contains the implementation of the ApProcess class.
 # 2024-05-02 dks : Initial implementation.
 
 import sys
+import os
 import logging
 from pathlib import Path
 import math
@@ -27,20 +28,77 @@ from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
 
 class ApProcess:
     """
-    Astronomical image processor that works on calibrated images to
-    perform the following tasks:
+    Astronomical image processor that processes multiple calibrated images
+    in one or more filters to obtain astrometric solutions, combine images
+    to improve signal-to-noise, and optionally generate false-color composite
+    images.
+    
+    Intro
+    -----
+    
+    This class provides functions to perform the following batch processing:
     
     - Star Detection on a directory or specified set of calibrated 
       images, see find_stars().
     - Generate astrometric solutions and WCS headers for files that
       have had star detection performed on them.
+      
+    In addition to processing the files this class also has utility
+    methods to 
+    - return ccdproc.ImaegFileCollection instances corresponding
+      to existing files that correspond to various processing stages
+    - remove (a.k.a. "clean") any existing files that ApProcessor
+      generated
+    - return lists of file names/paths that it will process, or will generate,
+      even if those files don't already exist. These functions can be
+      used before processing to check that it will process the files you
+      expect.
+    
+    Star Detection and Image Navigation
+    -----------------------------------
+    
+    Combining multiple images of the same source in the same filter requires 
+    that each image have a valid World Coordinate System solution, based on 
+    an astrometric solution to the stars in the field of view. The 
+    `AstroPhotography` package also refers to this process as image navigation. 
+
+    The process consists of finding the pixel locations brightest N stars 
+    in each image, then calling `Astrometry.net` to compute a WCS solution 
+    based on those star locations, and creating a new "navigated" fits file 
+    that combines the calibrated file and the WCS solution. By default 
+    2-dimensional Gaussian profiles are also fitted to a representative 
+    number of stars per image to assess the Full Width at Half Maximum 
+    of the star images (in pixels), the results of which are shown graphically 
+    in a plot and numerically in a YaML file describing the stars found and 
+    fitted per image. At the end of the process a summary of the image (star) 
+    statistics is generated in CSV format that also incorporates the plate 
+    scale (arcseconds per pixel) found in the astrometric solution, which 
+    allows a human to look for outliers such as images where the seeing 
+    or tracking was especially bad.
+    
+    In terms of pseudo-code find_stars() performs the following operations:
+    
+    .. code-block:: python
+    
+        for cal-img in calibrated-images:
+            ap_find_stars cal-img --> source-list source-plot fwhm-plot quality-report.yml ds9-sources.reg
+            ap_astrometry cal-img source-list --> navigated-img
+        ap_quality_summary (all quality-report.yml files) --> quality-summary.csv
+    
+    File Types and File Naming Conventions
+    --------------------------------------
+
+    TBA
     """
     
     def __init__(self, loglevel):
         """
         Initializes an ApProcess instance
            
-        :param loglevel: Log level.
+        Parameters
+        ----------
+        loglevel: str
+                  Standard logging level string, e.g. `INFO`
         """
         
         self._name     = 'ApProcess'
@@ -53,6 +111,16 @@ class ApProcess:
     def _check_file_exists(self, filename):
         """
         Raises an exception if the name file does not exist.
+        
+        Parameters
+        ----------
+        filename: str
+            Name of file to check the existence of.
+                  
+        Raises
+        ------
+        RuntimeError
+            If the named file is not found.
         """
         
         if not Path(filename).exists():
@@ -63,7 +131,33 @@ class ApProcess:
 
     def _img_stats(self, data, label, verbose):
         """
-        Calculate and display some image statistics
+        Calculate and optionally display some image statistics, returning
+        a list of the minimum, maximum, mean and median values
+        
+        If verbose=True then the computed statistics are also written
+        to the log at INFO level along with the specified informative
+        label.
+        
+        Parameters
+        ----------
+        data: ndarray
+            Data array to compute statistics of
+        label : str
+            Descriptive label, only used if verbose=True
+        verbose : bool
+            If true the the computed statistics are also written
+            to the log at INFO level
+            
+        Returns
+        -------
+        minval :float
+            Minimum value in NaN-filtered input data
+        maxval : float
+            Maximum value in NaN-filtered input data
+        meanval : float
+            Mean value in NaN-filtered input data
+        medval : float
+            Median value in NaN-filtered input data
         """
         
         minval  = np.nanmin(data)
@@ -85,6 +179,11 @@ class ApProcess:
     def _initialize_logger(self, loglevel):
         """
         Initialize the logger
+        
+        Parameters
+        ----------
+        loglevel: str
+                  Standard logging level string, e.g. `INFO`
         """
         
         self._logger = logging.getLogger(self._name)
@@ -115,6 +214,28 @@ class ApProcess:
     def _read_fits(self, image_filename, image_extension):
         """
         Read a single extension's data and header from a FITS file
+        
+        Parameters
+        ----------
+        image_filename: str
+            Name of input files file
+        image_extension : int or str
+            Image extension number or name. For example extension 0 is
+            the primary extension, or `srclist` would be an extension
+            named sourcelist.
+                  
+        Returns
+        -------
+        ext_data : ndarray
+            Data stored in the requested extension of the file
+        ext_hdr : fits.Header
+            FITS header of the requested extension of the file
+            
+        Notes
+        -----
+        - Unsigned integer handling is performed.
+        - PEDESTAL values are removed from the returned data
+        - Image scaling is not performed. 
         """
         
         self._check_file_exists(image_filename)
@@ -194,6 +315,11 @@ class ApProcess:
         This function need only be applied when modified data is being
         written or rewritten to disk using a copy of an original FITS
         header.
+        
+        Parameters
+        -----------
+        hdr : fits.Header
+            The FITS header that will be modified in place
         """
         
         if 'PEDESTAL' in hdr:
@@ -216,13 +342,20 @@ class ApProcess:
         format, and a new/updated set of FITS header keywords
         from the input dictionary.
         
-        :param inpdata_file: Input FITS data file affected by bad pixels.
-        :param ext_num: Extension number for data array and header.
-        :param outdata_file: Bias/dark/flat corrected image.
-        :param odata: Bias/dark/flat field corrected data array.
-        :param odict: Additional FITS header keywords. The output file
-          the original keywords from the input FITS image file, plus
-          the keywords in this dictionary.
+        Parameters
+        ----------
+        inpdata_file : 
+            Input FITS data file affected by bad pixels.
+        ext_num : 
+            Extension number for data array and header.
+        outdata_file : 
+            Bias/dark/flat corrected image.
+        odata : 
+            Bias/dark/flat field corrected data array.
+        odict : 
+            Additional FITS header keywords. The output file
+            the original keywords from the input FITS image file, plus
+            the keywords in this dictionary.
         """
         
         self._logger.debug(f'FITS header keywords added to output: {odict}')
@@ -261,6 +394,77 @@ class ApProcess:
         self._logger.info(f'Wrote bias/dark/flat corrected file to {outdata_file}')
         return
         
+    def get_file_names(self, processing_stage,
+        data_dir, include_pattern=None, exclude_pattern=None, 
+        input_file_list=None):
+        """
+        Returns a list of the file names that would correspond to a certain
+        processing stage given the other input parameters
+        
+        The files may or may not exist already.
+        
+        The allowed processing stages are:
+        
+        - 'inputs': These are input files that will have star detection performed on them.
+        - 'srclists': Star detection output FITS table files for each input file.
+        
+        Parameters
+        ----------
+        processing_stage : {'inputs'}
+            The processing stage for which names should be returned.
+            This should be one of the stage names described above.
+        data_dir : str or path
+                   Path to base directory containing FITS files to process,
+                   e.g. `./`.
+        include_pattern : str, optional
+                   Globbing pattern of files we want included, specified
+                   relative to data_dir. If not specified all FITS files
+                   will be included. This parameter is ignored if file_list
+                   is not None.
+        exclude_pattern : str, optional
+                   Globbing pattern of files we want excluded, specified
+                   relative to data_dir. If not specified no FITS files
+                   will be excluded. This parameter is ignored if file_list
+                   is not None.
+        input_file_list : list of str, optional
+                   An explicit list of files, paths relative to data_dir,
+                   may be specified. If provided only those files in input_file_list
+                   are looked for, and the include and exclude patterns are
+                   ignored.
+                   
+        Returns:
+        fname_list : list of str
+            File names that correspond to the named processing stage.
+        
+        Raises
+        ------
+        RuntimeException :
+            If the processing_stage is not one of the allowed stages defined above
+        """
+
+        allowed_stages = ['inputs']
+        if processing_stage not in allowed_stages:
+            err_msg = f'Requested processing_stage {processing_stage} not one of the allowed values: {allowed_stages}'
+            self._logger.error(err_msg)
+            raise RuntimeError(err_msg)
+            
+        self._logger.debug(f'Current working directory: {os.getcwd()}')
+        self._logger.debug(f'Attempting to find stars in FITS files within directory={data_dir}')
+        if input_file_list is None:
+            # Use patterns
+            self._logger.debug(f'Using files that match include_pattern="{include_pattern}"')
+            self._logger.debug(f'Excluding files that match exclude_pattern="{exclude_pattern}"')
+            ifc_cal = ImageFileCollection(data_dir, glob_include=include_pattern, glob_exclude=exclude_pattern)
+        else:
+            # Use explicit file list
+            self._logger.info(f'Using specified file list: {input_file_list}')
+            ifc_cal = ImageFileCollection(data_dir, filenames=input_file_list)
+            
+        fname_list = []
+        for file in ifc_cal.summary['file']:
+            fname_list.append( file )
+        return fname_list
+        
     def find_stars(self, data_dir, include_pattern=None, exclude_pattern=None, 
         file_list=None):
         """
@@ -291,6 +495,7 @@ class ApProcess:
         # Generate an image file collection
         keys = ['naxis1', 'naxis2', 'imagetyp', 'object', 'filter', 'exposure']
         
+        self._logger.debug(f'Current working directory: {os.getcwd()}')
         self._logger.info(f'Attempting to find stars in FITS files within directory={data_dir}')
         if file_list is None:
             # Use patterns
