@@ -488,7 +488,7 @@ def _get_name_conv_dict(file_root):
                       'srclist':  {'replace': file_root, 'with': 'srclist',   'extension': '.fits', 'dir': 'SourceLists'},
                       'regfile':  {'replace': file_root, 'with': 'ds9',       'extension': '.reg',  'dir': 'SourceLists'},
                       'plotfile': {'replace': file_root, 'with': 'implot',    'extension': '.png',  'dir': 'SourceLists'},
-                      'fwhmfile': {'replace': file_root, 'with': 'fwhmplot',  'extension': '.png',  'dir': 'SourceLists'},
+                      'fwhmplot': {'replace': file_root, 'with': 'fwhmplot',  'extension': '.png',  'dir': 'SourceLists'},
                       'qualfile': {'replace': file_root, 'with': 'qual',      'extension': '.yaml', 'dir': 'MetaData'},
                       'navfile':  {'replace': file_root, 'with': 'navigated', 'extension': '.fits', 'dir': 'NavigatedImages'}}
     return name_conv_dict
