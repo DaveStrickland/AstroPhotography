@@ -672,6 +672,95 @@ class ApProcess:
         self._logger.info(f'There are {num_inputs} input files matching the parameters given.')
         self._logger.debug(f'Input file collection:\n{ifc_cal}')
         
+        # Iterate over the input files
+        idx = 0
+        proc_tstart = time.perf_counter()
+        for hdu, fname in ifc_cal.hdus(return_fname=True):
+            print(80*'-')
+            print(f'Processing input file {fname}')
+
+            f_srclist, f_regfile, f_plotfile, f_fwhmplot, f_qualfile, f_navfile = mk_all_file_names(fname,
+                name_conv_dict, mkdir, False)
+
+            # Determine whether to perform star detection, based on p_clean and presence of
+            does_srclist_exist = check_file_exists(f_srclist)
+            if p_clean or not does_srclist_exist:    
+                print(f'\n  Finding stars, output source list: {f_srclist}')
+                fs_tstart = time.perf_counter()
+                status = 'pass'
+                try:
+                    find_stars_wrapper(p_loglevel, fname, f_srclist, 
+                        p_extnum, p_search_fwhm, p_search_nsigma,
+                        p_detector_bitdepth, p_sat_frac, p_max_sources,
+                        p_nosatmask, f_plotfile, p_quiet,
+                        f_fwhmplot, f_qualfile, f_regfile)
+                except:
+                    print(f'  Error, caught exception when processing {fname}')
+                    status = 'fail'
+                
+                fs_tend     = time.perf_counter()
+                fs_telapsed = fs_tend - fs_tstart # seconds
+                fs_status   = status
+            else:
+                print(f'\n  Skipping star detection because {f_srclist} exists and clean={p_clean}')
+                fs_status = 'skipped_exists'
+                fs_telapsed = 0
+
+            # Determine whether to perform star detection, based on p_clean and presence of
+            does_navfile_exist = check_file_exists(f_navfile)
+            if does_navfile_exist:
+                if p_clean or not does_navfile_exist: 
+                    ast_status = 'pass'
+                    ast_tstart = time.perf_counter()
+                    print(f'\n  Performing astrometry, output navigated image: {f_navfile}')
+                    try:
+            
+                        ap_astrom = ap.ApAstrometry(fname, 
+                            p_extnum,
+                            f_srclist, 
+                            p_src_extname,
+                            f_navfile, 
+                            p_astnetkey,
+                            p_use_sip,
+                            p_user_scale,
+                            p_scale_err_ratio,
+                            p_loglevel)
+                        p_status = ap_astrom.status()
+                        print(f'  ApAstrometry return status: {ast_status}')
+                        if p_status == ap.ApAstrometry.NOMINAL:
+                            ast_status = 'pass'
+                        elif p_status == ap.ApAstrometry.INPUT_ERROR:
+                            ast_status = 'input_error'
+                        else:
+                            ast_status = 'fail'
+                    except:
+                        print(f'  Error, caught exception when processing {fname}')
+                        ast_status = 'exception'
+            
+                    ast_tend     = time.perf_counter()
+                    ast_telapsed = ast_tend - ast_tstart # seconds
+                    ast_status   = status
+                else:
+                    print(f'\n  Skipping astrometry because {f_navfile} exists and clean={p_clean}')
+                    ast_status = 'skipped_exists'
+                    ast_telapsed = 0
+            else:
+                # No source list
+                print(f'\n  Skipping astrometry because {f_srclist} does not exist.')
+                ast_status = 'skipped_no_srclist'
+                ast_telapsed = 0
+
+            # Fill in run info for this file
+            result_tuple = (fname, fs_status, fs_telapsed, ast_status, ast_telapsed)
+            processing_results[idx] = result_tuple
+
+            # update idx
+            idx += 1
+            
+        proc_tend = time.perf_counter()
+        proc_telapsed = proc_tend - proc_tstart
+        print(f'Finished processing {idx+1} files in {proc_telapsed:.3f} seconds.')
+        
         return self._status_table
         
     def _find_stars_wrapper(self, a_fitsimg, a_fitstbl, 
@@ -685,20 +774,42 @@ class ApProcess:
         Parameters
         ----------
         a_fitsimg : str 
+            Name of the input FITS image to search for star-like sources.
         a_fitstbl : str
+            
         an_extnum : int or str, default=0 
+            Extension number or name for the extension holding the image data. Usually this is 0, for the ``PrimaryHDU``.
         a_search_fwhm : float, default=3.0 
+            Initial guess or estimate of the stellar PSF FWHM in pixels
+            in this image
         a_search_nsigma : float, default=7.0
+            Minimumn number of sigma above background for a detection
         a_detector_bitdepth : int, default=16 
+            Detector bit-depth, used in estimating which pixels are 
+            saturated. (16 for most CCDs, ?? for CMOS, ?? for camera)
         a_sat_frac : float, default=0.8 
+            Fraction of full well at which we assume star saturated
         a_max_sources : int, default=200
+            Maximum number of sources to output or None. If not None then 
+            only the max_sources brightest sources will be output. 
+            Typically there is no advantage to having very large numbers 
+            of detected sources when performing astrometry, and may well 
+            slow it down. I normally use max_sources=200.
         do_nosatmask : bool : default=True 
+            If True, keep possibly saturated stars.
         a_plotfile : str, default=None 
+            If not None then this is the name for an output PNG plot of the image with detected sources plotted as circles.
         do_quiet : bool, default=False
+            If True this suppresses the runtime source list printing to STDOUT
         a_fwhm_plot : str, default=None 
+            If not None then a PNG plot zooming in around a subset of the detected
+            sources, and their best-fit parameters, is generated.
         a_qual_rprt : str, default=None 
+            If not None then a YaML file summarizing the source detection
+            outputs is generated.
         a_regfile : str, default=None
-        
+            If not None a ds9-format region file will be generated with
+            the coordinates of the detected stars (in pixel coordinates).
         
         See Also
         --------

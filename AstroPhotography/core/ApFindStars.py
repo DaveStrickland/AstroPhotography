@@ -34,6 +34,7 @@
 # 2021-01-18 dks : Move ApFindStars into core, split ApMeasureStars into its
 #                  own file.
 # 2024-01-25 dks : Catch up to latest astropy/photutils changes
+# 2024-08-14 dks : Start switch over to numpy format docstrings
 
 import logging
 import os.path
@@ -70,15 +71,30 @@ from .. import __version__
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
     
 def yaml_float_representer(dumper, value):
-    """Change default yaml float representation.
+    """
+    Change default yaml float representation to .6f format
     
     From: https://stackoverflow.com/questions/33944299/how-to-round-numeric-output-from-yaml-dump-in-python
+    
+    Parameters
+    ----------
+    dumper : yaml.Dumper
+        What ever a Dumper is. I have no idea.
+    value : float
+        Float value to format
+        
+    Returns
+    -------
+    node : yaml.node
+        A node of a YaML representation graph?
     """
     text = '{0:.6f}'.format(value)
     return dumper.represent_scalar(u'tag:yaml.org,2002:float', text)
 
 class ApFindStars:
-    """Find and characterize stars within a FITS image
+    """
+    Find and characterize stars within a FITS image, primarily using
+    the methods provided by the astropy-affiliated photutils package.
     """
 
     # Class constants
@@ -89,17 +105,58 @@ class ApFindStars:
         search_nsigma, detector_bitdepth, 
         max_sources, nosatmask, sat_frac, loglevel,
         plotfile, quiet):
-        """Constructor for ApFindStars
-        
-        This reads the input image, and performs by default the following
+        """
+        The constructor reads an input image, and performs by default the following
         processing steps:
-        - 
+        
+        - initial background estimates using hard-wired constants.
+        - thresholding and simple segmentation-based source detection
+        - sigma-clipped background esrtimates using the initial source mask
+        - saturated pixel detection
+        - improved source searching using the :fund:``source_search`` function
+        - performs aperture photometry to better categorize the initial
+          source list, using :func:``aperture_photometry``
+        - optionally plots the input image and detected sources using
+          matplotlib to a PNG file
         
         The user may update the default source detection and photometry 
         by calling the public member functions of this class. Output,
         whether FITS table source list or optional quality report
         and ds9-format region file, must be initiated by the user using
         the public write_ member functions.
+        
+        Parameters
+        ----------
+        fitsimg : str
+            Name of the input FITS image to search for star-like sources.
+        extnum : int or str
+            Extension number or name for the extension holding the image data.
+            Usually this is 0, for the ``PrimaryHDU``.
+        search_fwhm : float
+            Initial guess or estimate of the stellar PSF FWHM in pixels
+            in this image
+        search_nsigma : float 
+            Minimumn number of sigma above background for a detection
+        detector_bitdepth : int
+            Detector bit-depth, used in estimating which pixels are saturated.
+            (16 for most CCDs, ?? for CMOS, ?? for camera)
+        max_sources : int 
+            Maximum number of sources to output or None. If not None
+            then only the max_sources brightest sources will be output.
+            Typically there is no advantage to having very large numbers
+            of detected sources when performing astrometry, and may
+            well slow it down. I normally use max_sources=200.
+        nosatmask : bool
+            If True, keep possibly saturated stars.
+        sat_frac : float 
+            Fraction of full well at which we assume star saturated
+        loglevel : str
+            Standard logging framework log-level, e.g. ``'INFO'``
+        plotfile : str or None
+            If not None then this is the name for an output PNG plot of
+            the image with detected sources plotted as circles.
+        quiet : bool
+            If True this suppresses the runtime source list printing to STDOUT
         """
         
         self._status        = ApFindStars.GOOD

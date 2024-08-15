@@ -110,6 +110,7 @@ html_static_path = ['_static']
 
 # Sort members by type
 autodoc_member_order = 'groupwise'
+autoclass_content = "both"
 
 # -- Options for HTMLHelp output ---------------------------------------
 
