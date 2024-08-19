@@ -2,6 +2,9 @@
 
 Release notes for versions starting at v0.2.2 and later.
 
+**Note:** Standard sematic versioning API stability is not guaranteed
+until version 1.0 or later.
+
 ## Version 0.5
 
 The objectives of version 0.5 are:
@@ -17,7 +20,10 @@ The objectives of version 0.5 are:
 
 ### Version 0.5.2 (Work in progress)
 
-- WIP Python wrapper for processing iTelescope premium image sets.
+- WIP Python wrapper for processing multiple calibrated image sets, e.g.
+  iTelescope premium image sets. (ApProcessor)
+- API breaking change in argument order for ApAstrometry.
+- Continued work on improving the Sphinx documentation.
 
 ### Version 0.5.1 2024-01-30
 

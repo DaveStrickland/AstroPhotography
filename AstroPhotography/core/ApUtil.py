@@ -373,13 +373,13 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile, extnum=0, u
         if verbose:
             print(f'Setting Y-axis limits to [{loval}, {hival}]')
     return rgb_array
-    
-def namefn_calibrated_input(input_file, input_rootname, input_suffix, processing_stage):
+        
+def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetype):
     """
     Given the name of a calibrated input file, generate the file name for
-    and output directory for one of the subsequent processing stages.
+    and output directory for one of the subsequent output file types.
     
-    For calibrated input files the the allowed processing stages are:
+    For calibrated input files the the allowed output file types are:
     
     - ``inputs``: This is the calibrated input file itself.
     - ``srclist``: Star detection output FITS table file.
@@ -409,14 +409,14 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, processing
     input_suffix : str, optional, default='.fits'
                String denoting the file type suffix of the input image file.
                For example, '.fits' or '.fits' or '.ftz' or 'fits.gz' or '.fits.bz2'
-    processing_stage : {'inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
-        The processing stage for which the name should be returned.
+    ap_filetype : {'inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
+        The output file type for which the name should be returned.
         This should be one of the stage names described above.
                
     Returns
     -------
     output_file : str
-        File name that would correspond to the named processing stage given
+        File name that would correspond to the named output file type given
         the name of the input file. This file does not necessarily exist yet.
         The output file name does **not** include any subdirectory name.
         It is up to the caller to combine output_dir and output_file if
@@ -440,8 +440,8 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, processing
     """
     
     allowed_stages = ['inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
-    if processing_stage not in allowed_stages:
-        err_msg = f'Requested processing_stage {processing_stage} not one of the allowed values: {allowed_stages}'
+    if ap_filetype not in allowed_stages:
+        err_msg = f'Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}'
         self._logger.error(err_msg)
         raise RuntimeError(err_msg)
     
@@ -459,7 +459,7 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, processing
                 
     name_conv_dict = _get_name_conv_dict(file_root)
 
-    conv = name_conv_dict[processing_stage]        
+    conv = name_conv_dict[ap_filetype]        
     output_file = input_file
     output_dir  = conv['dir']
     if conv['replace'] is not None:
@@ -468,6 +468,50 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, processing
             output_file = output_file.replace(input_suffix, conv['extension'])
     
     return output_file, output_dir
+
+def namefn_getdir(ap_filetype):
+    """
+    Given a file type for star detection/astrometry, return the
+    output directory such files would be placed in.
+    
+    For calibrated input files the the allowed output file types are:
+    
+    - ``inputs``: This is the calibrated input file itself.
+    - ``srclist``: Star detection output FITS table file.
+    - ``regfile``: ds9-format region file.
+    - ``plotfile``: PNG plots of the input image with the detected star-like sources
+      plotted as circles.
+    - ``qualfile``: YaML source detection quality summary file.
+    - ``fwhmplot``: PNG plot zooming in around a subset of the detected
+      sources in the input image.
+    - ``navfile``: A navigated and renamed copy of the input file, but now
+      with a valid WCS solution.
+    
+    Parameters
+    ----------
+    ap_filetype : {'inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
+        The AstroPhotography file type for which the directory should be returned.
+        This should be one of the stage names described above.
+               
+    Returns
+    -------
+    output_dir : str
+        Directory name in which output files will be written, relative
+        to the root directory established by the input files.
+    """
+    
+    allowed_stages = ['inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
+    if ap_filetype not in allowed_stages:
+        err_msg = f'Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}'
+        self._logger.error(err_msg)
+        raise RuntimeError(err_msg)
+    
+    # True file root not needed
+    file_root = 'Calibrated-iTelescope'
+    name_conv_dict = _get_name_conv_dict(file_root)
+    conv = name_conv_dict[ap_filetype]        
+    output_dir  = conv['dir']
+    return output_dir
 
 def _get_name_conv_dict(file_root):
     """
@@ -484,11 +528,11 @@ def _get_name_conv_dict(file_root):
     # - If dir is not None then the various outputs files will be written to directories with the specified
     #   path relative to the **current** directory. The directory will be created if it not already
     #   present.
-    name_conv_dict = {'inputs':   {'replace': None,      'with': None,        'extension': None,    'dir': None},
-                      'srclist':  {'replace': file_root, 'with': 'srclist',   'extension': '.fits', 'dir': 'SourceLists'},
-                      'regfile':  {'replace': file_root, 'with': 'ds9',       'extension': '.reg',  'dir': 'SourceLists'},
-                      'plotfile': {'replace': file_root, 'with': 'implot',    'extension': '.png',  'dir': 'SourceLists'},
-                      'fwhmplot': {'replace': file_root, 'with': 'fwhmplot',  'extension': '.png',  'dir': 'SourceLists'},
-                      'qualfile': {'replace': file_root, 'with': 'qual',      'extension': '.yaml', 'dir': 'MetaData'},
-                      'navfile':  {'replace': file_root, 'with': 'navigated', 'extension': '.fits', 'dir': 'NavigatedImages'}}
+    name_conv_dict = {'inputs':   {'replace': None,      'with': None,        'extension': None,    'dir': './'},
+                      'srclist':  {'replace': file_root, 'with': 'srclist',   'extension': '.fits', 'dir': './SourceLists/'},
+                      'regfile':  {'replace': file_root, 'with': 'ds9',       'extension': '.reg',  'dir': './SourceLists/'},
+                      'plotfile': {'replace': file_root, 'with': 'implot',    'extension': '.png',  'dir': './SourceLists/'},
+                      'fwhmplot': {'replace': file_root, 'with': 'fwhmplot',  'extension': '.png',  'dir': './SourceLists/'},
+                      'qualfile': {'replace': file_root, 'with': 'qual',      'extension': '.yaml', 'dir': './MetaData/'},
+                      'navfile':  {'replace': file_root, 'with': 'navigated', 'extension': '.fits', 'dir': './NavigatedImages/'}}
     return name_conv_dict

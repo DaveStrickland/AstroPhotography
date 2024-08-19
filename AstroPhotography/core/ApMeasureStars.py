@@ -235,12 +235,21 @@ class ApMeasureStars:
         least squares fitting algorithm is used to fit the data.
         The data is assumed to have Gaussian errors that are the square
         root of the pixel counts.
+        
+        Note
+        ~~~~   
            
         There are some limitations to this at present:
         
         - The reduced chi-squared values obtained are unrealistic. It is
           not clear whether the errors are underestimated and/or the
           fitting has trouble converging to the true solution.
+        - The raw error estimates on the fitted FWHM values are unrealistically
+          small. This may be another indication that the fitting method
+          used is struggling. In any case, using the fit uncertainties 
+          results in all stars being classed as non-circular, so instead
+          we use the MAD standard deviation of all sources as a better
+          estimate when assessing the circularity of each source.
         """
         
         # Setup
@@ -404,6 +413,8 @@ class ApMeasureStars:
             # Calculate axis ratio and circularity.
             # Note this calculation is not quite right because the two
             # parameters are NOT independent.
+            # Also, fitted errors are unrealistically small
+            # so cant trust axrat error
             fwhm_x    = self._fit_table['fwhm_x'][idx]
             fwhm_y    = self._fit_table['fwhm_y'][idx]
             axrat     = max(fwhm_x, fwhm_y) / min(fwhm_x, fwhm_y)
@@ -415,12 +426,33 @@ class ApMeasureStars:
                 axrat_err = axrat * math.sqrt( (fwhm_xerr/fwhm_x)**2 +
                     (fwhm_yerr/fwhm_y)**2 )
                 
-                circular = self.is_circular(fwhm_x, fwhm_y, 
-                    fwhm_xerr, fwhm_yerr)
-                self._fit_table['circular'][idx] = circular
+                ##circular = self.is_circular(fwhm_x, fwhm_y, 
+                ##    fwhm_xerr, fwhm_yerr)
+                ##self._fit_table['circular'][idx] = circular
 
             self._fit_table['axrat'][idx]     = axrat
             self._fit_table['axrat_err'][idx] = axrat_err
+
+        # Calculate the globale FWHM MAD standard deviations, and use those
+        # to reevaluate the circularity.
+        (median_fwhm_x, madstd_fwhm_x, npts) = self.median_fwhm('x')
+        (median_fwhm_y, madstd_fwhm_y, npts) = self.median_fwhm('y')
+        overall_axrat     = max(median_fwhm_x, median_fwhm_y) / min(median_fwhm_x, median_fwhm_y)
+        overall_axrat_err = overall_axrat * math.sqrt( (madstd_fwhm_x/median_fwhm_x)**2 +
+            (madstd_fwhm_y/median_fwhm_y)**2 )
+        overall_circular  = self.is_circular(median_fwhm_x, median_fwhm_y, 
+            madstd_fwhm_x, madstd_fwhm_y)
+        circ_str = 'are NOT circular'
+        if overall_circular:
+            circ_str = 'are circular'
+        self._logger.info(f'Source average axis ratio = {overall_axrat:.3f} +/- {overall_axrat_err:.3f}, overall sources {circ_str}.')
+        
+        for idx in range(num_stars):
+            fwhm_x    = self._fit_table['fwhm_x'][idx]
+            fwhm_y    = self._fit_table['fwhm_y'][idx]
+            circular  = self.is_circular(fwhm_x, fwhm_y, 
+                madstd_fwhm_x, madstd_fwhm_y)
+            self._fit_table['circular'][idx] = circular
 
         perf_time_end = time.perf_counter() # highest res timer, counts sleeps
         perf_time     = perf_time_end - perf_time_start  # seconds
@@ -437,14 +469,32 @@ class ApMeasureStars:
         """
         Returns True if fwhm_y is within _circ_thresh_sigma
         standard deviations of fwhm_x, otherwise False
+        
+        Parameters
+        ----------
+        
+        fwhm_x : float
+        fwhm_y : float
+            Fitted full-width at half maximum (FWHM) in pixels, along X and Y.
+        fwhm_xerr : float
+        fwhm_yerr : float
+            Estimated uncertainty in fitted FWHM along X and Y, also in pixels.
+            
+        Returns:
+        circular : bool
+            True if the absolute difference in fwhm_x and fwhm_y is less than
+            _circ_thresh_sigma times the square root of fwhm_xerr squared
+            plus fwhm_yerr squared.
         """
         circular = True
         # Circularity is whether fwhm_y is within _circ_thresh_sigma
         # standard devaitions of fwhm_x
         d_fwhm = math.fabs(fwhm_y - fwhm_x)
-        sigma  = d_fwhm / fwhm_yerr
+        sigma  = d_fwhm / math.sqrt(fwhm_yerr*fwhm_yerr + fwhm_xerr*fwhm_xerr)
         if sigma > ApMeasureStars._circ_thresh_sigma:
             circular = False
+            
+        ##print(f'fwhm_x={fwhm_x} fwhm_xerr={fwhm_xerr} fwhm_y={fwhm_y} fwhm_yerr={fwhm_yerr} d_fwhm={d_fwhm} sigma={sigma} circular={circular}')
         return circular
 
     def _do_single_fit(self, 
@@ -610,7 +660,6 @@ class ApMeasureStars:
             raise ValueError('Invalid log level: {}'.format(loglevel))
         logger.setLevel(numeric_level)
         logger.propagate = False
-        print(f'DKSDEBUG num handlers for {__name__} is {len(logger.handlers)}')
     
         # check if handlers already present
         if not len(logger.handlers):
@@ -705,11 +754,14 @@ class ApMeasureStars:
             sharey=True)
         
         (median_fwhm, madstd_fwhm, npts) = self.median_fwhm('both')
+        (median_fwhm_x, madstd_fwhm_x, npts) = self.median_fwhm('x')
+        (median_fwhm_y, madstd_fwhm_y, npts) = self.median_fwhm('y')
         
         title = 'Star PSF measurements using 2-D Gaussian fits'
         if self._plot_title is not None:
             title = self._plot_title
         title += f'\nMedian FWHM={median_fwhm:.2f} +/- {madstd_fwhm:.2f} (MAD stddev) pixels'
+        title += f'\nAlong X FWHM={median_fwhm_x:.2f} +/- {madstd_fwhm_x:.2f} pixels, along Y FWHM={median_fwhm_y:.2f} +/- {madstd_fwhm_y:.2f} pixels'
         fig.suptitle(title, fontsize=7)
         
         for idx in range(num_stars):
@@ -1017,9 +1069,26 @@ class ApMeasureStars:
         along with median absolute deviation (MAD) standard deviation.
            
         Note that the deviation return is standard deviation based on
-        the MAD, not the MAD itself. See astropy.stats.mad_std
+        the MAD, not the MAD itself. See `astropy.stats.mad_std`. 
         
         Direction must be one of 'both', 'x', or  'y'
+        
+        Parameters
+        ----------
+        direction : {'both', 'x', 'y'}
+        
+        Returns
+        -------
+        median_fwhm : float
+            Median fitted source FWHM in pixels in the specified direction.
+        madstd_fwhm : float
+            Maximum Absolute Deviation (MAD) in pixels in the specified direction.
+            MAD is a more robust statistic than standard deviation in the presence
+            of outliers. Note that the returned statistic is not the raw
+            MAD value but the scaled value suited for use as a standard
+            deviation.
+        num_used : int
+            Number of measured sources used for the statistic.
         """
         
         # Clip values that are more than this number of sigma from the
@@ -1043,6 +1112,7 @@ class ApMeasureStars:
         
         median_fwhm = float( np.median(clipped) )
         madstd_fwhm = float( mad_std(clipped) )
+        self._logger.debug(f'Measured FWHM={median_fwhm:.3f} +/- {madstd_fwhm:.3f} pixels in direction {direction}')
         return (median_fwhm, madstd_fwhm, num_used)
         
     def results_table(self):

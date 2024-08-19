@@ -66,16 +66,56 @@ class ApAstrometry:
     INPUT_ERROR = 1 #: Non-nominal input, missing file, etc
     NO_SOLUTION = 2 #: Astrometry.net did not find a solution
     
-    def __init__(self, inp_img_fname, 
-        inp_img_extnum,
-        srclist_fname, 
-        srclist_extname,
-        out_img_fname, 
-        astnet_key,
-        use_sip,
+    def __init__(self, inp_img_fname, srclist_fname, out_img_fname, 
+        inp_img_extnum=0,
+        srclist_extname='AP_XYPOS',
+        astnet_key=None,
+        use_sip=False,
         user_scale=None,
         scale_err_ratio=None,
-        loglevel="INFO"):
+        loglevel='INFO'):
+        """
+        Parameters
+        ----------
+        inp_img_fname : str 
+            Input calibrated FITS image
+        srclist_fname : str 
+            Input detected source table from :class:``ApFindStars``, i.e.
+            a ``srclist`` file
+        out_img_fname : str 
+            Output FITS image, which is a copy of the input image with 
+            a valid WCS header added.
+        inp_img_extnum : int or str
+            Extension number or name for the extension holding the image data.
+            Usually this is 0, for the ``PrimaryHDU``. (ApFindStars parameter)
+        srclist_extname : str, optional, default='AP_XYPOS'
+            FITS extension name for star X,Y position data. Default=``AP_XYPOS``
+        astnet_key : str, optional, default=None
+            Your personal Astrometry.net API key, if you have not already
+            added it to your ~/.astropy/config/astroquery.cfg config file.
+        use_sip : bool, optional, default=False
+            Allow astrometry.net to fit SIP polynomial distortion terms.
+            This may be necessary for very large fields of view (>10 deg),
+            but SIP is not treated correctly by swarp (and possibly other
+            software).
+        user_scale : float, optional, default=None
+            If specified, override the estimate plate scale in the source list file
+            and instead use a user spacified estimate of the plate scale.
+            The units are arcseconds/pixel.
+        scale_err_ratio: float, optional, default=None
+            The relative uncertainty in the estimated plate scale,
+            expressed as a ratio. This applies to either the default 
+            estimate from the source list, or a user-supplied plate
+            scale. For example, if the estimate plat scale is 2.0 arcsec/pix
+            and the scale_err_ratio=1.5, then the plate scale range that
+            will be search by Astrometry.net is 2/1.5 (=4/3) to 2*1.5 (=3)
+            arcseconds. If not specified ApAstrometry will use a value of 1.3.
+            Using a larger value can help in cases where astrometric
+            solutions fail, for example if incorrect telescope metadata
+            leads to inaccurate estimated plate scales.
+        loglevel : str, optional, default="INFO"
+            Standard logging framework log-level, e.g. ``'INFO'``
+        """
         
         self._initialize_logger(loglevel)
         self._loglevel = loglevel
@@ -156,7 +196,6 @@ class ApAstrometry:
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
         self._logger.propagate = False
-        print(f'DKSDEBUG num handlers for {__name__} is {len(self._logger.handlers)}')
     
         # check if handlers already present
         if not len(self._logger.handlers):
