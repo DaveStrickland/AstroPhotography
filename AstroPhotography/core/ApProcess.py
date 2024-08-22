@@ -27,6 +27,7 @@ from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
 from .ApUtil import namefn_calibrated_input, namefn_getdir
 from .ApFindStars import ApFindStars as ApFindStars
 from .ApAstrometry import ApAstrometry as ApAstrometry
+from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 
 # ApFixCosmicRays did not, instead requiring the more verbose line shown.
 
@@ -96,6 +97,10 @@ class ApProcess:
             ap_find_stars cal-img --> source-list source-plot fwhm-plot quality-report.yml ds9-sources.reg
             ap_astrometry cal-img source-list --> navigated-img
         ap_quality_summary (all quality-report.yml files) --> quality-summary.csv
+    
+    Note that processing is sequential and single threaded *at this time*.
+    Even if this changes for source detection the astrometry part will
+    remain sequential to avoid spamming the ``Astrometry.net`` servers.
     
     .. _File Types:
     
@@ -174,6 +179,17 @@ class ApProcess:
         self._status_table = None           # Table : processing status
         self._input_ifc    = None           # ImageFileCollection : Input files that were actually used
         self._data_dir     = None           # pathlib.Path : to input ``data_dir``
+        
+        # Existing file of the specified types
+        self._srclist_files  = []
+        self._regfile_files  = []
+        self._plotfile_files = []
+        self._qualfile_files = []
+        self._fwhmplot_files = [] 
+        self._navfile_files = []
+        
+        self.qual_pref = 'qual'
+        self.qual_suff = '.yaml'
         
         return
         
@@ -719,6 +735,7 @@ class ApProcess:
         
     def navigate_images(self, data_dir, include_pattern=None, exclude_pattern=None, 
         input_file_list=None, input_rootname=None,  input_suffix='.fits',
+        final_quality_file=None,
         clean_star_detection=False, clean_astrometry=False, stop_on_error=False,
         extnum=0, search_fwhm=3.0,
         search_nsigma=7.0, detector_bitdepth=16, 
@@ -784,6 +801,12 @@ class ApProcess:
         input_suffix : str, optional, default='.fits'
             String denoting the file type suffix of the input image file.
             For example, '.fits' or '.fits' or '.ftz' or 'fits.gz' or '.fits.bz2'
+        final_quality_file : str, optional, default=None
+            If specified, this is the name for a quality summary file
+            in CSV format 
+            generated using :class:`ApQualitySummarizer`, which summarizes
+            all YaML quality files found in the standard quality
+            summary file directory (typically `./MetaData/`).
         clean_star_detection : bool, default=False
             If True then **existing** star detection outputs (``srclist``,
             ``regile``, ``plotfile``, ``qualfile``, and ``fwhmplot`` files)
@@ -886,6 +909,9 @@ class ApProcess:
             ifc_cal = ImageFileCollection(data_dir, keywords=keys, filenames=input_file_list)
         self._input_ifc = ifc_cal
         self._data_dir  = Path(data_dir)
+        
+        # Clear lists of output file types
+        self._srclist_files 
                 
         # Generate status table, written to self._status_table
         num_inputs = len(ifc_cal.summary)
@@ -939,7 +965,15 @@ class ApProcess:
                 self._logger.info(f'Skipping star detection because {f_srclist} exists and clean_star_detection={clean_star_detection}')
                 fs_status = 'skipped_exists'
                 fs_telapsed = 0
-
+                
+            # Update lists of existing files of each type we've just generated
+            # in source searching
+            self._update_file_lists( {'srclist': f_srclist,
+                'regfile': f_regfile,
+                'plotfile': f_plotfile,
+                'qualfile': f_qualfile,
+                'fwhmplot': f_fwhmplot} )
+            
             # Determine whether to perform astrometry, based on p_clean 
             # and presence of srclist and navfile
             does_navfile_exist =  self._check_file_exists(f_navfile, dont_throw)
@@ -988,6 +1022,8 @@ class ApProcess:
                     self._logger.info(f'Skipping astrometry because {f_navfile} exists and clean_astrometry={clean_astrometry}')
                     ast_status = 'skipped_exists'
                     ast_telapsed = 0
+                    
+                self._update_file_lists( {'navfile': f_navfile} )
             else:
                 # No source list
                 self._logger.error(f'Skipping astrometry because {f_srclist} does not exist.')
@@ -1005,7 +1041,65 @@ class ApProcess:
         proc_telapsed = proc_tend - proc_tstart
         self._logger.info(f'Finished processing {idx+1} files in {proc_telapsed:.3f} seconds.')
         
+        # Generate overall quality file summary
+        qual_file_dir = self.get_directories('qualfile', data_dir, absolute=False)
+        self.create_quality_summary(qual_file_dir, final_quality_file)
+        
         return self._status_table
+        
+    def create_quality_summary(self, qual_file_dir, quality_summary_file):
+        """
+        """
+        
+        walk_tree = False
+        summarizer = ApQualitySummarizer(qual_file_dir, quality_summary_file,
+            self._loglevel, walk_tree,
+            self.qual_pref, self.qual_suff)
+        return
+        
+    def _update_file_lists(self, added_file_dict):
+        """
+        Updates the internal lists of output files that exist on disk
+        
+        Unlike :func:`get_file_names`, which returns the file names that
+        might exist, this function stores file names that should have
+        been generated as part of the :func:`navigate_images` processing.
+        This function checks that the files specified in the input dictionary
+        exist before adding them to the member variable lists.
+        
+        Parameters
+        ----------
+        added_file_dict : dict(str, str)
+            Dictionary of consisting of file type keys and file name
+            values.
+        """
+        
+        oname_type = ['srclist', 'regfile', 'plotfile', 'fwhmplot', 'qualfile', 'navfile']
+        for key, val in added_file_dict.items():
+            if key in oname_type:
+                if self._check_file_exists(val, False):
+                    if key in 'srclist':
+                        self._srclist_files.append( val )
+                        continue
+                    if key in 'regfile':
+                        self._regfile_files.append( val )
+                        continue
+                    if key in 'plotfile':
+                        self._plotfile_files.append( val )
+                        continue
+                    if key in 'fwhmplot':
+                        self._fwhmplot_files.append( val )
+                        continue
+                    if key in 'qualfile':
+                        self._qualfile_files.append( val )
+                        continue 
+                    if key in 'navfile':
+                        self._navfile_files.append( val )
+                        continue
+            else:
+                self._logger.warning(f'Unexpected file type key ({key}) supplied to _update_file_lists')
+        
+        return
         
     def _find_stars_wrapper(self, a_fitsimg, a_fitstbl, 
         an_extnum=0, a_search_fwhm=3.0, a_search_nsigma=7.0,
@@ -1020,7 +1114,9 @@ class ApProcess:
         a_fitsimg : str 
             Name of the input FITS image to search for star-like sources.
         a_fitstbl : str
-            
+            Name of output FITS file containing detected source parameters.
+            This is a FITS binary table file that is used along with the input
+            image by :class:`ApAstrometry`.
         an_extnum : int or str, default=0 
             Extension number or name for the extension holding the image data. Usually this is 0, for the ``PrimaryHDU``.
         a_search_fwhm : float, default=3.0 

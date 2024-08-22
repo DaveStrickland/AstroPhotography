@@ -24,6 +24,8 @@
 #  
 #  2020-09-04 dks : Initial coding.
 #  2021-01-19 dks : Move ApQualitySummarizer into core.
+#  2024-08-20 dks : Fixes for processing YaML lacking metadata from raw
+#                   iTelescope files.
 
 import sys
 import logging
@@ -46,10 +48,32 @@ class ApQualitySummarizer:
         sumfile,
         loglevel, 
         walktree,
-        qual_pref, 
-        qual_suff):
+        qual_pref = 'qual', 
+        qual_suff = '.yaml'):
+        """
+        Parameters
+        ----------
+        qualdir : str
+            Directory containing all the quality YaML files we want
+            summarized.
+        sumfile : str
+            Name for the output summary CSV file
+        loglevel : str
+            Standard logging framework log level, e.g. ``"INFO"``.
+        walktree : bool
+            If True, descend directory tree starting at qualdir and including
+            all quality YaML files.
+        qual_pref : str, optional, default='qual'
+            Prefix for individual quality files associated with processed
+            images.
+        qual_suff : str, optional, default='.yaml'
+            Suffix for individual quality files associated with processed
+            images.
+        """
     
         # Initialize logging
+        self._name     = 'ApQualitySummarizer'        # str : class name
+        self._version  = __version__                  # str : class version
         self._loglevel = loglevel
         self._initialize_logger(self._loglevel)
         
@@ -234,29 +258,37 @@ class ApQualitySummarizer:
         
     def _initialize_logger(self, loglevel):
         """
-        Initialize and return the logger
+        Initialize the logger
+        
+        Parameters
+        ----------
+        loglevel: str
+                  Standard logging level string, e.g. `INFO`
         """
         
-        self._logger = logging.getLogger('ApQualitySummarizer')
+        self._logger = logging.getLogger(self._name)
         
         # Check that the input log level is legal
         numeric_level = getattr(logging, loglevel.upper(), None)
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
-    
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        self._logger.addHandler(ch)
+        self._logger.propagate = False
+            
+        # check if handlers already present
+        if not len(self._logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            self._logger.addHandler(ch)
         return
         
     def _read_files(self):
@@ -276,12 +308,19 @@ class ApQualitySummarizer:
         num_paths = len(self._path_list)
         for idx in range(num_paths):
             path_obj = self._path_list[idx]
+            self._logger.debug(f'Loading {path_obj.name}')
             with path_obj.open(mode='r') as f_handle:
                 data = yaml.load(f_handle, Loader=yaml.FullLoader)
                 if 'image_info' in data:
-                    a_target    = data['image_info']['object'].strip()
-                    a_telescope = data['image_info']['telescope'].strip()
-                    a_filter    = data['image_info']['filter'].strip()
+                    a_target = 'unknown_target'
+                    a_telescope = 'unknown_telescope'
+                    a_filter = 'unknown_filter'
+                    if 'object' in data['image_info']:
+                        a_target    = data['image_info']['object'].strip()
+                    if 'telescope' in data['image_info']:
+                        a_telescope = data['image_info']['telescope'].strip()
+                    if 'filter' in data['image_info']:
+                        a_filter    = data['image_info']['filter'].strip()
                     
                     # Create key for target/telescope/filter combo
                     key = f'{a_target}:{a_telescope}:{a_filter}'.replace(' ', '_')
