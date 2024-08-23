@@ -10,3 +10,5 @@ of FITS images.
 from .__version__ import __version__
 from .__main__ import warn
 from .core import *
+from .api import *
+from .util import *

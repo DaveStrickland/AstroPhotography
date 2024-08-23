@@ -1,4 +1,5 @@
-""" Implements the RawConv, which encapsulates raw data manipulations.
+"""
+Implements the RawConv, which encapsulates raw photo file manipulations.
 """
 
 from .logger import logger

@@ -7,6 +7,9 @@ until version 1.0 or later.
 
 ## Version 0.5
 
+Version 0.5 continues work on FITS file processing. Work on photographic
+RAW file conversion will resume at some point in the future.
+
 The objectives of version 0.5 are:
 
 - Catch up to latest astropy (>=6.0) and affiliated package changes.
@@ -14,7 +17,8 @@ The objectives of version 0.5 are:
 - *Package layout reorganization* to move past some limitations imposed
   by the original `cookiecutter` template, that are no longer helpful.
 - Easier and more pythonic configuration for processing a set of images.
-  The example `bash` shell scripts are not sustainable.
+  The example `bash` shell scripts provided in the `scripts` directory
+  are neither flexiable nor sustainable.
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
@@ -22,8 +26,9 @@ The objectives of version 0.5 are:
 
 - WIP Python wrapper for processing multiple calibrated image sets, e.g.
   iTelescope premium image sets. (ApProcessor)
+- API breaking package re-organization with creation of `util` subpackage
 - API breaking change in argument order for ApAstrometry.
-- Continued work on improving the Sphinx documentation.
+- Continuing work on improving the Sphinx documentation.
 
 ### Version 0.5.1 2024-01-30
 

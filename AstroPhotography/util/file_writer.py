@@ -2,7 +2,7 @@
 Function based interface to FileWriter
 """
 
-from .logger import logger
+from ..core.logger import logger
 import imageio
 import time
 import os.path

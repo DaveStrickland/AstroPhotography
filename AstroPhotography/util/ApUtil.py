@@ -51,7 +51,7 @@ from astropy.visualization import make_lupton_rgb
 # AstroPhotography includes    
 from .. import __version__
 
-def does_file_exists(filename, verbose=False):
+def does_file_exist(filename, verbose=False):
     """
     Returns True if the file name or path exists, false otherwise
     """

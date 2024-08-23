@@ -24,7 +24,7 @@ from astropy.io import fits
 from .. import __version__
 from . import ApFixBadPixels
 from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
-from .ApUtil import namefn_calibrated_input, namefn_getdir
+import AstroPhotography.util as util
 from .ApFindStars import ApFindStars as ApFindStars
 from .ApAstrometry import ApAstrometry as ApAstrometry
 from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
@@ -598,7 +598,7 @@ class ApProcess:
             
         outputs_fname_list = []
         for file in ifc_cal.summary['file']:
-            ofile, output_dir = namefn_calibrated_input(file, input_rootname, input_suffix, ap_filetype)
+            ofile, output_dir = util.namefn_calibrated_input(file, input_rootname, input_suffix, ap_filetype)
             if name_and_dir:
                 outputs_fname_list.append( output_dir + ofile )
             else:
@@ -651,7 +651,7 @@ class ApProcess:
             raise RuntimeError(err_msg)
             
         # Relative path
-        output_dir = namefn_getdir(ap_filetype)
+        output_dir = util.namefn_getdir(ap_filetype)
         self._logger.debug(f'For ap_filetype {ap_filetype} the relative directory path is {output_dir}')
         if absolute:
             p = Path(data_dir) / Path(output_dir)
@@ -714,7 +714,7 @@ class ApProcess:
         oname_type = ['srclist', 'regfile', 'plotfile', 'fwhmplot', 'qualfile', 'navfile']
         ofile_dict = {}
         for ap_filetype in oname_type:                
-            ofile, output_dir = namefn_calibrated_input(inputfile, input_rootname, input_suffix, ap_filetype)
+            ofile, output_dir = util.namefn_calibrated_input(inputfile, input_rootname, input_suffix, ap_filetype)
 
             if mkdir:
                 if not os.access(output_dir, os.F_OK):
