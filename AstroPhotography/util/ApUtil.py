@@ -38,6 +38,8 @@ import math
 import time
 from datetime import datetime
 
+from astropy import wcs
+import astropy
 from astropy.io import fits
 from astropy.table import QTable, Table, vstack
 from astropy.coordinates import SkyCoord, Angle
