@@ -528,28 +528,7 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile,
     swap_radec_axis : bool, optional, default=False
         If True then plot RA tickmarks and values along the Y
         axes and Declination tickmarks and values along the X axis (contrary to the normal 
-        convention). This does not alter how the image data itself is plotted.
-        
-
-    redfile: Name of existing FITS file with WCS in HDU number extnum that we want to
-      appear as red in the RGB color composite.
-    greenfile: Name of existing FITS file with WCS in HDU number extnum that we want to
-      appear as green in the RGB color composite.
-    bluefile: Name of existing FITS file with WCS in HDU number extnum that we want to
-      appear as blue in the RGB color composite.
-    outpngfile: Name of PNG version of composite the generate.
-    extnum: Extension number (zero-based) for data and WCS header
-    usewcs: If True then plot using WCS information
-    vmin: If not None then vmin is the minimum value the image, i.e. that will correspond to black
-    xaxlim: 2-element list or tuple of the minimum to maximum x-axis coordinates to
-      plot. If None then the default axis limits will be used. To see those limits run
-      with verbose=True. 
-    yaxlim: 2-element list or tuple of the minimum to maximum x-axis coordinates to
-      plot. If None then the default axis limits will be used. To see those limits run
-      with verbose=True.
-    qval: Value of make_lupton_rgb Q parameter (Q in Lupton et al 2004)
-    stretchval: Value of make_lupton_rgb stretch parameter (alpha in Lupton et al 2004)
-    verbose: If True then diagnostic information will be written to stdout.
+        convention). This does not alter how the image data itself is plotted.        
     """
     
     hdur = fits.open(redfile)[extnum]
@@ -661,7 +640,7 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
     
     For calibrated input files the the allowed output file types are:
     
-    - ``inputs``: This is the calibrated input file itself.
+    - ``input``: This is the calibrated input file itself.
     - ``srclist``: Star detection output FITS table file.
     - ``regfile``: ds9-format region file.
     - ``plotfile``: PNG plots of the input image with the detected star-like sources
@@ -689,7 +668,7 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
     input_suffix : str, optional, default='.fits'
                String denoting the file type suffix of the input image file.
                For example, '.fits' or '.fits' or '.ftz' or 'fits.gz' or '.fits.bz2'
-    ap_filetype : {'inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
+    ap_filetype : {'input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
         The output file type for which the name should be returned.
         This should be one of the stage names described above.
                
@@ -713,13 +692,13 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
         
     Warnings
     --------
-    This function assumes that the input files is not in a subdirectory,
+    This function assumes that the input file is not in a subdirectory,
     i.e. there is no path within in ``input_file`` string. In the longer
     term this should be rewritten using the pathlib module without such
     an assumption.
     """
     
-    allowed_stages = ['inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
+    allowed_stages = ['input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
     if ap_filetype not in allowed_stages:
         err_msg = f'Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}'
         self._logger.error(err_msg)
@@ -756,7 +735,7 @@ def namefn_getdir(ap_filetype):
     
     For calibrated input files the the allowed output file types are:
     
-    - ``inputs``: This is the calibrated input file itself.
+    - ``input``: This is the calibrated input file itself.
     - ``srclist``: Star detection output FITS table file.
     - ``regfile``: ds9-format region file.
     - ``plotfile``: PNG plots of the input image with the detected star-like sources
@@ -769,7 +748,7 @@ def namefn_getdir(ap_filetype):
     
     Parameters
     ----------
-    ap_filetype : {'inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
+    ap_filetype : {'input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
         The AstroPhotography file type for which the directory should be returned.
         This should be one of the stage names described above.
                
@@ -780,7 +759,7 @@ def namefn_getdir(ap_filetype):
         to the root directory established by the input files.
     """
     
-    allowed_stages = ['inputs', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
+    allowed_stages = ['input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
     if ap_filetype not in allowed_stages:
         err_msg = f'Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}'
         self._logger.error(err_msg)
@@ -808,7 +787,7 @@ def _get_name_conv_dict(file_root):
     # - If dir is not None then the various outputs files will be written to directories with the specified
     #   path relative to the **current** directory. The directory will be created if it not already
     #   present.
-    name_conv_dict = {'inputs':   {'replace': None,      'with': None,        'extension': None,    'dir': './'},
+    name_conv_dict = {'input':    {'replace': None,      'with': None,        'extension': None,    'dir': './'},
                       'srclist':  {'replace': file_root, 'with': 'srclist',   'extension': '.fits', 'dir': './SourceLists/'},
                       'regfile':  {'replace': file_root, 'with': 'ds9',       'extension': '.reg',  'dir': './SourceLists/'},
                       'plotfile': {'replace': file_root, 'with': 'implot',    'extension': '.png',  'dir': './SourceLists/'},
@@ -816,3 +795,327 @@ def _get_name_conv_dict(file_root):
                       'qualfile': {'replace': file_root, 'with': 'qual',      'extension': '.yaml', 'dir': './MetaData/'},
                       'navfile':  {'replace': file_root, 'with': 'navigated', 'extension': '.fits', 'dir': './NavigatedImages/'}}
     return name_conv_dict
+
+def load_wcs_from_file(filename, extnum=0, verbose=False):
+    """
+    Load the astropy.wcs.WCS object from a given extension in a FITS file,
+    returning it along with some summary statistics
+    
+    Modified WCS example based on the `astropy documentation <https://docs.astropy.org/en/stable/wcs/loading_from_fits.html>`_.
+
+    Note
+    ~~~~
+    
+    * Assumes a 2-dimensional image with angular coordinate axes
+    
+    
+    Parameters
+    ----------
+    filename : str 
+        Name of the input FITS image.
+    extnum : int or str, default=0 
+        Extension number or name for the extension holding the image data. Usually this is 0, for the ``PrimaryHDU``.
+    verbose : bool, optional, default=False
+        If True then print the axis plate scale, pixel area, number of 
+        pixels and image angular scale to stdout.
+            
+    Returns
+    -------
+    w : astropy.wcs.WCS
+        WCS instance initialized from the FITS header
+    pix_scales : array_like
+        Floating point array of X and Y axis pixel scales in the default
+        angular units of the image (in almost all cases both ``CUNIT1``
+        and ``CUNIT2`` is degrees).
+    pix_area : float
+        Angular area of a pixel, in units of ``CUNIT1 * CUNIT2``.
+    im_scales : The angular extent of the images along the X and Y axes,
+        in the default angular units of the image.
+    """
+    w          = None
+    pix_scales = None # in deg
+    pix_area   = None # in deg^2
+    im_scales  = None # in deg
+    
+    # Load the FITS hdulist using astropy.io.fits
+    with fits.open(filename) as hdulist:
+
+        # Parse the WCS keywords in the primary HDU
+        w = wcs.WCS(hdulist[0].header)
+    
+        # Print out the "name" of the WCS, as defined in the FITS header
+        if verbose:
+            print(w.wcs.name)
+    
+            # Print out all of the settings that were parsed from the header
+            w.wcs.print_contents()
+    
+        # Pixel scale at the CRPIX pixel location. Note, ideal, ignores distortions
+        pix_scales = wcs.utils.proj_plane_pixel_scales(w)
+    
+        # Pixel area at the CRPIX pixel location. Again, ideal, ignores distortions
+        pix_area = wcs.utils.proj_plane_pixel_area(w.celestial)
+
+        if w.wcs.naxis != 2:
+            print(f'WARNING, WCS from {filename} is {w.wcs.naxis}-dimensional, not 2-D as expected')
+        
+        if len(pix_scales) != len(w.array_shape):
+            raise RuntimeError(f'Shape of pixel scales ({len(pix_scales)}) differs from shape of array ({len(w.array_shape)})')
+        else:
+            im_scales = pix_scales.copy()
+            for idx in range(len(w.array_shape)):
+                im_scales[idx] *= w.array_shape[idx]
+    
+        if verbose:
+            print(f'Pixel angular scale ({w.wcs.cunit[0]}):    {pix_scales}')
+            print(f'Pixel angular area ({w.wcs.cunit[0]}^2):   {pix_area}')
+            print(f'NAXIS1={w.array_shape[0]}   NAXIS2={w.array_shape[1]}')
+            print(f'Image angular scale ({w.wcs.cunit[0]}): {im_scales}')
+        
+    
+    return w, pix_scales, pix_area, im_scales
+
+def summarize_wcs(w):
+    """
+    Given an astropy WCS object, summarise the properties of the WCS header,
+    printing to STDOUT.
+
+    This assumes that the images are two dimensional, and that angles are in degrees.
+
+    Parameters
+    ----------
+    w : astropy.wcs.WCS
+        A valid astropy WCS instance
+    """
+
+    ipwcs = w
+    
+    dothead_list = []
+
+    # Numbr of dimensions
+    val_str = f"{'NAXIS':8s} = {ipwcs.wcs.naxis}"
+    dothead_list.append( val_str )
+    
+    keywords = ["NAXIS", "CTYPE", "CRVAL", "CRPIX"]
+    values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
+    for keyword, value in zip(keywords, values):
+        for idx in range(ipwcs.naxis):
+            kw_str  = f"{keyword}{1+idx}"
+            if 'CTYPE' in keyword:
+                # Wrap strings in quotes
+                val_str = f"{kw_str:8s} = '{value[idx]}'"
+            else:
+                val_str = f"{kw_str:8s} = {value[idx]}"
+            dothead_list.append( val_str )
+
+    naxis  = ipwcs.wcs.naxis
+    naxis1 = ipwcs.array_shape[0]
+    naxis2 = ipwcs.array_shape[1]
+    if naxis == 3:
+        naxis3 = ipwcs.array_shape[2]
+        print(f'Warning: summarize_wcs() not written for 2-D images, {naxis}-dimensional data')
+
+    cdelt1 = None
+    cdelt2 = None
+    crot   = None
+    
+    if hasattr(ipwcs.wcs, "cd"):
+        for irow in range(ipwcs.naxis):
+            for jcol in range(ipwcs.naxis):
+                kw_str = f'CD{irow+1}_{jcol+1}'
+                val_str = f'{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}'
+                dothead_list.append( val_str )
+        cd = ipwcs.wcs.cd
+        # From https://lweb.cfa.harvard.edu/~jzhao/SMA-FITS-CASA/docs/wcs88.pdf
+        cd11 = cd[0,0]
+        cd12 = cd[0,1]
+        cd21 = cd[1,0]
+        cd22 = cd[1,1]
+        cdelt1_mag = math.sqrt( cd12*cd12 + cd22*cd22 )
+        cdelt2_mag = math.sqrt( cd12*cd12 + cd22*cd22 )
+        # the sign of cdelt1.cdelt2 = sign of (cd11*cd22 - cd12*cd21)
+        # if the RHS is negative cdelt1 is negative by convention, so cdelt2 is always positive
+        tmpa =  cd11*cd22 - cd12*cd21
+        cdelt1 = math.copysign(cdelt1_mag, tmpa)
+        cdelt2 = cdelt2_mag
+        sign   = math.copysign(1, tmpa)
+        crot   = math.degrees( math.atan2( (sign*cd12), cd22) )
+            
+    elif hasattr(ipwcs.wcs, "pc"):
+        for irow in range(ipwcs.naxis):
+            for jcol in range(ipwcs.naxis):
+                kw_str = f'PC{irow+1}_{jcol+1}'
+                val_str = f'{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}'
+                dothead_list.append( val_str )
+            kw_str = f'CDELT{1+irow}'
+            val_str = 'f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}'
+            dothead_list.append( val_str )
+            # Think that CD1_* = CDELT1 * PC1_* and CD2_* = CDELT2 * PC2_*
+            pc = ipwcs.wcs.pc
+            cdelt_vec = ipwcs.wcs.cdelt
+            cd = pc.copy()
+            for irow in range(ipwcs.naxis):
+                cd[irow] = cdelt_vec[irow] * pc[irow]
+            # then as above
+        raise RuntimeError('summarize_wcs needs to be updated to handle cases with a PC_ matrix and no CD_ matrix')
+    else:
+        # Assume we have a simple CDELT[12] case with CROTA
+        for irow in range(ipwcs.naxis):
+            kw_str = f'CDELT{1+irow}'
+            val_str = 'f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}'
+            dothead_list.append( val_str )
+            kw_str = f'CROTA{1+irow}'
+            val_str = 'f{kw_str:8s} = {ipwcs.wcs.crota[irow]}'
+            dothead_list.append( val_str )
+        cdelt1 = ipwcs.wcs.cdelt[0]
+        cdelt2 = ipwcs.wcs.cdelt[1]
+        crot   = ipwcs.wcs.crota[1] # CROTA2 is used, CROTA1 not used. Assume crota[0] == crota[1]
+
+    cdelt1_as = cdelt1 * 3600.0      # arcseconds
+    cdelt2_as = cdelt2 * 3600.0      # arcseconds
+    ximgsz_am = cdelt1 * naxis1 * 60 # arcminutes
+    yimgsz_am = cdelt2 * naxis2 * 60 # arcminutes
+    dothead_list.append( f'Pixel size equivalent CDELT1     = {cdelt1_as:.3f} arcseconds' )
+    dothead_list.append( f'Pixel size equivalent CDELT2     = {cdelt2_as:.3f} arcseconds' )
+    dothead_list.append( f'Image X-axis angular size        = {ximgsz_am:.3f} arcminutes' )
+    dothead_list.append( f'Pixel Y-axis angular size        = {yimgsz_am:.3f} arcminutes' )
+    dothead_list.append( f'Image rotation equivalent CROTA2 = {crot:.3f} degrees' )
+    
+    dothead_list.append('END     ')
+    dothead_str = '\n'.join(dothead_list)
+    print(dothead_str)
+    return
+    
+def make_dothead_from_file(input_fits_with_wcs, output_swarp_dothead, extnum=0, format='fits', verbose=False):
+    """
+    Create the .head format file that swarp expected based on the WCS header of an input files file.
+    
+    When generating the ASCII format file this function uses the method shown
+    in `WCS.printwcs <https://docs.astropy.org/en/stable/_modules/astropy/wcs/wcs.html#WCS.printwcs>`_.
+    
+    Note
+    ~~~~
+    
+    * Assumes a 2-dimensional image with angular coordinate axes
+    * ASCII format ``.head`` files do not appear to work with current
+      versions of ``swarp``. Use the ``fits`` format instead.
+    
+    Parameters
+    ----------
+    input_fits_with_wcs : str 
+        Name of existing FITS file with WCS in primary HDU that we want to emulate.
+    output_swarp_dothead : str
+        Name for the output ``.head`` file ``swarp`` will use.
+    extnum : int or str, default=0 
+        Extension number or name for the extension holding the image data. Usually this is 0, for the ``PrimaryHDU``.
+    format : {'text', 'fits'}
+        If 'text' then an ASCII header will be created using the format
+        specified in the Swarp manual. If 'fits' is specified, an empty FITS file consisting only of a primary
+        HDU will be created.
+    verbose : bool, optional, default=False
+        If True then diagnostic information will be written to stdout.
+    """ 
+    
+    with fits.open(input_fits_with_wcs) as hdulist:
+        # Parse the WCS keywords in the primary HDU
+        ipwcs = wcs.WCS(hdulist[0].header)
+
+        if verbose:
+            print(f'WCS created from primary header of {input_fits_with_wcs}')
+            print(ipwcs)
+            print(80*"-")
+            #print(ipwcs.wcs)
+            #print(80*"-")
+
+        if 'text' in format:
+            if verbose:
+                print('Generating an ASCII header following the format specified in the swarp documentation.')
+        
+            dothead_list = []
+            keywords = ["NAXIS", "CTYPE", "CRVAL", "CRPIX"]
+            values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
+            for keyword, value in zip(keywords, values):
+                for idx in range(ipwcs.naxis):
+                    kw_str  = f"{keyword}{1+idx}"
+                    if 'CTYPE' in keyword:
+                        # Wrap strings in quotes
+                        val_str = f"{kw_str:8s} = '{value[idx]}'"
+                    else:
+                        val_str = f"{kw_str:8s} = {value[idx]}"
+                    dothead_list.append( val_str )
+    
+            if hasattr(ipwcs.wcs, "pc"):
+                for irow in range(ipwcs.naxis):
+                    for jcol in range(ipwcs.naxis):
+                        kw_str = f'PC{irow+1}_{jcol+1}'
+                        val_str = f'{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}'
+                        dothead_list.append( val_str )
+                    kw_str = f'CDELT{1+irow}'
+                    val_str = 'f{kw_str:8s} = {pwcs.wcs.cdelt[irow]}'
+                    dothead_list.append( val_str )
+            elif hasattr(ipwcs.wcs, "cd"):
+                for irow in range(ipwcs.naxis):
+                    for jcol in range(ipwcs.naxis):
+                        kw_str = f'CD{irow+1}_{jcol+1}'
+                        val_str = f'{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}'
+                        dothead_list.append( val_str )
+            
+            dothead_list.append('END     ')
+            dothead_str = '\n'.join(dothead_list)
+    
+            if verbose:
+                print(f'--- dothead output from {input_fits_with_wcs} ---')
+                print(dothead_str)
+                print(f'--- about to write to {output_swarp_dothead} ---')
+            
+            with open(output_swarp_dothead, 'w') as ofile:
+                ofile.write(dothead_str)
+                if verbose:
+                    print(f'Wrote Swarp ASCII-format .head file to {output_swarp_dothead}')
+        elif 'fits' in format:
+            if verbose:
+                print('Generating a FITS format header consisting of a PrimaryHDU only.')
+            # based on https://docs.astropy.org/en/stable/wcs/example_create_imaging.html
+            hdr = ipwcs.to_header()
+
+            # NAXIS = x, NAXISx values set from data, not by manipulating header 
+            olddata = hdulist[0].data
+            data = 0 * olddata.astype(int)
+
+            hdu = fits.PrimaryHDU(header=hdr, data=data)
+            hdu.writeto(output_swarp_dothead, overwrite=True, output_verify='ignore')
+            if verbose:
+                print(f'Wrote FITS header .head file to {output_swarp_dothead}')
+        else:
+            raise RuntimeError(f'Error, format ({format}) is not one of the allowed options: "text" "fits"')    
+    return
+
+def get_exposure_time(hdr, verbose=False):
+    """
+    Return the first of EXPTIME, EXPOSURE, ONTIME, or LIVETIME from a FITS header
+    
+    Parameters
+    ----------
+    hdr : astropy.io.fits.Header
+        Input FITS Header instance
+    verbose : bool, optional, default=False
+        If True then diagnostic information will be written to stdout.
+    
+    Returns
+    -------
+    exposure_time : float or None
+        The exposure time in seconds, if found in the FITS header object.
+        Otherwise None.
+    """
+    keywords = ['EXPTIME', 'EXPOSURE', 'ONTIME', 'LIVETIME']
+    exposure_time = None
+    for key in keywords:
+        if hdr.count(key) > 0:
+            exposure_time = float( hdr[key] )
+            if verbose:
+                print(f'Keyword {key} found, setting exposure_time to {exposure_time}')
+            break
+        else:
+            if verbose:
+                print(f'Keyword {key} not found, continuing search...')
+    return exposure_time
