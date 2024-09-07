@@ -971,6 +971,12 @@ def summarize_wcs(w):
         cdelt2 = ipwcs.wcs.cdelt[1]
         crot   = ipwcs.wcs.crota[1] # CROTA2 is used, CROTA1 not used. Assume crota[0] == crota[1]
 
+    # Convert to segagesimarl RA Dec. Assumes units are degrees, frame is ICRS
+    skycrd = SkyCoord(ra=ipwcs.wcs.crval[0]*units.degree, 
+        dec=ipwcs.wcs.crval[1]*units.degree, frame='icrs')
+    skycrd_str = skycrd.to_string('hmsdms', precision=1, sep='::', pad=True)
+    dothead_list.append( f'CRVAL1,2 RA, Dec as HMS, DMS     = {skycrd_str}' )
+    
     cdelt1_as = cdelt1 * 3600.0      # arcseconds
     cdelt2_as = cdelt2 * 3600.0      # arcseconds
     ximgsz_am = cdelt1 * naxis1 * 60 # arcminutes
