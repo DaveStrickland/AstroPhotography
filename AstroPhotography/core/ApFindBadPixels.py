@@ -1,4 +1,5 @@
-"""Contains the implementation of the ApFindBadPixels class.
+"""
+Contains the implementation of the ApFindBadPixels class.
 """
 
 # 2020-12-31 dks : Moved ApFindBadPixels into core from ap_find_badpix.py
@@ -18,11 +19,12 @@ from astropy.stats import sigma_clipped_stats
 from .. import __version__
 
 class ApFindBadPixels:
-    """A class used to find bad pixels within dark or bias files based on
-       deviation from an expected uniform mean or median value. The instance
-       may be queried for properties of the input file, good or bad pixel
-       numbers or count values, the bad pixel map can be extracted as
-       a numpy array or written to a fits file.
+    """
+    A class used to find bad pixels within dark or bias files based on
+    deviation from an expected uniform mean or median value. The instance
+    may be queried for properties of the input file, good or bad pixel
+    numbers or count values, the bad pixel map can be extracted as
+    a numpy array or written to a fits file.
     """
     GOOD     = 0
     AUTO_BAD = 1
@@ -32,8 +34,9 @@ class ApFindBadPixels:
         darkfile,
         sigma = 4.0,
         loglevel = 'INFO'):
-        """Constructs an ApFindBadPixels object and performs preliminary
-           processing on it.
+        """
+        Constructs an ApFindBadPixels object and performs preliminary
+        processing on it.
         
         :param darkfile: Input dark or bias file to search for bad pixels.
         :param sigma: Number of standard deviations away from the clipped
@@ -69,8 +72,9 @@ class ApFindBadPixels:
         return
         
     def _add_bad_columns(self, bad_col_list):
-        """Add bad columns to the _badpixmask, setting the mask values
-           to ApFindBadPixels.USER_BAD
+        """
+        Add bad columns to the _badpixmask, setting the mask values
+        to ApFindBadPixels.USER_BAD
         """
         num_cols     = len(bad_col_list)
         num_user_bad = 0
@@ -95,8 +99,9 @@ class ApFindBadPixels:
         return num_user_bad
         
     def _add_bad_rectangles(self, bad_rectangle_list):
-        """Add bad rectangular regions to the _badpixmask, setting the mask values
-           to ApFindBadPixels.USER_BAD
+        """
+        Add bad rectangular regions to the _badpixmask, setting the mask values
+        to ApFindBadPixels.USER_BAD
         """
         num_rect     = len(bad_rectangle_list)
         ncols        = self._badpixmask.shape[1]
@@ -159,7 +164,8 @@ class ApFindBadPixels:
         return num_user_bad
         
     def _check_file_exists(self, filename):
-        """Checks the file exists and cleans up the path
+        """
+        Checks the file exists and cleans up the path
         """
         
         fpath = Path(filename).expanduser() 
@@ -170,8 +176,9 @@ class ApFindBadPixels:
         return fpath
 
     def _generate_sigmaclip_mask(self, data, sigma):
-        """Creates a bad pixel mask based on sigma-clipped statistics
-           of the input data array.
+        """
+        Creates a bad pixel mask based on sigma-clipped statistics
+        of the input data array.
            
         This routine is most appropriate for images that expected to
         be relatively uniform, but with a small number of highly 
@@ -218,7 +225,8 @@ class ApFindBadPixels:
         return
 
     def _image_stats(self):
-        """If logging level is DEBUG, print some statistics of the data.
+        """
+        If logging level is DEBUG, print some statistics of the data.
         """
         
         if self._logger.getEffectiveLevel() == logging.DEBUG:
@@ -235,7 +243,8 @@ class ApFindBadPixels:
         return
 
     def _initialize_logger(self, loglevel):
-        """Initialize and return the logger
+        """
+        Initialize and return the logger
         """
         
         self._logger = logging.getLogger(self._name)
@@ -264,7 +273,8 @@ class ApFindBadPixels:
         return
             
     def _read_fits(self, image_filename, image_extension):
-        """Read a single extension's data and header from a FITS file
+        """
+        Read a single extension's data and header from a FITS file
         """
         
         image_filename = self._check_file_exists(image_filename)
@@ -327,8 +337,9 @@ class ApFindBadPixels:
         return ext_data, ext_hdr
         
     def _read_user_badpix(self, user_badpix_file):
-        """Read user-defined bad columns, row and rectangles from a YaML
-           file.
+        """
+        Read user-defined bad columns, row and rectangles from a YaML
+        file.
         
         Returns a set of lists of the bad columns, bad rows, 
         and bad rectangles (the latter consisting of lists) if these
@@ -373,8 +384,9 @@ class ApFindBadPixels:
         return badcols, badrows, badrect
         
     def _update_header(self, hdu):
-        """Updates the raw mask FITS primary header by adding select
-           keywords from the input master dark/bias file.
+        """
+        Updates the raw mask FITS primary header by adding select
+        keywords from the input master dark/bias file.
            
         :param hdu: FITS hdu object to be modified.
         """
@@ -417,6 +429,7 @@ class ApFindBadPixels:
     
     def add_user_badpix(self, user_badpix_file):
         """
+        Applies user-specified bad pixels, bad columns, and bad rows.
         
         :param user_badpix_file: Path/name of a YaML containing user
           defined bad columns, bad rows, and/or bad rectangular regions.
@@ -447,8 +460,9 @@ class ApFindBadPixels:
         return self._badpixmask
     
     def write_mask(self, mask_file_name):
-        """Write the bad pixel mask to a FITS file with the user 
-           specified name/path.
+        """
+        Write the bad pixel mask to a FITS file with the user 
+        specified name/path.
            
         The output FITS data array contains pixels that can have the
         *sum* of the following numeric values. A given pixel may be

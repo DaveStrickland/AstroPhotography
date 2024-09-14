@@ -74,7 +74,7 @@ def yaml_float_representer(dumper, value):
     """
     Change default yaml float representation to .6f format
     
-    From: https://stackoverflow.com/questions/33944299/how-to-round-numeric-output-from-yaml-dump-in-python
+    Source: `this stack overflow question <https://stackoverflow.com/questions/33944299/how-to-round-numeric-output-from-yaml-dump-in-python>`_
     
     Parameters
     ----------

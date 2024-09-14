@@ -53,6 +53,19 @@ from .. import __version__
 def does_file_exist(filename, verbose=False):
     """
     Returns True if the file name or path exists, false otherwise
+    
+    Parameters
+    ----------
+    filename : str
+        Name (optionally including path) of the file we want to check
+        the existence of.
+    verbose : bool, optional, default=False
+        If True then writes to stdout.
+        
+    Returns
+    -------
+    exists : bool
+        Returns True if the file path exists, False otherwise.
     """
     if verbose and not Path(filename).exists():
         print(f"Cannot find {filename}. Not a valid path or file.")
@@ -776,6 +789,24 @@ def _get_name_conv_dict(file_root):
     """
     Utility function used by :func:`namefn_calibrated_input` that returns 
     the file name and output directory dictionary given a file name root.
+    
+    Parameters
+    ----------
+    file_root : str
+        The ``file_root`` is the unique string all input calibrated FITS files
+        either start with, or include. For calibrated files produced by
+        Astrophotography this might be the string `cal`, while iTelescope
+        uses ``Calibrated`` or ``calibrated``.
+        
+    Returns
+    -------
+    name_conv_dict : dict
+        Name conversion dictionary used to convert input calibrated file
+        input names and paths into output file names.
+        
+    See Also
+    --------
+    :class:`ApProcess` : Batch processing of calibrated files
     """
     
     # Settings for output file names and output file paths
@@ -807,7 +838,6 @@ def load_wcs_from_file(filename, extnum=0, verbose=False):
     ~~~~
     
     * Assumes a 2-dimensional image with angular coordinate axes
-    
     
     Parameters
     ----------

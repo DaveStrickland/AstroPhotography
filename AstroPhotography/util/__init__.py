@@ -11,7 +11,8 @@ from .ApUtil import (does_file_exist,
     namefn_getdir,
     load_wcs_from_file,
     summarize_wcs,
-    get_exposure_time)
+    get_exposure_time,
+    make_dothead_from_file)
 from .file_writer import file_writer as file_writer
 
 __all__ = []
