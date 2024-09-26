@@ -30,10 +30,7 @@ class ApFindBadPixels:
     AUTO_BAD = 1
     USER_BAD = 2
     
-    def __init__(self,
-        darkfile,
-        sigma = 4.0,
-        loglevel = 'INFO'):
+    def __init__(self, darkfile, sigma, loglevel):
         """
         Constructs an ApFindBadPixels object and performs preliminary
         processing on it.
@@ -254,10 +251,10 @@ class ApFindBadPixels:
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
-        logger.propagate = False
+        self._logger.propagate = False
     
         # check if handlers already present
-        if not len(logger.handlers):
+        if not len(self._logger.handlers):
             # create console handler and set level to debug
             ch = logging.StreamHandler()
             ch.setLevel(numeric_level)
@@ -269,7 +266,7 @@ class ApFindBadPixels:
             ch.setFormatter(formatter)
         
             # add ch to logger
-            logger.addHandler(ch)
+            self._logger.addHandler(ch)
         return
             
     def _read_fits(self, image_filename, image_extension):

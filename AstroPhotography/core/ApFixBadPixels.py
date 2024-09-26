@@ -73,7 +73,7 @@ class ApFixBadPixels:
         self._logger.setLevel(numeric_level)
     
         # check if handlers already present
-        if not len(logger.handlers):
+        if not len(self._logger.handlers):
             # create console handler and set level to debug
             ch = logging.StreamHandler()
             ch.setLevel(numeric_level)
@@ -85,7 +85,7 @@ class ApFixBadPixels:
             ch.setFormatter(formatter)
         
             # add ch to logger
-            logger.addHandler(ch)
+            self._logger.addHandler(ch)
         
         # Used in cases where we get the same message twice or more
         # See https://stackoverflow.com/a/44426266
@@ -333,7 +333,6 @@ class ApFixBadPixels:
                 f' the input data is not a floating point datatype ({data.dtype}).')
             self._logger.warning(msg)
 
-        
         newdata = data.copy()
         mask    = badpixmask != ApFixBadPixels.MASK_GOOD
         npix    = data.size
@@ -342,7 +341,7 @@ class ApFixBadPixels:
         self._logger.debug(f'Percentage of pixels considered bad: {pctbad:.3f} ({nbad:d}/{npix:d})')
         fixed_stats = {'numpix': (npix, 'Total number of pixels in image'),
             'BPIXNBAD': (nbad,     'Total number of bad pixels in bad pixel file'),
-            'pctbad':   (pctbad,   'Percentage of pixel defined bad'),
+            'pctbad':   (pctbad,   'Percentage of pixels defined bad'),
             'BPIX_MIN': (self._min_valid, 'Minimum number of good neighors needed'),
             'BPIXDPIX': (deltapix, 'Half height/width of collection region (pixels)')}
             
@@ -356,7 +355,7 @@ class ApFixBadPixels:
         msg     = f'Diagnostics of the first {nprint} bad pixels follow:\n'
         hdr     =  '{}  {}  {}  {}  {}  {}  {}  {:>5s}  {:>10s}  \n'.format('idx',
             'row_',  'col_',  'rmin:rmax',  'cmin:cmax',
-            'good',  'bad_', 'fix?',  'new_value')
+            'good',  'bad_', 'fix?', 'old_value', 'new_value')
         msg    += hdr
         line    = ('{:>' f'{idx_fmt}' '}  '                  # idx_
             '{:>' f'{pix_fmt}'  '}  '                        # row_
@@ -366,6 +365,7 @@ class ApFixBadPixels:
             '{:>' f'{pix_fmt}' '}  '                         # good
             '{:>' f'{pix_fmt}' '}  '                         # bad_
             '{:>5s}'                                         # fix?
+            '{:>10s}'                                        # old_value
             '{:>10s}'                                        # new_value
             '\n'
             )
@@ -395,6 +395,8 @@ class ApFixBadPixels:
             mask_co  = mask[rmin:rmax, cmin:cmax]  # True where bad
             nbad_co  = np.sum(mask_co)
             ngood_co = mask_co.size - nbad_co
+            oldval   = data[ridx, cidx]
+            old_val_str  = f'{oldval:>10.2f}  '
                         
             can_fix  = False
             if ngood_co >= self._min_valid:
@@ -418,7 +420,7 @@ class ApFixBadPixels:
                 msg += line.format(idx, ridx, cidx, 
                     rmin, rmax, cmin, cmax,
                     ngood_co, nbad_co,
-                    str(can_fix), fix_str)
+                    str(can_fix), old_val_str, fix_str)
                     
         perf_time_end   = time.perf_counter() # highest res timer, counts sleeps
         self._logger.debug(msg) 

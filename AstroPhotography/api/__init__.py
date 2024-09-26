@@ -1,5 +1,10 @@
 """
-Implementations of dksraw commands
+AstroPhotography api module
+---------------------------
+
+The ``api`` module contains functins and classes associated with camera
+RAW format conversion and processing, e.g. through the ``dksraw`` command
+line utility.
 """
 
 from .split import main as split

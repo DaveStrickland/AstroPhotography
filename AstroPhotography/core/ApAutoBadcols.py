@@ -84,7 +84,7 @@ class ApAutoBadcols:
         self._logger.setLevel(numeric_level)
     
         # check if handlers already present
-        if not len(logger.handlers):
+        if not len(self._logger.handlers):
             # create console handler and set level to debug
             ch = logging.StreamHandler()
             ch.setLevel(numeric_level)
@@ -96,7 +96,7 @@ class ApAutoBadcols:
             ch.setFormatter(formatter)
         
             # add ch to logger
-            logger.addHandler(ch)
+            self._logger.addHandler(ch)
         
         # Used in cases where we get the same message twice or more
         # See https://stackoverflow.com/a/44426266

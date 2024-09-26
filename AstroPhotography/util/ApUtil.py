@@ -1142,8 +1142,13 @@ def get_exposure_time(hdr, verbose=False):
     exposure_time : float or None
         The exposure time in seconds, if found in the FITS header object.
         Otherwise None.
+    
+    See Also
+    --------
+    
+    `HEASARC Commonly Used FITS Keywords <https://heasarc.gsfc.nasa.gov/docs/fcg/common_dict.html>`_
     """
-    keywords = ['EXPTIME', 'EXPOSURE', 'ONTIME', 'LIVETIME']
+    keywords = ['EXPTIME', 'EXPOSURE', 'ONTIME', 'LIVETIME', 'TELAPSE', 'ELAPTIME']
     exposure_time = None
     for key in keywords:
         if hdr.count(key) > 0:

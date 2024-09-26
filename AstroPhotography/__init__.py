@@ -1,5 +1,6 @@
 """
-AstroPhotography
+The AstroPhotography Python Package
+------------------------------------
 
 The AstroPhotography python package provides python classes and command line 
 applications for quick and convenient processing amateur astronomical images

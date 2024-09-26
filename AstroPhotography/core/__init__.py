@@ -1,5 +1,9 @@
 """
 AstroPhotography Core Python Interface Classes
+----------------------------------------------
+
+The `Astrophotography.core` module contains classes for FITS
+image reduction and processing.
 """
 
 # This seems overly verbose, but it works.

@@ -31,6 +31,7 @@ import AstroPhotography.util as util
 from .ApFindStars import ApFindStars as ApFindStars
 from .ApAstrometry import ApAstrometry as ApAstrometry
 from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
+from .ApFixBadPixels import ApFixBadPixels as ApFixBadPixels
 
 # ApFixCosmicRays did not, instead requiring the more verbose line shown.
 
@@ -69,7 +70,7 @@ class ApProcess:
       expect.
     - Reapply bad pixel/column/row removal and/or adding image header
       metadata in cases where the input calibrated images are deficient.
-      See TBA and TBA. These functions should be run before image
+      See :func:`preprocess_images`. These functions should be run before image
       navigation and resampling.
     
     Star Detection and Image Navigation
@@ -94,7 +95,7 @@ class ApProcess:
     allows a human to look for outliers such as images where the seeing 
     or tracking was especially bad.
     
-    In terms of pseudo-code navigate_images() performs the following operations:
+    In terms of pseudo-code :func:`navigate_images` performs the following operations:
     
     .. code-block:: python
     
@@ -1285,11 +1286,11 @@ class ApProcess:
             # Use patterns
             self._logger.info(f'Using files that match include_pattern="{include_pattern}"')
             self._logger.info(f'Excluding files that match exclude_pattern="{exclude_pattern}"')
-            ifc_cal = ImageFileCollection(data_dir, keywords=keys, glob_include=include_pattern, glob_exclude=exclude_pattern)
+            ifc_cal = ImageFileCollection(data_dir, keywords=keys, glob_include=include_pattern, glob_exclude=exclude_pattern, ext=extnum)
         else:
             # Use explicit file list
             self._logger.info(f'Using specified file list: {input_file_list}')
-            ifc_cal = ImageFileCollection(data_dir, keywords=keys, filenames=input_file_list)
+            ifc_cal = ImageFileCollection(data_dir, keywords=keys, filenames=input_file_list, ext=extnum)
         self._input_ifc = ifc_cal
         self._data_dir  = Path(data_dir)
         self._extnum    = extnum
@@ -2209,3 +2210,237 @@ class ApProcess:
         self._status_table['find_stars_time'].info.format = '7.3f'
         self._status_table['astrometry_time'].info.format = '7.3f'
         return
+        
+    def preprocess_images(self, data_dir, preprocess_replace, preprocess_with,
+        include_pattern=None, exclude_pattern=None, 
+        input_file_list=None, input_rootname=None,  input_suffix='.fits',
+        extnum=0,
+        find_exposure_time=False, keyword_dict=None, replace_keywords=False,
+        badpixelfile=None, deltapix=2):
+        """
+        Modify the calibrated input files before performing image navigation
+        and astrometry.
+        
+        This function can be used to perform the following processing
+        calibrated steps in cases where the input calibrated files are
+        deficient in one or more regards:
+        
+        1. Added metadata to the FITS header to identify the observation,
+           telescope, or instrument characteristics. This mode is controlled
+           by the ``keyword_dict`` and ``replace_keywords`` parameters.
+        2. Add an ``EXPOSURE`` keyowrd value based on the value of a less
+           commonly used varient already present in the FITS headers
+           (e.g. ``ONTIME``). This is controlled by the ``find_exposure_time``
+           parameter.
+        3. Perform additional bad pixel, bad row, and/or bad column 
+           correction based on a user-supplied bad pixel file.
+           This mode is controlled
+           by the ``badpixelfile`` and ``XXX`` parameters.
+           
+        Preprocessing does not modify the original input files. Instead it 
+        creates new files with names based on string replacement of the of 
+        original inputs files. The new file names are then either explicitly 
+        input as an ``input_file_list`` when running ``navigate_images``, 
+        *or* you can modify the ``include_pattern``. In both cases 
+        the ``input_rootname`` should be updated.
+
+        The pseudo-code below shows a simplified example:
+
+        >>> # Normal (no-preprocessing) Case                                      
+        >>> #------------------------------------------------------              
+        >>> 
+        >>> data_dir        = r'.'                                               
+        >>> include_pattern = "Calibrated-*-?.fits*"                             
+        >>> exclude_pattern = None                                               
+        >>> processor       = ap.ApProcess(loglevel)                             
+        >>> 
+        >>> status          = processor.navigate_images(data_dir,                
+        >>>     include_pattern, exclude_pattern, ...)                           
+        >>> 
+        >>> # Preprocessing Case                                                                 
+        >>> # ------------------------------------------------------                            
+        >>>                                                                                    
+        >>> data_dir        = r'.'                                                             
+        >>> include_pattern = "Calibrated-*-?.fits*"                                           
+        >>> exclude_pattern = None                                                             
+        >>> processor       = ap.ApProcess(loglevel)                                           
+        >>>                                                                                    
+        >>> preprocess_instr = 'Calibrated'                                                    
+        >>> preprocess_outstr = 'recalibrated'                                                 
+        >>> modified_files = processor.preprocess_images(data_dir,                             
+        >>>     preprocess_instr, preprocess_outstr,                                           
+        >>>     include_pattern, exclude_pattern, ...)                                         
+        >>>                                                                                    
+        >>> # Then we can either use the modified file list and reset the                      
+        >>> # input_rootname, e.g.                                                             
+        >>>                                                                                    
+        >>> status = processor.navigate_images(data_dir, include_pattern=None,                 
+        >>>     input_file_list=modified_files, input_rootname=preprocess_outstr, ...)         
+        >>>                                                                                    
+        >>> # OR we can modify the input include_pattern, e.g.  
+        >>>                               
+        >>> modified_pattern = include_pattern.replace(preprocess_instr, preprocess_outstr)    
+        >>> print(modified_pattern)     # produces "recalibrated-*-?.fits*"                    
+        >>>                                                                                    
+        >>> status = processor.navigate_images(data_dir,                                       
+        >>>     modified_pattern, exclude_pattern,                                             
+        >>>     input_file_list=None, input_rootname=preprocess_outstr, ...)                   
+        >>>         
+        
+        The python dictionary ``keyword_dict`` should consist of  
+        `key: (value, comment)` pairs, where `key` and `comment` are 
+        strings. The `key` keyword must conform to FITS file conventions, 
+        in particular the keyword cannot be longer than 8 letters, cannot 
+        start with a numeral, and cannot include whitespace.
+        
+        Parameters
+        ----------
+        data_dir : str or path
+            Path to base directory containing FITS files to process,
+            e.g. `./`.
+        preprocess_replace : str
+            Substring common to all the input calibrated files that will
+            be replaced with ``preprocess_with``.
+        preprocess_with : str
+            String that will replace ``preprocess_replace`` in all
+            input file names.
+        include_pattern : str, optional
+            Globbing pattern for input files we want included, specified
+            relative to data_dir. If not specified all FITS files
+            will be included. This parameter is ignored if file_list
+            is not None. 
+        exclude_pattern : str, optional
+            Globbing pattern of files we want excluded, specified
+            relative to data_dir. If not specified no FITS files
+            will be excluded. This parameter is ignored if file_list
+            is not None.
+        input_file_list : list of str, optional
+            An explicit list of files, paths relative to data_dir,
+            may be specified. If provided only those files in input_file_list
+            are looked for, and the include and exclude patterns are
+            ignored.
+        input_rootname : str, optional, default=None
+            The part of the input files names that are shared and that
+            designate them being the calibrated files. If not specified
+            it is assumed that the files are from iTelescope or were 
+            created by the AstroPhotography module itself, and will
+            have input_rootnames of either 'Calibrated-iTelescope', 
+            'calibrated', or just 'cal' .
+            The output files from this function replace the rootname with
+            a file-type specific prefix, as described in the class 
+            documentation and get_file_names function documentation.
+        input_suffix : str, optional, default='.fits'
+            String denoting the file type suffix of the input image file.
+            For example, '.fits' or '.fits' or '.ftz' or 'fits.gz' or '.fits.bz2'
+        extnum : int or str, optional, default=0
+            Extension number or name for the extension holding the image data
+            and the FITS header keywords.
+            Usually this is 0, for the ``PrimaryHDU``. 
+        find_exposure_time : bool, optional, default=False
+            If True then :func:`ApUtil.get_exposure_time` will be used to
+            extract the exposure time from the input file headers and
+            set the ``EXPOSURE`` keyword if it is not already present.
+        keyword_dict : dict, optional, default=None
+            If not Nonw, then supply a dictionary of 
+            ``keyword: (value, comment)`` entries that
+            will be added to the processed file FITS headers.
+        replace_keywords : bool, optional, default=False
+            If True then existing FITS header keys that match the keys
+            in ``keyword_dict`` will be over-written with the new values.
+        badpixelfile : str, optional, default=None
+            File path and name to the bad pixel file to apply. This file
+            should conform to the format genwerated by ``ApFindBadPixels`` 
+            and used by ``ApFixBadPixels``. 
+        deltapix : int, optional, default=2
+            Linear distance away from a bad pixel from which
+            the median value of the good pixels will be drawn. If 1 then
+            the median value of good pixels within the surrounding 8 pixels
+            will be used. If 2 then the median of the good pixels within the
+            surrounding 24 pixels will be used. Values above 2 are not
+            recommended.
+          
+        Returns
+        -------
+        modified_files : list of str
+            List of file names of the output modified files
+        """
+        
+        modified_files=[]
+        # Generate an image file collection
+        keys = ['naxis1', 'naxis2', 'imagetyp', 'object', 'filter', 'exposure']
+        
+        self._logger.debug(f'Current working directory: {os.getcwd()}')
+        self._logger.info(f'Attempting to preprocess FITS files within directory={data_dir}')
+        if input_file_list is None:
+            # Use patterns
+            self._logger.info(f'Using files that match include_pattern="{include_pattern}"')
+            self._logger.info(f'Excluding files that match exclude_pattern="{exclude_pattern}"')
+            ifc_cal = ImageFileCollection(data_dir, keywords=keys, glob_include=include_pattern, glob_exclude=exclude_pattern, ext=extnum)
+        else:
+            # Use explicit file list
+            self._logger.info(f'Using specified file list: {input_file_list}')
+            ifc_cal = ImageFileCollection(data_dir, keywords=keys, filenames=input_file_list, ext=extnum)
+        self._input_ifc = ifc_cal
+        num_inputs = len(ifc_cal.summary)
+        self._data_dir  = Path(data_dir)
+        self._extnum    = extnum
+
+        self._logger.info(f'There are {num_inputs} input files matching the parameters given.')
+        self._logger.debug(f'Input file collection:\n{ifc_cal}')
+        
+        bad_pixel_fixer = None
+        if badpixelfile is not None:
+            bad_pixel_fixer   = ApFixBadPixels(self._loglevel)
+            msk_data, msk_hdr = self._read_fits(badpixelfile, extnum)
+
+        
+        # Iterate over the input files
+        idx = 0
+        proc_tstart = time.perf_counter()
+        for hdu, fname in ifc_cal.hdus(return_fname=True):
+            # NOTE hdu is defined by the ext value given to the ImageFileCollection ctor. 
+            # Generate output file name
+            oname = fname.replace(preprocess_replace, preprocess_with)
+            
+            self._logger.debug(80*'-')
+            self._logger.info(f'Preprocessing input file {fname} into {oname}')
+            inp_hdr  = hdu.header
+            inp_data = hdu.data
+            
+            if find_exposure_time:
+                if 'EXPOSURE' in inp_hdr:
+                    expval = inp_hdr['EXPOSURE']
+                    self._logger.debug(f'EXPOSURE keyword already set to {expval}')
+                else:
+                    expval = util.get_exposure_time(inp_hdr)
+                    if expval is None:
+                        self._logger.warning(f'Could not find an exposure related header value in {fname}. Not setting EXPOSURE')
+                    else:
+                        inp_hdr['EXPOSURE'] = (expval, '[s] Exposure time')
+                        self._logger.debug(f'Set EXPOSURE keyword to {expval}')
+            
+            if keyword_dict is not None:
+                self._logger.debug(f'Adding or updating the header keywords {keyword_dict.keys()}')
+                for key, val in keyword_dict.items():
+                    write_keyval = False
+                    if (key not in inp_hdr) or replace_keywords:
+                        inp_hdr[key] = val 
+                        
+            if badpixelfile is not None:
+                out_data, out_dict   = bad_pixel_fixer.fix_bad_pixels(inp_data, msk_data, deltapix)
+                out_dict['BPIXFILE'] = (Path(badpixelfile).name, 'Name of master bad pixel file used')
+                for key, val in out_dict.items():
+                    inp_hdr[key] = val
+                hdu.data = out_data
+                        
+            # Finally, save the file
+            hdu.writeto(oname, overwrite=True)
+            self._logger.debug(f'Wrote preprocessed file {oname}')
+            modified_files.append( oname )
+            idx = idx + 1
+        
+        proc_tend = time.perf_counter()
+        proc_telapsed = proc_tend - proc_tstart
+        self._logger.info(f'Finished preprocessing {idx} files in {proc_telapsed:.3f} seconds.')
+
+        return modified_files
