@@ -740,9 +740,10 @@ class ApFindStars:
         return
     
     def _create_photometry_statistics(self):
-        """Calculates and stores the brightness (adu_per_sec) of the
-           brightest, faintest, and median source from the full 
-           photometric data table. 
+        """
+        Calculates and stores the brightness (adu_per_sec) of the
+        brightest, faintest, and median source from the full 
+        photometric data table. 
            
         These values are written to the quality report.
         """

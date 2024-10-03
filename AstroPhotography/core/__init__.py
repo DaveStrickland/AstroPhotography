@@ -21,6 +21,7 @@ from .ApAstrometry import ApAstrometry as ApAstrometry
 from .ApImArith import ApImArith as ApImArith
 from .ApMeasureBackground import ApMeasureBackground as ApMeasureBackground 
 from .ApProcess import ApProcess as ApProcess
+from .ApMasterCal import ApMasterCal as ApMasterCal
 
 __all__ = ["RawConv", 
     "ApCalibrate",
@@ -35,5 +36,6 @@ __all__ = ["RawConv",
     "ApAstrometry",
     "ApImArith",
     "ApMeasureBackground",
-    "ApProcess"
+    "ApProcess",
+    "ApMasterCal"
     ]
