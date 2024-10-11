@@ -18,9 +18,10 @@ from astropy.stats import sigma_clipped_stats
 from .. import __version__
 
 class ApFixBadPixels:
-    """A class used to fix pre-indentified bad pixels within an image
-       by replacing them with the median value for surrounding good 
-       pixels.
+    """
+    A class used to fix pre-indentified bad pixels within an image
+    by replacing them with the median value for surrounding good 
+    pixels.
     """
     
     # Class level constants
@@ -28,9 +29,13 @@ class ApFixBadPixels:
     
     def __init__(self,
         loglevel):
-        """Constructs an ApFixBadPixels object. No processing is performed.
+        """
+        Constructs an ApFixBadPixels object. No processing is performed.
         
-        :param loglevel: Logging level to use.
+        Parameters
+        ----------
+        loglevel : str
+            Logging level to use, e.g. 'INFO'
         """
     
         self._name = 'ApFixBadPixels'
@@ -61,7 +66,13 @@ class ApFixBadPixels:
         return
 
     def _initialize_logger(self, loglevel):
-        """Initialize and return the logger
+        """
+        Initialize and return the logger
+        
+        Parameters
+        ----------
+        loglevel : str
+            Logging level to use, e.g. 'INFO'
         """
         
         self._logger = logging.getLogger(self._name)
@@ -93,7 +104,30 @@ class ApFixBadPixels:
         return
             
     def _read_fits(self, image_filename, image_extension):
-        """Read a single extension's data and header from a FITS file
+        """
+        Read a single extension's data and header from a FITS file
+        
+        Parameters
+        ----------
+        image_filename: str
+            Name of input files file
+        image_extension : int or str
+            Image extension number or name. For example extension 0 is
+            the primary extension, or 'srclist' would be an extension
+            named ''srclist''.
+                  
+        Returns
+        -------
+        ext_data : ndarray
+            Data stored in the requested extension of the file
+        ext_hdr : fits.Header
+            FITS header of the requested extension of the file
+            
+        Notes
+        -----
+        - Unsigned integer handling is performed.
+        - PEDESTAL values are removed from the returned data
+        - Image scaling is not performed. 
         """
         
         self._check_file_exists(image_filename)
@@ -156,7 +190,8 @@ class ApFixBadPixels:
         return ext_data, ext_hdr
 
     def _remove_pedestal_kw(self, hdr):
-        """Removes the PEDESTAL keyword from the input FITS header
+        """
+        Removes the PEDESTAL keyword from the input FITS header
         
         AstroPhotography always removes any artificial PEDESTAL applied
         to the data when reading a FITS file, so it is important to make
@@ -165,6 +200,11 @@ class ApFixBadPixels:
         This function need only be applied when modified data is being
         written or rewritten to disk using a copy of an original FITS
         header.
+        
+        Parameters
+        -----------
+        hdr : fits.Header
+            The FITS header that will be modified in place
         """
         
         if 'PEDESTAL' in hdr:

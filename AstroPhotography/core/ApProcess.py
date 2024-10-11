@@ -114,6 +114,12 @@ class ApProcess:
     TBA
     xxx
     
+    Optional Preprocessing
+    ----------------------
+    
+    TBA
+    xxx
+    
     .. _File Types:
     
     File Types and File Naming Conventions
@@ -702,7 +708,7 @@ class ApProcess:
  
         if not name_and_dir:
             odir = self.get_directories(ap_filetype, data_dir, False)
-            self._logger.debug(f'Note that output files will be a subdirectory {odir}')
+            self._logger.debug(f'Note that output files will be in subdirectory {odir}')
                         
         fname_list = self._get_file_names(ap_filetype, ifc_cal, input_rootname, input_suffix, name_and_dir)
         if must_exist:
@@ -1284,12 +1290,12 @@ class ApProcess:
         self._logger.info(f'Attempting to find stars in FITS files within directory={data_dir}')
         if input_file_list is None:
             # Use patterns
-            self._logger.info(f'Using files that match include_pattern="{include_pattern}"')
-            self._logger.info(f'Excluding files that match exclude_pattern="{exclude_pattern}"')
+            self._logger.debug(f'Using files that match include_pattern="{include_pattern}"')
+            self._logger.debug(f'Excluding files that match exclude_pattern="{exclude_pattern}"')
             ifc_cal = ImageFileCollection(data_dir, keywords=keys, glob_include=include_pattern, glob_exclude=exclude_pattern, ext=extnum)
         else:
             # Use explicit file list
-            self._logger.info(f'Using specified file list: {input_file_list}')
+            self._logger.debug(f'Using specified file list: {input_file_list}')
             ifc_cal = ImageFileCollection(data_dir, keywords=keys, filenames=input_file_list, ext=extnum)
         self._input_ifc = ifc_cal
         self._data_dir  = Path(data_dir)
@@ -1300,7 +1306,7 @@ class ApProcess:
         self._make_status_table(num_inputs)
         
         self._logger.info(f'There are {num_inputs} input files matching the parameters given.')
-        self._logger.debug(f'Input file collection:\n{ifc_cal}')
+        self._logger.debug(f'Input file collection:\n{ifc_cal.summary}')
         
         # Iterate over the input files
         idx = 0
@@ -1327,7 +1333,7 @@ class ApProcess:
                             self._logger.debug(f'Removing existing {file_to_remove} as clean_star_detection={clean_star_detection}')
                             Path(file_to_remove).unlink()
                             
-                self._logger.info(f'Finding stars, output source list: {f_srclist}')
+                self._logger.debug(f'Finding stars, output source list: {f_srclist}')
                 fs_tstart = time.perf_counter()
                 status = 'pass'
                 try:
@@ -1346,7 +1352,7 @@ class ApProcess:
                 fs_telapsed = fs_tend - fs_tstart # seconds
                 fs_status   = status
             else:
-                self._logger.info(f'Skipping star detection because {f_srclist} exists and clean_star_detection={clean_star_detection}')
+                self._logger.debug(f'Skipping star detection because {f_srclist} exists and clean_star_detection={clean_star_detection}')
                 fs_status = 'skipped_exists'
                 fs_telapsed = 0
                 iskipped_nav += 1
@@ -1373,7 +1379,7 @@ class ApProcess:
                     
                     ast_status = 'pass'
                     ast_tstart = time.perf_counter()
-                    self._logger.info(f'Performing astrometry, output navigated image: {f_navfile}')
+                    self._logger.debug(f'Performing astrometry, output navigated image: {f_navfile}')
                     try:
             
                         ap_astrom = ApAstrometry(fname, 
@@ -1404,7 +1410,7 @@ class ApProcess:
                     ast_telapsed = ast_tend - ast_tstart # seconds
                     ast_status   = status
                 else:
-                    self._logger.info(f'Skipping astrometry because {f_navfile} exists and clean_astrometry={clean_astrometry}')
+                    self._logger.debug(f'Skipping astrometry because {f_navfile} exists and clean_astrometry={clean_astrometry}')
                     ast_status = 'skipped_exists'
                     ast_telapsed = 0
                     iskipped_ast += 1
@@ -1568,7 +1574,7 @@ class ApProcess:
         # We don't generate a plot for this step because we will rerun this
         # function later with updated source search results
         (a_new_fwhm, a_madstd_fwhm, a_npts) = find_stars.measure_fwhm(None, 'both')
-        self._logger.info(f'Initial star detection and fitting: FWHM={a_new_fwhm:.3f} +/- {a_madstd_fwhm:.3f} pixels using {a_npts} stars.')
+        self._logger.debug(f'Initial star detection and fitting: FWHM={a_new_fwhm:.3f} +/- {a_madstd_fwhm:.3f} pixels using {a_npts} stars.')
         
         # Refine source detection
         self._logger.debug(f'Updating source searching using initial FWHM={a_new_fwhm:.3f} +/- {a_madstd_fwhm:.3f} pixels using {a_npts} stars.')
@@ -1597,7 +1603,7 @@ class ApProcess:
         # Write final sourcelist with photometry.
         find_stars.write_source_list(a_fitstbl)
         if self._check_file_exists(a_fitstbl, True):
-            self._logger.info(f'Confirming output srclist {a_fitstbl} was created.')
+            self._logger.debug(f'Confirming output srclist {a_fitstbl} was created.')
         else:
             self._logger.error(f'Expected output srclist {a_fitstbl} not found.')
         return
@@ -2216,7 +2222,7 @@ class ApProcess:
         input_file_list=None, input_rootname=None,  input_suffix='.fits',
         extnum=0,
         find_exposure_time=False, keyword_dict=None, replace_keywords=False,
-        badpixelfile=None, deltapix=2):
+        badpixelfile=None, deltapix=2, fix_cosmic_rays=False):
         """
         Modify the calibrated input files before performing image navigation
         and astrometry.
@@ -2233,9 +2239,14 @@ class ApProcess:
            (e.g. ``ONTIME``). This is controlled by the ``find_exposure_time``
            parameter.
         3. Perform additional bad pixel, bad row, and/or bad column 
-           correction based on a user-supplied bad pixel file.
+           correction based on a user-supplied bad pixel file and using
+           the :class:`ApFixBadPixels` class
            This mode is controlled
            by the ``badpixelfile`` and ``XXX`` parameters.
+        4. Apply Cosmic Ray (CR) rejection using :class:`ApFixCosmicRays`. 
+           If you decide that additional bad pixel
+           processing is necessary then it is likely you will also require
+           additional CR rejection as well.
            
         Preprocessing does not modify the original input files. Instead it 
         creates new files with names based on string replacement of the of 
@@ -2358,6 +2369,8 @@ class ApProcess:
             will be used. If 2 then the median of the good pixels within the
             surrounding 24 pixels will be used. Values above 2 are not
             recommended.
+        fix_cosmic_rays : bool, optional, default=False
+            If True then perform Cosmic Ray rejection on the images.
           
         Returns
         -------
@@ -2392,7 +2405,10 @@ class ApProcess:
         if badpixelfile is not None:
             bad_pixel_fixer   = ApFixBadPixels(self._loglevel)
             msk_data, msk_hdr = self._read_fits(badpixelfile, extnum)
-
+            
+        cr_fixer = None
+        if fix_cosmic_rays:
+            cr_fixer = ApFixCosmicRays(self._loglevel)
         
         # Iterate over the input files
         idx = 0
@@ -2432,6 +2448,16 @@ class ApProcess:
                 for key, val in out_dict.items():
                     inp_hdr[key] = val
                 hdu.data = out_data
+                hdu.header = inp_hdr
+                
+            if fix_cosmic_rays:
+                if 'EGAIN' in inp_hdr:
+                    gain = inp_hdr['EGAIN']
+                else:
+                    gain = 1.0
+                hdu.data, cr_kw_dict = cr_fixer.process(out_data, gain)
+                for key, val in cr_kw_dict.items():
+                    hdu.header[key] = val
                         
             # Finally, save the file
             hdu.writeto(oname, overwrite=True)

@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+import textwrap                     # for dedent
 
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
@@ -451,6 +452,8 @@ class ApAutoBadcols:
             nsigma = self._meta['nsigma']
             window_len = self._meta['window_len']
             f.write( f'# Processing parameters: badness sigma threshold={nsigma:.2f}, sliding window_len={window_len}\n' )
+            for line in self._get_formatting_str():
+                f.write(line)
 
             if self._badcols is not None:
                 if len(self._badcols) > 0:
@@ -480,6 +483,43 @@ class ApAutoBadcols:
             f.write( '...\n' )
             self._logger.info(f'Wrote bad column/row YaML file to {badcolfile}' )
         return
+        
+    def _get_formatting_str(self):
+        """
+        Return a multi-line string witj bad column file format information
+        """
+        
+        formatstr = textwrap.dedent("""\
+            #
+            # This is a YaML file that consists of three named sections:
+            # - bad_columns: Entries are column indices of any entire column 
+            #   to be marked bad.
+            # - bad_rows: Entries are row indices of any entire row to be marked bad.
+            # - bad_rectangles: Entries are lists of the coordinates 
+            #   [row_start, row_end, col_start, col_end] of the rectangle to be marked
+            #   bad.
+            #
+            # Note that these are:
+            # 0. You need separate user-defined bad pixel files for different chip
+            #    binnings!
+            # 1. 1-based indices, e.g. as reported by ds9, not python/C style 
+            #    0-based indices. So the index of the second column in the image
+            #    is 2, not 1.
+            # 2. Inclusive ranges (mathematical notation "[]"), so the rectangle 
+            #    2,3,60,62 is a 2 row, 3 column region that includes rows 2 and 3, 
+            #    columns 61, 62, and 63.
+            # 3. The origin of the coordinates matches that of the data you pass
+            #    to ApFindBadPixels.
+            #
+            # These coordinates will be converted to python 0-based inclusive lower
+            # bound exclusive upper bound (mathematically "[)") by ApFindBadPixels.
+            #
+            # Comments (starting "#") can and should be used to note which telescope
+            # or camera the file applies to, and why you chose to mark the 
+            # row/column/rectangle bad, or where you first noted the problem region.
+            #
+            """)
+        return formatstr
         
     def write_stats(self, fcolstat, frowstat):
         """

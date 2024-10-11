@@ -118,6 +118,7 @@ class ApMeasureStars:
         self._use_weights    = True
         self._num_per_reg    = 5           # Number of sources per region to fit
         self._skip_brightest = 0           # Skip the brightest N stars in each region
+        self._logger.info(f'Measuring the source extent (Gaussian FWHM) from input list of {len(srclist)} sources.')
         self._logger.debug(f'Up to {self._num_per_reg} stars per sub-region will be fitted, excluding the brightest {self._skip_brightest} stars.')
 
         # Settings related to source fitting.
@@ -138,8 +139,8 @@ class ApMeasureStars:
             print('Input table supplied to ApMeasureStars after saturated star filtering:')
             print(self._init_srcs)
             print('')
-        self._logger.info(f'Size of input trimmed source list (filtered): {len(self._init_srcs)}')
-        self._logger.info(f'Size of full source list used for neighbor removal: {len(self._full_srcs)}')
+        self._logger.debug(f'Size of input trimmed source list (filtered): {len(self._init_srcs)}')
+        self._logger.debug(f'Size of full source list used for neighbor removal: {len(self._full_srcs)}')
 
         self._cols       = img_data.shape[1]
         self._rows       = img_data.shape[0]
@@ -919,7 +920,7 @@ class ApMeasureStars:
         self._trim_neighbors()
         
         num_srcs        = len(self._init_srcs)
-        self._logger.info(f'Selecting candidate stars for fitting out of {num_srcs} stars in {self._rows} row x {self._cols} column image.')
+        self._logger.debug(f'Selecting candidate stars for fitting out of {num_srcs} stars in {self._rows} row x {self._cols} column image.')
 
         radius = float( min(self._cols, self._rows) ) / 4
         xcen   = float(self._cols) / 2
@@ -1021,7 +1022,7 @@ class ApMeasureStars:
         
         rad       = self._box_width_pix
         init_size = len(self._init_srcs)
-        self._logger.info(f'Preparing to trim the input source list of stars within neighbors within {rad} pixels.')
+        self._logger.debug(f'Preparing to trim the input source list of stars with neighbors within {rad} pixels.')
         
         x      = self._full_srcs['xcenter']
         y      = self._full_srcs['ycenter']
@@ -1049,8 +1050,9 @@ class ApMeasureStars:
             nn_dist = d[1]
             self._init_srcs['nn_dist'][idx] = nn_dist
 
-        print('Initial sources with nearest neighbor distance\n', 
-            self._init_srcs)
+        if not self._quiet:
+            print('Initial sources with nearest neighbor distance\n', 
+                self._init_srcs)
             
         # Create trutch mask for nn_dist greater than exclusion radius
         mask            = self._init_srcs['nn_dist'] >= rad
@@ -1058,7 +1060,7 @@ class ApMeasureStars:
             
         final_size  = len(self._init_srcs)
         num_removed = init_size - final_size
-        self._logger.info(f'Nearest neighbor filtering removed {num_removed} stars from consideration.')
+        self._logger.debug(f'Nearest neighbor filtering removed {num_removed} stars from consideration.')
         return
         
         

@@ -118,6 +118,8 @@ class ApAstrometry:
         """
         
         self._initialize_logger(loglevel)
+        self._name     = 'ApAstrometry'
+        self._version  = __version__
         self._loglevel = loglevel
         self._status   = ApAstrometry.NOMINAL
         self._use_sip  = use_sip

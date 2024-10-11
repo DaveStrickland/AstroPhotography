@@ -246,7 +246,6 @@ class ApFindStars:
             self._logger.debug(f'Retaining {num_sat_candidates} possibly saturated stars in source searching and photometry.')
         self._nsrcs_saturated = num_sat_candidates
         
-        
         # Search for stars using the supplied FWHM and threshold.
         self.source_search(self._search_fwhm, self._search_nsigma)
         
@@ -280,8 +279,9 @@ class ApFindStars:
         return
         
     def plot_image(self, plotfile):
-        """Plot an asinh-stretched image with the current apertures to
-           standard graphics bitmap-format file.
+        """
+        Plot an asinh-stretched image with the current apertures to
+        standard graphics bitmap-format file.
         """
         
         # Normally the range 0.5 percent to 99.5 percent clips off the
@@ -324,7 +324,7 @@ class ApFindStars:
         plt.savefig(self._plotfile,
             dpi=200,
             bbox_inches='tight')
-        self._logger.info(f'Plotting asinh-stretched bitmap of image and sources to {self._plotfile}')
+        self._logger.debug(f'Plotted asinh-stretched bitmap of image and sources to {self._plotfile}')
         return
         
     def _make_apertures(self, colpos, rowpos):
@@ -419,14 +419,18 @@ class ApFindStars:
         return
 
     def aperture_photometry(self, notrim=None):
-        """Perform aperature photometry using the existing sources
-           and apertures.
-           
-        If called with notrim=True then the number of sources
-        output will NOT be trimmed to the max_sources value
-        supplied in the constructor. This allows the user to override
-        trimming if they update the initial source searching and 
-        photometry.
+        """
+        Perform aperature photometry using the existing sources
+        and apertures.
+ 
+        Parameters
+        ----------
+        notrim : bool or None, optional, default=None
+            If called with notrim=True then the number of sources
+            output will NOT be trimmed to the max_sources value
+            supplied in the constructor. This allows the user to override
+            trimming if they update the initial source searching and 
+            photometry.
         """
         
         # Whether to trim to the constructor self._max_sources value.
@@ -507,7 +511,7 @@ class ApFindStars:
         """Initialize and return the logger
         """
         
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger('ApFindStars')
         
         # Check that the input log level is legal
         numeric_level = getattr(logging, loglevel.upper(), None)
@@ -913,8 +917,14 @@ class ApFindStars:
         return kw_dict
     
     def _trim_table(self, src_table, max_sources):
-        """Trims the table to contain at maximum max_sources if max_sources
-           is not None
+        """
+        Trims the table to contain at maximum max_sources if max_sources
+        is not None
+        
+        Parameters
+        ----------
+        max_sources : int
+            Maximum number of sources to include in the final table
         """
         
         # Create a copy, filtering the brightest if necessary...
@@ -936,7 +946,8 @@ class ApFindStars:
         saturated_positions = find_peaks(data, 
             threshold=sat_thresh, 
             box_size=boxsize)
-        print('Saturated position table:\n', saturated_positions)
+        if not self._quiet:
+            print('Saturated position table:\n', saturated_positions)
         return saturated_positions
         
     def write_ds9_region_file(self, region_file):

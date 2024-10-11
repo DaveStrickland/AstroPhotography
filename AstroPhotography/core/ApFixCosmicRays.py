@@ -41,12 +41,17 @@ class ApFixCosmicRays:
     USER_BAD = 2
     
     def __init__(self, loglevel):
-        """Constructs an ApFixCosmicRays object.
+        """
+        Constructs an ApFixCosmicRays object.
         
-           :param loglevel: Logging level to use.
+        Parameters
+        ----------
+        loglevel : str
+            Logging level to use. e.g. 'INFO'
         """
     
         self._name = 'ApFixCosmicRays'
+        self._version = __version__
     
         # Initialize logging
         self._loglevel = loglevel
@@ -69,8 +74,9 @@ class ApFixCosmicRays:
         return fpath
 
     def _generate_sigmaclip_mask(self, data, sigma):
-        """Creates a bad pixel mask based on sigma-clipped statistics
-           of the input data array.
+        """
+        Creates a bad pixel mask based on sigma-clipped statistics
+        of the input data array.
            
         This routine is most appropriate for images that expected to
         be relatively uniform, but with a small number of highly 
@@ -117,7 +123,13 @@ class ApFixCosmicRays:
         return
 
     def _initialize_logger(self, loglevel):
-        """Initialize and return the logger
+        """
+        Initialize and return the logger
+        
+        Parameters
+        ----------
+        loglevel : str
+            Logging level to use, e.g. 'INFO'
         """
         
         self._logger = logging.getLogger(self._name)
@@ -128,22 +140,52 @@ class ApFixCosmicRays:
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        self._logger.addHandler(ch)
+        # check if handlers already present
+        if not len(self._logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            self._logger.addHandler(ch)
+        
+        # Used in cases where we get the same message twice or more
+        # See https://stackoverflow.com/a/44426266
+        self._logger.propagate = False
         return
+
             
     def _read_fits(self, image_filename, image_extension):
-        """Read a single extension's data and header from a FITS file
+        """
+        Read a single extension's data and header from a FITS file
+        
+        Parameters
+        ----------
+        image_filename: str
+            Name of input files file
+        image_extension : int or str
+            Image extension number or name. For example extension 0 is
+            the primary extension, or 'srclist' would be an extension
+            named ''srclist''.
+                  
+        Returns
+        -------
+        ext_data : ndarray
+            Data stored in the requested extension of the file
+        ext_hdr : fits.Header
+            FITS header of the requested extension of the file
+            
+        Notes
+        -----
+        - Unsigned integer handling is performed.
+        - PEDESTAL values are removed from the returned data
+        - Image scaling is not performed. 
         """
         
         image_filename = self._check_file_exists(image_filename)
@@ -207,10 +249,14 @@ class ApFixCosmicRays:
         return ext_data, ext_hdr
                 
     def _update_header(self, hdu):
-        """Updates the raw mask FITS primary header by adding select
-           keywords from the input master dark/bias file.
-           
-        :param hdu: FITS hdu object to be modified.
+        """
+        Updates the raw mask FITS primary header by adding select
+        keywords from the input master dark/bias file.
+        
+        Parameters
+        ----------   
+        hdu : FITS hdu 
+            FITS header object to be modified.
         """
         
         self._logger.debug('Updating FITS primary HDU keywords.')
@@ -227,33 +273,55 @@ class ApFixCosmicRays:
     
         for kw in kw_dict:
             hdu.header[kw] = kw_dict[kw]
-        hdu.header['HISTORY'] = f'Processed by {self._name} {__version__} at {tnow}'
+        hdu.header['HISTORY'] = f'Processed by {self._name} {self.__version__} at {tnow}'
         return
 
     def get_crdiff(self):
-        """Returns the difference between the original image and the
-           comsic-ray cleaned image array.
+        """
+        Returns the difference between the original image and the
+        comsic-ray cleaned image array.
+        
+        Returns
+        -------
+        crdiff : np.ndarray
+            Difference image between the original data array and the CR
+            cleaned image.
         """
         return self._crdiff
         
     def get_crmask(self):
-        """Returns the cosmic ray mask as a uint8 numpy array.
+        """
+        Returns the cosmic ray mask as a uint8 numpy array.
+        
+        Returns
+        -------
+        crmask : np.ndarray
+            Mask denoting pixels modified by CR rejection
         """
         return self._crmask
     
     def process(self, inpdata, gain):
-        """Apply L.A. Cosmic ray rejection algorithm to the data in the
-           input numpy array.
+        """
+        Apply L.A. Cosmic ray rejection algorithm to the data in the
+        input numpy array.
           
         Assumes that the data units are ADU. The output cleaned image is
         also returned in ADU.
         
-        :param inpdata: Input numpy data array. 
-        :param gain: Gain, in electrons per ADU.
+        Parameters
+        ----------
+        inpdata: np.ndarray
+            Input numpy data array. 
+        gain : float
+            Gain, in electrons per ADU.
         
-        Returns the cleaned image, in the same units as the input,
-        and a dictionary of FITS keyword (value, comment) pairs that
-        can be used to update a FITS header.
+        Returns
+        -------
+        cleandata : np.ndarray 
+            The CR cleaned image, in the same units as the input.
+        kw_dict : dict
+            A dictionary of FITS ``keyword: (value, comment)`` pairs that
+            can be used to update a FITS header.
         """
 
         perf_time_start = time.perf_counter() # highest res timer, counts sleeps
@@ -334,8 +402,12 @@ class ApFixCosmicRays:
         
         Note: assumes the input image units are ADU.
         
-        :param inpfile: Input FITS image.
-        :param outfile: Output FITS image, will be over-written if present.
+        Parameters
+        ----------
+        inpfile : str 
+            Name/path of input FITS image.
+        outfile : str
+            Name/path of output FITS image, will be over-written if present.
         """
         
         self._imdata, self._imhdr = self._read_fits(inpfile, 0)
@@ -365,11 +437,15 @@ class ApFixCosmicRays:
         return
 
     def write_crmask_img(self, mask_file_name):
-        """Write the cosmic ray mask to a FITS file with the user 
-           specified name/path.
-                      
-        :param mask_file_name: File name/path for the output cosmic ray
-          pixel mask. The file will be overwritten if it exists.
+        """
+        Write the cosmic ray mask to a FITS file with the user 
+        specified name/path.
+        
+        Parameters
+        ----------              
+        mask_file_name : str
+            File name/path for the output cosmic ray
+            pixel mask. The file will be overwritten if it exists.
         """
         
         hdu  = fits.PrimaryHDU(data=self._crmask)
@@ -381,15 +457,19 @@ class ApFixCosmicRays:
         return
     
     def write_crdiff_img(self, diff_file_name):
-        """Write the cosmic ray difference image to a FITS file with the user 
-           specified name/path.
+        """
+        Write the cosmic ray difference image to a FITS file with the user 
+        specified name/path.
                       
         The difference image is the cosmic ray cleaned data subtracted
         from the original image. This will be non-zero only at the location
         of the pixels the algorithm identified as cosmic rays.
-                      
-        :param diff_file_name: File name/path for the output cosmic ray
-          difference image. The file will be overwritten if it exists.
+        
+        Parameters
+        ----------              
+        diff_file_name : str 
+            File name/path for the output cosmic ray
+            difference image. The file will be overwritten if it exists.
         """
         
         hdu = fits.PrimaryHDU(data=self._crdiff)
