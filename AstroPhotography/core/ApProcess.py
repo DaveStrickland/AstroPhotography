@@ -26,7 +26,6 @@ from astropy.io import fits
 
 # AstroPhotography includes
 from .. import __version__
-from . import ApFixBadPixels
 from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
 import AstroPhotography.util as util
 from .ApFindStars import ApFindStars as ApFindStars
@@ -102,7 +101,8 @@ class ApProcess:
     .. code-block:: python
 
         for cal-img in calibrated-images:
-            ap_find_stars cal-img --> source-list source-plot fwhm-plot quality-report.yml ds9-sources.reg
+            ap_find_stars cal-img --> source-list source-plot fwhm-plot
+                quality-report.yml ds9-sources.reg
             ap_astrometry cal-img source-list --> navigated-img
         ap_quality_summary (all quality-report.yml files) --> quality-summary.csv
 
@@ -201,6 +201,15 @@ class ApProcess:
       must be installed on the host computer. Prebuilt packages for these
       exist in most major Linux distributions, or they can be downloaded
       and compiled with only moderate difficulty.
+
+    Warnings
+    --------
+
+    - Only a few variants of the input file name specification methods have
+      been tested with preprocessing. This may cause problems when using the
+      :func:`process_all` function. Calling the processing functions separately
+      (e.g. :func:`preprocess_images`, then :func:`navigate_images`, and so on)
+      may be more robust if you experience problems with :func:`process_all`.
     """
 
     def __init__(self, loglevel: str) -> None:
@@ -369,15 +378,16 @@ class ApProcess:
         medval = opctls[5]
 
         if verbose:
-            self._logger.info(
-                f"{label} data min={minval:.2f}, max={maxval:.2f}, mean={meanval:.2f}, median={medval:.2f} ADU."
-            )
-            self._logger.info(
+            msg1: str = f"{label} data min={minval:.2f}, max={maxval:.2f}, mean={meanval:.2f}, median={medval:.2f} ADU."
+            msg2: str = (
                 f"  90% of data between {opctls[2]:.2f} and {opctls[8]:.2f} ADU (5-95 precentiles)"
             )
-            self._logger.info(
+            msg3: str = (
                 f"  98% of data between {opctls[1]:.2f} and {opctls[9]:.2f} ADU (1-99 precentiles)"
             )
+            self._logger.info(msg1)
+            self._logger.info(msg2)
+            self._logger.info(msg3)
         return [minval, maxval, meanval, medval]
 
     def _initialize_logger(self, loglevel):
@@ -984,8 +994,13 @@ class ApProcess:
         return output_dir
 
     def _generate_all_output_names(
-        self, inputfile, input_rootname=None, input_suffix=".fits", name_and_dir=False, mkdir=False
-    ):
+        self,
+        inputfile: str,
+        input_rootname: str | None = None,
+        input_suffix: str = ".fits",
+        name_and_dir: bool = False,
+        mkdir: bool = False,
+    ) -> tuple[str, str, str, str, str, str]:
         """
         Given an input file name and a conversion dictionary, generate all the file names that might
         be used to run star finding and astrometry on that image.
@@ -1050,14 +1065,25 @@ class ApProcess:
                 ofile = output_dir + ofile
             ofile_dict[ap_filetype] = ofile
 
-        return (
-            ofile_dict["srclist"],
-            ofile_dict["regfile"],
-            ofile_dict["plotfile"],
-            ofile_dict["fwhmplot"],
-            ofile_dict["qualfile"],
-            ofile_dict["navfile"],
+        srclist = ofile_dict["srclist"]
+        regfile = ofile_dict["regfile"]
+        plotfile = ofile_dict["plotfile"]
+        fwhmplot = ofile_dict["fwhmplot"]
+        qualfile = ofile_dict["qualfile"]
+        navfile = ofile_dict["navfile"]
+
+        self._logger.debug(
+            (
+                f"Output file names for input {inputfile},"
+                f" input_rootname={input_rootname}, "
+                f" input_suffix={input_suffix} are"
+                f" srclist={srclist}, regfile={regfile}"
+                f" plotfile={plotfile}, fwhmplot={fwhmplot}"
+                f" qualfile={qualfile} and navfile={navfile}"
+            )
         )
+
+        return (srclist, regfile, plotfile, fwhmplot, qualfile, navfile)
 
     def set_file_names(
         self,
@@ -1488,6 +1514,12 @@ class ApProcess:
                     deltapix,
                     fix_cosmic_rays,
                 )
+                self._logger.debug(
+                    (
+                        "Preprocessing has produced the following files: "
+                        f"{preprocessed_modified_files}"
+                    )
+                )
             else:
                 err_msg: str = (
                     "Preprocessing arguements preprocess_replace"
@@ -1501,25 +1533,34 @@ class ApProcess:
 
         # if we've preprocessed any files then we need to use a modified
         # call to navigate images, otherwise we use the default call.
+        actual_incl_pattern: str | None = include_pattern
+        actual_excl_pattern: str | None = exclude_pattern
+        actual_input_rootname: str | None = input_rootname
+        actual_input_file_list: list[str] | None = input_file_list
         if preprocessed_modified_files is not None:
-            actual_incl_pattern: str = include_pattern.replace(preprocess_replace, preprocess_with)
-            actual_excl_pattern: str = exclude_pattern.replace(preprocess_replace, preprocess_with)
+            # Use the modified file list, and explicitly set input_rootname
+            # Disable include and exclude patterns
+            actual_input_file_list = preprocessed_modified_files
+            actual_incl_pattern = None
+            actual_excl_pattern = None
+            if preprocessed_modified_files[0].startswith(preprocess_with):
+                actual_input_rootname = preprocess_with
+
             msg: str = (
-                "Navigating images using modified "
-                f"include_pattern={actual_incl_pattern} and "
-                f"exclude_pattern={actual_excl_pattern}"
+                "Navigating images using modified inputs: "
+                f" include_pattern={actual_incl_pattern}"
+                f" exclude_pattern={actual_excl_pattern}"
+                f" input_rootname={actual_input_rootname}"
+                f" input_file_list={actual_input_file_list}"
             )
             self._logger.info(msg)
-        else:
-            actual_incl_pattern: str = include_pattern
-            actual_excl_pattern: str = exclude_pattern
 
         nav_status_table = self.navigate_images(
             data_dir,
             actual_incl_pattern,
             actual_excl_pattern,
-            input_file_list,
-            input_rootname,
+            actual_input_file_list,
+            actual_input_rootname,
             input_suffix,
             final_quality_file,
             clean_star_detection,
@@ -1542,7 +1583,7 @@ class ApProcess:
 
         # Resample and image mosaicing/stacking
         if target_wcs_file is None:
-            target_wcs_file = nav_status_table.summary["file"][0]
+            target_wcs_file = nav_status_table["filename"][0]
             self._logger.info(
                 (
                     f"Adopting {target_wcs_file} as the target"
@@ -1799,7 +1840,10 @@ class ApProcess:
                     ]:
                         if self._check_file_exists(file_to_remove, dont_throw):
                             self._logger.debug(
-                                f"Removing existing {file_to_remove} as clean_star_detection={clean_star_detection}"
+                                (
+                                    f"Removing existing {file_to_remove} because "
+                                    f"clean_star_detection={clean_star_detection}"
+                                )
                             )
                             Path(file_to_remove).unlink()
 
@@ -1834,7 +1878,10 @@ class ApProcess:
                 fs_status = status
             else:
                 self._logger.debug(
-                    f"Skipping star detection because {f_srclist} exists and clean_star_detection={clean_star_detection}"
+                    (
+                        f"Skipping star detection because {f_srclist} exists"
+                        f" and clean_star_detection={clean_star_detection}"
+                    )
                 )
                 fs_status = "skipped_exists"
                 fs_telapsed = 0
@@ -1938,7 +1985,7 @@ class ApProcess:
         )
         return self._nav_status_table
 
-    def create_quality_summary(self, qual_file_dir, quality_summary_file):
+    def create_quality_summary(self, qual_file_dir: str, quality_summary_file: str) -> None:
         """
         Runs :class:`ApQualitySummarizer` on any quality YaML files in the
         specified directory, writing a summary CSV to the main ``data_dir``.
