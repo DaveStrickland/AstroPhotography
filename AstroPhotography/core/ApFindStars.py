@@ -35,31 +35,26 @@
 #                  own file.
 # 2024-01-25 dks : Catch up to latest astropy/photutils changes
 # 2024-08-14 dks : Start switch over to numpy format docstrings
+# 2024-11-10 dks : Format changes based on Ruff/Mypy
 
 import sys
 import logging
 import os.path
 import numpy as np
-import matplotlib  # for rc
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
 import math
-import time
 import yaml
 from datetime import datetime
 
-from scipy import spatial
-
 from astropy.io import fits
-from astropy.table import QTable, Table, vstack
+from astropy.table import Table
 from astropy.coordinates import SkyCoord, Angle
-from astropy.visualization import AsymmetricPercentileInterval, MinMaxInterval, ManualInterval
-from astropy.visualization import SqrtStretch, AsinhStretch, LinearStretch
+from astropy.visualization import AsymmetricPercentileInterval
+from astropy.visualization import AsinhStretch
 from astropy.visualization.mpl_normalize import ImageNormalize
 from astropy.stats import sigma_clipped_stats
 from astropy import units as u
-from astropy.modeling import models, fitting
-from astropy.stats import sigma_clipped_stats, SigmaClip, mad_std
+from astropy.stats import SigmaClip
 
 from regions import PixCoord, CirclePixelRegion, Regions
 
@@ -72,7 +67,7 @@ from .. import __version__
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
 
 
-def yaml_float_representer(dumper, value):
+def yaml_float_representer(dumper, value: float):
     """
     Change default yaml float representation to .6f format
 
@@ -189,19 +184,19 @@ class ApFindStars:
 
         # Not calculated by default, only if a user calls measure_fwhm
         self._psf_table = None
-        self._fwhm_both = None
-        self._fwhm_x = None
-        self._fwhm_y = None
+        self._fwhm_both: float | None = None
+        self._fwhm_x: float | None = None
+        self._fwhm_y: float | None = None
 
         # Number of sources detected, and number of sources that had
         # photometry, and number of sources that had FWHM/PSFs fitted.
-        self._nsrcs_detected = 0
-        self._nsrcs_photom = 0
-        self._nsrcs_fitted = 0
-        self._nsrcs_saturated = 0
+        self._nsrcs_detected: int = 0
+        self._nsrcs_photom: int = 0
+        self._nsrcs_fitted: int = 0
+        self._nsrcs_saturated: int = 0
 
         # Hard-wired constants
-        self._ap_fwhm_mult = 2.0  # Aperture radius is this times search_fhwm
+        self._ap_fwhm_mult: float = 2.0  # Aperture radius is this times search_fhwm
 
         # Set up logging
         self._logger = self._initialize_logger(self._loglevel)
@@ -754,20 +749,37 @@ class ApFindStars:
 
     def _write_source_list(
         self,
-        p_sourcelist,  # Name of utput FIT table with source info
-        p_fitsimg,  # Name of input FITS image that was processed
-        p_max_sources,  # Max number of sources for output table
-        hdr,  # FITS header of input image
-        kw_dict,  # Dictionary of keyword values to add to sourcelist header
-        src_table,  # Astropy table of source photometry
+        p_sourcelist,
+        p_fitsimg,
+        p_max_sources,
+        hdr,
+        kw_dict,
+        src_table,
         psf_table,
-    ):  # None or Astropy table of source PSF fitting.
+    ):
         """
         Write detected source information to a FITS table with info on the
         original data file
 
         This function also:
          - Prints a summary of values useful for astrometry.net at INFO level.
+
+        Parameters
+        ----------
+        p_sourcelist: str
+            Name of utput FIT table with source info
+        p_fitsimg: str
+            Name of input FITS image that was processed
+        p_max_sources: int
+            Max number of sources for output table
+        hdr: astropy.fits.Header
+            FITS header of input image
+        kw_dict: dict
+            Dictionary of keyword values to add to sourcelist header
+        src_table: astropy.Table
+            Astropy table of source photometry
+        psf_table: astropy.Table or None
+            Astropy table of fitted source parameters, or None
         """
 
         # Create an X and Y table for use with astrometry.net,
@@ -1167,7 +1179,7 @@ class ApFindStars:
         src_info_dict["adups_faintest"] = self._phot_stats[2][0]
 
         # Saturation info
-        num_sat_in_phot = int(np.sum(self._phot_table["psbl_sat"] == True))
+        num_sat_in_phot = int(np.sum(self._phot_table["psbl_sat"] == True))  # noqa: E712
         sat_info_dict["num_saturated_in_image"] = self._nsrcs_saturated
         sat_info_dict["num_saturated_in_photometry"] = num_sat_in_phot
 

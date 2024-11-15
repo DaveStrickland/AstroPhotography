@@ -1,33 +1,33 @@
 # -*- coding: utf-8 -*-
 #
 #  Contains the implementation of various Astrophotography utilities
-#  
+#
 #  Copyright 2024 Dave Strickland <dave.strickland@gmail.com>
-#  
+#
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation; either version 2 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#  
-#  
+#
+#
 
 # 2024-04-07 dks : issue-002 Initial coding
 
 import logging
 import os.path
-import pathlib
+from pathlib import Path
 import numpy as np
-import matplotlib                # for rc
+import matplotlib  # for rc
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import math
@@ -40,20 +40,25 @@ from astropy.io import fits
 from astropy.table import QTable, Table, vstack
 from astropy.coordinates import SkyCoord, Angle
 from astropy import units
-from astropy.visualization import (AsymmetricPercentileInterval, 
-                                   MinMaxInterval, 
-                                   ManualInterval, 
-                                   SqrtStretch, AsinhStretch, LinearStretch,
-                                   ImageNormalize)
+from astropy.visualization import (
+    AsymmetricPercentileInterval,
+    MinMaxInterval,
+    ManualInterval,
+    SqrtStretch,
+    AsinhStretch,
+    LinearStretch,
+    ImageNormalize,
+)
 from astropy.visualization import make_lupton_rgb
-        
-# AstroPhotography includes    
+
+# AstroPhotography includes
 from .. import __version__
+
 
 def does_file_exist(filename, verbose=False):
     """
     Returns True if the file name or path exists, false otherwise
-    
+
     Parameters
     ----------
     filename : str
@@ -61,7 +66,7 @@ def does_file_exist(filename, verbose=False):
         the existence of.
     verbose : bool, optional, default=False
         If True then writes to stdout.
-        
+
     Returns
     -------
     exists : bool
@@ -74,10 +79,20 @@ def does_file_exist(filename, verbose=False):
         print(f"Found {filename}.")
     return True
 
-def load_image_and_plot(fname, extnum=0, output=None, 
-                        usewcs=True, vmin=None, vmax=None, 
-                        xaxlim=None, yaxlim=None, verbose=True,
-                        angle_tick_spacing_am=2.0, swap_radec_axis=False):
+
+def load_image_and_plot(
+    fname,
+    extnum=0,
+    output=None,
+    usewcs=True,
+    vmin=None,
+    vmax=None,
+    xaxlim=None,
+    yaxlim=None,
+    verbose=True,
+    angle_tick_spacing_am=2.0,
+    swap_radec_axis=False,
+):
     """
     Quick and dirty FITS image plot.
 
@@ -94,7 +109,7 @@ def load_image_and_plot(fname, extnum=0, output=None,
     way SAOImage ds9 does when the WCS is applied. It still plots the original data rows and
     column as a 2-D XY grid. Consequently, for images not already in NE alignment, the RA may
     change most rapidly along Y and Dec most rapidly along X, in contrast to normal expectation.
-    To avoid highly confusing plots this function plots RA/Dec grids when `usewcs=True`. Line 
+    To avoid highly confusing plots this function plots RA/Dec grids when `usewcs=True`. Line
     of constant RA are red, lines of constant Declination are blue. In cases where your data
     is aligned closer to 90 degrees or 270 degrees away from North up, East left, specifying
     `swap_radec_axis=True` will reduce confusion by showing RA tickmarks and values along the Y
@@ -118,8 +133,8 @@ def load_image_and_plot(fname, extnum=0, output=None,
         blocking operation. The 'interactive' mode may not work when running
         in jupyter.
         Use None when using a jupyter backend (e.g. ``%matplotlib inline``)
-        as they automatically invoke a non-blocking show at the end of 
-        each cell. 
+        as they automatically invoke a non-blocking show at the end of
+        each cell.
         Specify a filename with recognizable image-format extension, e.g.
         ``my_output_plot.png`` to directly save the plot to a file.
     usewcs : bool, optional, default=True
@@ -131,7 +146,7 @@ def load_image_and_plot(fname, extnum=0, output=None,
     xaxlim : array_like or None, optional, default=None
         2-element list or tuple of the minimum to maximum x-axis coordinates to
         plot. If None then the default axis limits will be used. To see those limits run
-        with verbose=True. 
+        with verbose=True.
     yaxlim : array_like or None, optional, default=None
         2-element list or tuple of the minimum to maximum x-axis coordinates to
         plot. If None then the default axis limits will be used. To see those limits run
@@ -140,18 +155,18 @@ def load_image_and_plot(fname, extnum=0, output=None,
         If True then diagnostic information will be written to stdout.
     angle_tick_spacing_am : float, optional, default=2.0
         If usewcs is True, specify the spacing between RA/Dec axis
-        tick values in units of arcminutes. Astropy won't label the RA/Dec axis without 
+        tick values in units of arcminutes. Astropy won't label the RA/Dec axis without
         specifying a value for this.
     swap_radec_axis : bool, optional, default=False
         If True then plot RA tickmarks and values along the Y
-        axes and Declination tickmarks and values along the X axis (contrary to the normal 
+        axes and Declination tickmarks and values along the X axis (contrary to the normal
         convention). This does not alter how the image data itself is plotted.
     """
-    
+
     hdu = fits.open(fname)[extnum]
     w = None
     if usewcs:
-        w   = wcs.WCS(hdu.header)
+        w = wcs.WCS(hdu.header)
 
     # Compute vmin and vmax if necessary
     # percentiles
@@ -160,75 +175,79 @@ def load_image_and_plot(fname, extnum=0, output=None,
     ourmin = opctls[0]
     ourmax = opctls[1]
     if verbose:
-        print(f'Input data 0.5th percentile = {ourmin:.4f}, 99.5th percentile = {ourmax:.4f}')
-    
+        print(f"Input data 0.5th percentile = {ourmin:.4f}, 99.5th percentile = {ourmax:.4f}")
+
     if vmin is not None:
         ourmin = vmin
     if vmax is not None:
         ourmax = vmax
     if verbose:
-        print(f'Applying asinh stretch between {ourmin:.4f} and {ourmax:.4f}')
-    
+        print(f"Applying asinh stretch between {ourmin:.4f} and {ourmax:.4f}")
+
     # Create an ImageNormalize object
-    norm = ImageNormalize(hdu.data, interval=ManualInterval(ourmin, ourmax),
-                      stretch=AsinhStretch())
+    norm = ImageNormalize(
+        hdu.data, interval=ManualInterval(ourmin, ourmax), stretch=AsinhStretch()
+    )
 
     # Display the image
     fig = plt.figure()
     if usewcs:
         if verbose:
-            print('Using WCS information for axis projection')
+            print("Using WCS information for axis projection")
             print(w)
         ax = fig.add_subplot(1, 1, 1, projection=w)
     else:
         ax = fig.add_subplot(1, 1, 1)
-        
-    im = ax.imshow(hdu.data, origin='lower', norm=norm)
-    cbar = fig.colorbar(im, ax=ax, extend='neither', spacing='proportional',
-                orientation='vertical', shrink=0.85)
+
+    im = ax.imshow(hdu.data, origin="lower", norm=norm)
+    cbar = fig.colorbar(
+        im, ax=ax, extend="neither", spacing="proportional", orientation="vertical", shrink=0.85
+    )
     cbar.set_label(r"Units TBA")
-    cbar.ax.tick_params(labelsize=8) 
-    title_str = fname#.replace("_", "\_")
-    ax.set_title(f'{title_str}', fontsize=8)
+    cbar.ax.tick_params(labelsize=8)
+    title_str = fname  # .replace("_", "\_")
+    ax.set_title(f"{title_str}", fontsize=8)
 
     # Display default axis limits
     xlim_used = ax.get_xbound()
     ylim_used = ax.get_ybound()
     if verbose:
-        print(f'Default X-axis limits: {xlim_used}')
-        print(f'Default Y-axis limits: {ylim_used}')
-    
-    title_str = fname#.replace("_", "\_")
-    ax.set_title(f'{title_str}', fontsize=8)
+        print(f"Default X-axis limits: {xlim_used}")
+        print(f"Default Y-axis limits: {ylim_used}")
+
+    title_str = fname  # .replace("_", "\_")
+    ax.set_title(f"{title_str}", fontsize=8)
     if usewcs:
         # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
         ra = ax.coords[0]
         dec = ax.coords[1]
-        ra.set_major_formatter('hh:mm:ss.ss')   # RA in Hours, minutes, seconds,
-        dec.set_major_formatter('dd:mm:ss.ss')
-        ra.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='red')      # Ticks must be defined for axis tickvals to appear
-        dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='blue')
-        ra.set_ticklabel(color='red', fontsize=8)
-        dec.set_ticklabel(color='blue', fontsize=8)
-        ra.grid(color='red', linestyle='--', alpha=0.6)
-        dec.grid(color='blue', linestyle='--', alpha=0.6)
-        ra.set_axislabel('Right Ascension (HMS)', fontsize=8, color='red')
-        dec.set_axislabel('Declination (dms)', fontsize=8, color='blue')
+        ra.set_major_formatter("hh:mm:ss.ss")  # RA in Hours, minutes, seconds,
+        dec.set_major_formatter("dd:mm:ss.ss")
+        ra.set_ticks(
+            spacing=angle_tick_spacing_am * units.arcmin, color="red"
+        )  # Ticks must be defined for axis tickvals to appear
+        dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color="blue")
+        ra.set_ticklabel(color="red", fontsize=8)
+        dec.set_ticklabel(color="blue", fontsize=8)
+        ra.grid(color="red", linestyle="--", alpha=0.6)
+        dec.grid(color="blue", linestyle="--", alpha=0.6)
+        ra.set_axislabel("Right Ascension (HMS)", fontsize=8, color="red")
+        dec.set_axislabel("Declination (dms)", fontsize=8, color="blue")
 
         if swap_radec_axis:
             # Images where ra changes fastest on Y, not X
-            dec.set_ticks_position('b')
-            dec.set_ticklabel_position('b')
-            dec.set_axislabel_position('b')
-            ra.set_ticks_position('l')
-            ra.set_ticklabel_position('l')
-            ra.set_axislabel_position('l')
-    
-        #ax.set_xlabel('Right Ascension (deg)', fontsize=8)
-        #ax.set_ylabel('Declination (deg)', fontsize=8)
+            dec.set_ticks_position("b")
+            dec.set_ticklabel_position("b")
+            dec.set_axislabel_position("b")
+            ra.set_ticks_position("l")
+            ra.set_ticklabel_position("l")
+            ra.set_axislabel_position("l")
+
+        # ax.set_xlabel('Right Ascension (deg)', fontsize=8)
+        # ax.set_ylabel('Declination (deg)', fontsize=8)
     else:
-        ax.set_xlabel('X-axis pixel number', fontsize=8)
-        ax.set_ylabel('Y-axis pixel number', fontsize=8)
+        ax.set_xlabel("X-axis pixel number", fontsize=8)
+        ax.set_ylabel("Y-axis pixel number", fontsize=8)
 
     # Modify the axis limits?
     if xaxlim is not None:
@@ -236,28 +255,41 @@ def load_image_and_plot(fname, extnum=0, output=None,
         hival = np.max(xaxlim)
         ax.set_xbound(lower=loval, upper=hival)
         if verbose:
-            print(f'Setting X-axis limits to [{loval}, {hival}]')
+            print(f"Setting X-axis limits to [{loval}, {hival}]")
     if yaxlim is not None:
         loval = np.min(yaxlim)
         hival = np.max(yaxlim)
         ax.set_ybound(lower=loval, upper=hival)
         if verbose:
-            print(f'Setting Y-axis limits to [{loval}, {hival}]')
-            
+            print(f"Setting Y-axis limits to [{loval}, {hival}]")
+
     if output is not None:
-        if 'interactive' in output:
-            print('Processing blocked while plotting window is open. Close it to procede.')
+        if "interactive" in output:
+            print("Processing blocked while plotting window is open. Close it to procede.")
             fig.show()
         else:
-            fig.savefig(output, dpi=200, bbox_inches='tight')
+            fig.savefig(output, dpi=200, bbox_inches="tight")
             if verbose:
-                print(f'Wrote plot to {output}')
+                print(f"Wrote plot to {output}")
     return
-    
+
+
 # First, lets just plot each resampled image separately
-def load_three_images_and_plot(redfile, greenfile, bluefile, extnum=0, 
-                        output=None, usewcs=True, vmin=None, vmax=None, xaxlim=None, yaxlim=None, verbose=True,
-                        angle_tick_spacing_am=2.0, swap_radec_axis=False):
+def load_three_images_and_plot(
+    redfile,
+    greenfile,
+    bluefile,
+    extnum=0,
+    output=None,
+    usewcs=True,
+    vmin=None,
+    vmax=None,
+    xaxlim=None,
+    yaxlim=None,
+    verbose=True,
+    angle_tick_spacing_am=2.0,
+    swap_radec_axis=False,
+):
     """
     Quick and dirty FITS image plot.
 
@@ -277,7 +309,7 @@ def load_three_images_and_plot(redfile, greenfile, bluefile, extnum=0,
     way SAOImage ds9 does when the WCS is applied. It still plots the original data rows and
     column as a 2-D XY grid. Consequently, for images not already in NE alignment, the RA may
     change most rapidly along Y and Dec most rapidly along X, in contrast to normal expectation.
-    To avoid highly confusing plots this function plots RA/Dec grids when `usewcs=True`. Line 
+    To avoid highly confusing plots this function plots RA/Dec grids when `usewcs=True`. Line
     of constant RA are red, lines of constant Declination are blue. In cases where your data
     is aligned closer to 90 degrees or 270 degrees away from North up, East left, specifying
     `swap_radec_axis=True` will reduce confusion by showing RA tickmarks and values along the Y
@@ -307,8 +339,8 @@ def load_three_images_and_plot(redfile, greenfile, bluefile, extnum=0,
         blocking operation. The 'interactive' mode may not work when running
         in jupyter.
         Use None when using a jupyter backend (e.g. ``%matplotlib inline``)
-        as they automatically invoke a non-blocking show at the end of 
-        each cell. 
+        as they automatically invoke a non-blocking show at the end of
+        each cell.
         Specify a filename with recognizable image-format extension, e.g.
         ``my_output_plot.png`` to directly save the plot to a file.
     usewcs : bool, optional, default=True
@@ -320,7 +352,7 @@ def load_three_images_and_plot(redfile, greenfile, bluefile, extnum=0,
     xaxlim : array_like or None, optional, default=None
         2-element list or tuple of the minimum to maximum x-axis coordinates to
         plot. If None then the default axis limits will be used. To see those limits run
-        with verbose=True. 
+        with verbose=True.
     yaxlim : array_like or None, optional, default=None
         2-element list or tuple of the minimum to maximum x-axis coordinates to
         plot. If None then the default axis limits will be used. To see those limits run
@@ -329,14 +361,14 @@ def load_three_images_and_plot(redfile, greenfile, bluefile, extnum=0,
         If True then diagnostic information will be written to stdout.
     angle_tick_spacing_am : float, optional, default=2.0
         If usewcs is True, specify the spacing between RA/Dec axis
-        tick values in units of arcminutes. Astropy won't label the RA/Dec axis without 
+        tick values in units of arcminutes. Astropy won't label the RA/Dec axis without
         specifying a value for this.
     swap_radec_axis : bool, optional, default=False
         If True then plot RA tickmarks and values along the Y
-        axes and Declination tickmarks and values along the X axis (contrary to the normal 
+        axes and Declination tickmarks and values along the X axis (contrary to the normal
         convention). This does not alter how the image data itself is plotted.
     """
-    
+
     hdur = fits.open(redfile)[extnum]
     hdug = fits.open(greenfile)[extnum]
     hdub = fits.open(bluefile)[extnum]
@@ -348,123 +380,148 @@ def load_three_images_and_plot(redfile, greenfile, bluefile, extnum=0,
     ourmin = opctls[0]
     ourmax = opctls[1]
     if verbose:
-        print(f'Input red channel data 0.5th percentile = {ourmin:.4f}, 99.5th percentile = {ourmax:.4f}')
-    
+        print(
+            f"Input red channel data 0.5th percentile = {ourmin:.4f}, 99.5th percentile = {ourmax:.4f}"
+        )
+
     if vmin is not None:
         ourmin = vmin
     if vmax is not None:
         ourmax = vmax
     if verbose:
-        print(f'Applying asinh stretch between {ourmin:.4f} and {ourmax:.4f}')
-    
+        print(f"Applying asinh stretch between {ourmin:.4f} and {ourmax:.4f}")
+
     # Display the image
     fig = plt.figure()
 
     for idx in range(3):
         if idx == 0:
-            hdu       = hdur
+            hdu = hdur
             title_str = redfile
-            w         = wcs.WCS(hdu.header)
-            print(80*'-')
-            print(f'WCS for {title_str}:')
+            w = wcs.WCS(hdu.header)
+            print(80 * "-")
+            print(f"WCS for {title_str}:")
             print(w)
         elif idx == 1:
-            hdu       = hdug
+            hdu = hdug
             title_str = greenfile
-            w         = wcs.WCS(hdu.header)
-            print(80*'-')
-            print(f'WCS for {title_str}:')
+            w = wcs.WCS(hdu.header)
+            print(80 * "-")
+            print(f"WCS for {title_str}:")
             print(w)
         elif idx == 2:
-            hdu       = hdub
+            hdu = hdub
             title_str = bluefile
-            w         = wcs.WCS(hdu.header)
-            print(80*'-')
-            print(f'WCS for {title_str}:')
+            w = wcs.WCS(hdu.header)
+            print(80 * "-")
+            print(f"WCS for {title_str}:")
             print(w)
         else:
-            raise RuntimeError(f'Error, index {idx} should be in range 0..2 for 3-image plotting.')
+            raise RuntimeError(f"Error, index {idx} should be in range 0..2 for 3-image plotting.")
 
         if usewcs:
-            ax = fig.add_subplot(2, 2, idx+1, projection=w)
+            ax = fig.add_subplot(2, 2, idx + 1, projection=w)
         else:
-            ax = fig.add_subplot(2, 2, idx+1)
+            ax = fig.add_subplot(2, 2, idx + 1)
 
         # Create an ImageNormalize object
-        norm = ImageNormalize(hdu.data, interval=ManualInterval(ourmin, ourmax),
-                      stretch=AsinhStretch())
-        
-        im = ax.imshow(hdu.data, origin='lower', norm=norm)
-        cbar = fig.colorbar(im, ax=ax, extend='neither', spacing='proportional',
-                orientation='vertical', shrink=0.85)
+        norm = ImageNormalize(
+            hdu.data, interval=ManualInterval(ourmin, ourmax), stretch=AsinhStretch()
+        )
+
+        im = ax.imshow(hdu.data, origin="lower", norm=norm)
+        cbar = fig.colorbar(
+            im,
+            ax=ax,
+            extend="neither",
+            spacing="proportional",
+            orientation="vertical",
+            shrink=0.85,
+        )
         cbar.set_label(r"Units TBA")
-        cbar.ax.tick_params(labelsize=8) 
-    
+        cbar.ax.tick_params(labelsize=8)
+
         # Display default axis limits
         xlim_used = ax.get_xbound()
         ylim_used = ax.get_ybound()
         if verbose:
-            print(f'Default X-axis limits: {xlim_used}')
-            print(f'Default Y-axis limits: {ylim_used}')
-        
-        ax.set_title(f'{title_str}', fontsize=8)
+            print(f"Default X-axis limits: {xlim_used}")
+            print(f"Default Y-axis limits: {ylim_used}")
+
+        ax.set_title(f"{title_str}", fontsize=8)
         if usewcs:
             # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
             ra = ax.coords[0]
             dec = ax.coords[1]
-            ra.set_major_formatter('hh:mm:ss.ss')   # RA in Hours, minutes, seconds,
-            dec.set_major_formatter('dd:mm:ss.ss')
-            ra.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='red')      # Ticks must be defined for axis tickvals to appear
-            dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='blue')
-            ra.set_ticklabel(color='red', fontsize=8)
-            dec.set_ticklabel(color='blue', fontsize=8)
-            ra.grid(color='red', linestyle='--', alpha=0.6)
-            dec.grid(color='blue', linestyle='--', alpha=0.6)
-            ra.set_axislabel('Right Ascension (HMS)', fontsize=8, color='red')
-            dec.set_axislabel('Declination (dms)', fontsize=8, color='blue')
+            ra.set_major_formatter("hh:mm:ss.ss")  # RA in Hours, minutes, seconds,
+            dec.set_major_formatter("dd:mm:ss.ss")
+            ra.set_ticks(
+                spacing=angle_tick_spacing_am * units.arcmin, color="red"
+            )  # Ticks must be defined for axis tickvals to appear
+            dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color="blue")
+            ra.set_ticklabel(color="red", fontsize=8)
+            dec.set_ticklabel(color="blue", fontsize=8)
+            ra.grid(color="red", linestyle="--", alpha=0.6)
+            dec.grid(color="blue", linestyle="--", alpha=0.6)
+            ra.set_axislabel("Right Ascension (HMS)", fontsize=8, color="red")
+            dec.set_axislabel("Declination (dms)", fontsize=8, color="blue")
 
             if swap_radec_axis:
                 # Images where ra changes fastest on Y, not X
-                dec.set_ticks_position('b')
-                dec.set_ticklabel_position('b')
-                dec.set_axislabel_position('b')
-                ra.set_ticks_position('l')
-                ra.set_ticklabel_position('l')
-                ra.set_axislabel_position('l')
-        
-            #ax.set_xlabel('Right Ascension (deg)', fontsize=8)
-            #ax.set_ylabel('Declination (deg)', fontsize=8)
+                dec.set_ticks_position("b")
+                dec.set_ticklabel_position("b")
+                dec.set_axislabel_position("b")
+                ra.set_ticks_position("l")
+                ra.set_ticklabel_position("l")
+                ra.set_axislabel_position("l")
+
+            # ax.set_xlabel('Right Ascension (deg)', fontsize=8)
+            # ax.set_ylabel('Declination (deg)', fontsize=8)
         else:
-            ax.set_xlabel('X-axis pixel number', fontsize=8)
-            ax.set_ylabel('Y-axis pixel number', fontsize=8)
-    
+            ax.set_xlabel("X-axis pixel number", fontsize=8)
+            ax.set_ylabel("Y-axis pixel number", fontsize=8)
+
         # Modify the axis limits?
         if xaxlim is not None:
             loval = np.min(xaxlim)
             hival = np.max(xaxlim)
             ax.set_xbound(lower=loval, upper=hival)
             if verbose:
-                print(f'Setting X-axis limits to [{loval}, {hival}]')
+                print(f"Setting X-axis limits to [{loval}, {hival}]")
         if yaxlim is not None:
             loval = np.min(yaxlim)
             hival = np.max(yaxlim)
             ax.set_ybound(lower=loval, upper=hival)
             if verbose:
-                print(f'Setting Y-axis limits to [{loval}, {hival}]')
-    
+                print(f"Setting Y-axis limits to [{loval}, {hival}]")
+
     if output is not None:
-        if 'interactive' in output:
-            print('Processing blocked while plotting window is open. Close it to procede.')
+        if "interactive" in output:
+            print("Processing blocked while plotting window is open. Close it to procede.")
             fig.show()
         else:
-            fig.savefig(output, dpi=200, bbox_inches='tight')
+            fig.savefig(output, dpi=200, bbox_inches="tight")
             if verbose:
-                print(f'Wrote plot to {output}')
+                print(f"Wrote plot to {output}")
     return
-    
-def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile, 
-                        extnum=0, usewcs=True, vmin=None, xaxlim=None, yaxlim=None, qval=10, stretchval=0.5, verbose=True,
-                        angle_tick_spacing_am=2.0, swap_radec_axis=False):
+
+
+def plot_lupton_threecolor(
+    redfile,
+    greenfile,
+    bluefile,
+    outpngfile,
+    extnum=0,
+    usewcs=True,
+    vmin=None,
+    xaxlim=None,
+    yaxlim=None,
+    qval=10,
+    stretchval=0.5,
+    verbose=True,
+    angle_tick_spacing_am=2.0,
+    swap_radec_axis=False,
+):
     """
     Quick and dirty 3-color composite using make_lupton_rgb
 
@@ -480,7 +537,7 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile,
     way SAOImage ds9 does when the WCS is applied. It still plots the original data rows and
     column as a 2-D XY grid. Consequently, for images not already in NE alignment, the RA may
     change most rapidly along Y and Dec most rapidly along X, in contrast to normal expectation.
-    To avoid highly confusing plots this function plots RA/Dec grids when `usewcs=True`. Line 
+    To avoid highly confusing plots this function plots RA/Dec grids when `usewcs=True`. Line
     of constant RA are red, lines of constant Declination are blue. In cases where your data
     is aligned closer to 90 degrees or 270 degrees away from North up, East left, specifying
     `swap_radec_axis=True` will reduce confusion by showing RA tickmarks and values along the Y
@@ -508,8 +565,8 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile,
         blocking operation. The 'interactive' mode may not work when running
         in jupyter.
         Use None when using a jupyter backend (e.g. ``%matplotlib inline``)
-        as they automatically invoke a non-blocking show at the end of 
-        each cell. 
+        as they automatically invoke a non-blocking show at the end of
+        each cell.
         Specify a filename with recognizable image-format extension, e.g.
         ``my_output_plot.png`` to directly save the plot to a file.
     extnum : int or str, optional, default=0
@@ -523,7 +580,7 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile,
     xaxlim : array_like or None, optional, default=None
         2-element list or tuple of the minimum to maximum x-axis coordinates to
         plot. If None then the default axis limits will be used. To see those limits run
-        with verbose=True. 
+        with verbose=True.
     yaxlim : array_like or None, optional, default=None
         2-element list or tuple of the minimum to maximum x-axis coordinates to
         plot. If None then the default axis limits will be used. To see those limits run
@@ -536,18 +593,18 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile,
         If True then diagnostic information will be written to stdout.
     angle_tick_spacing_am : float, optional, default=2.0
         If usewcs is True, specify the spacing between RA/Dec axis
-        tick values in units of arcminutes. Astropy won't label the RA/Dec axis without 
+        tick values in units of arcminutes. Astropy won't label the RA/Dec axis without
         specifying a value for this.
     swap_radec_axis : bool, optional, default=False
         If True then plot RA tickmarks and values along the Y
-        axes and Declination tickmarks and values along the X axis (contrary to the normal 
-        convention). This does not alter how the image data itself is plotted.        
+        axes and Declination tickmarks and values along the X axis (contrary to the normal
+        convention). This does not alter how the image data itself is plotted.
     """
-    
+
     hdur = fits.open(redfile)[extnum]
     hdug = fits.open(greenfile)[extnum]
     hdub = fits.open(bluefile)[extnum]
-    w    = wcs.WCS(hdur.header)
+    w = wcs.WCS(hdur.header)
 
     # Compute vmin and vmax if necessary. NOTE this only uses the red channel
     # percentiles
@@ -556,70 +613,82 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile,
     ourmin = opctls[0]
     ourmax = opctls[1]
     if verbose:
-        print(f'Input red channel data 0.5th percentile = {ourmin:.4f}, 99.5th percentile = {ourmax:.4f}')
-    
+        print(
+            f"Input red channel data 0.5th percentile = {ourmin:.4f}, 99.5th percentile = {ourmax:.4f}"
+        )
+
     vmax = None
     if vmin is not None:
         ourmin = vmin
     if vmax is not None:
         ourmax = vmax
     if verbose:
-        print(f'Using an image minimum of {ourmin} for all channels.')
+        print(f"Using an image minimum of {ourmin} for all channels.")
 
-    rgb_array = make_lupton_rgb(hdur.data, hdug.data, hdub.data,
-                               minimum=ourmin, stretch=stretchval, Q=qval, filename=outpngfile)
-    
+    rgb_array = make_lupton_rgb(
+        hdur.data,
+        hdug.data,
+        hdub.data,
+        minimum=ourmin,
+        stretch=stretchval,
+        Q=qval,
+        filename=outpngfile,
+    )
+
     # Display the image
     fig = plt.figure()
     if usewcs:
         ax = fig.add_subplot(1, 1, 1, projection=w)
     else:
         ax = fig.add_subplot(1, 1, 1)
-        
-    im = ax.imshow(rgb_array, origin='lower')
-    cbar = fig.colorbar(im, ax=ax, extend='neither', spacing='proportional',
-                orientation='vertical', shrink=0.85)
+
+    im = ax.imshow(rgb_array, origin="lower")
+    cbar = fig.colorbar(
+        im, ax=ax, extend="neither", spacing="proportional", orientation="vertical", shrink=0.85
+    )
     cbar.set_label(r"Units TBA")
-    cbar.ax.tick_params(labelsize=8) 
+    cbar.ax.tick_params(labelsize=8)
 
     # Display default axis limits
     xlim_used = ax.get_xbound()
     ylim_used = ax.get_ybound()
     if verbose:
-        print(f'Default X-axis limits: {xlim_used}')
-        print(f'Default Y-axis limits: {ylim_used}')
-    
-    title_str = f'RGB composite image stretch={stretchval}, Q={qval}\nRed = {redfile}\nGreen = {greenfile}\nBlue = {bluefile}\n'
-    ax.set_title(f'{title_str}', fontsize=8)
+        print(f"Default X-axis limits: {xlim_used}")
+        print(f"Default Y-axis limits: {ylim_used}")
+
+    title_str = f"RGB composite image stretch={stretchval}, Q={qval}\nRed = {redfile}\nGreen = {greenfile}\nBlue = {bluefile}\n"
+    ax.set_title(f"{title_str}", fontsize=8)
     if usewcs:
         # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
         ra = ax.coords[0]
         dec = ax.coords[1]
-        ra.set_major_formatter('hh:mm:ss.ss')   # RA in Hours, minutes, seconds,
-        dec.set_major_formatter('dd:mm:ss.ss')
-        ra.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='red')      # Ticks must be defined for axis tickvals to appear
-        dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='blue')
-        ra.set_ticklabel(color='red', fontsize=8)
-        dec.set_ticklabel(color='blue', fontsize=8)
-        ra.grid(color='red', linestyle='--', alpha=0.6)
-        dec.grid(color='blue', linestyle='--', alpha=0.6)
-        ra.set_axislabel('Right Ascension ((HMS))', fontsize=8, color='red')
-        dec.set_axislabel('Declination (dms)', fontsize=8, color='blue')
+        ra.set_major_formatter("hh:mm:ss.ss")  # RA in Hours, minutes, seconds,
+        dec.set_major_formatter("dd:mm:ss.ss")
+        ra.set_ticks(
+            spacing=angle_tick_spacing_am * units.arcmin, color="red"
+        )  # Ticks must be defined for axis tickvals to appear
+        dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color="blue")
+        ra.set_ticklabel(color="red", fontsize=8)
+        dec.set_ticklabel(color="blue", fontsize=8)
+        ra.grid(color="red", linestyle="--", alpha=0.6)
+        dec.grid(color="blue", linestyle="--", alpha=0.6)
+        ra.set_axislabel("Right Ascension ((HMS))", fontsize=8, color="red")
+        dec.set_axislabel("Declination (dms)", fontsize=8, color="blue")
 
         if swap_radec_axis:
             # Images where ra changes fastest on Y, not X
-            dec.set_ticks_position('b')
-            dec.set_ticklabel_position('b')
-            dec.set_axislabel_position('b')
-            ra.set_ticks_position('l')
-            ra.set_ticklabel_position('l')
-            ra.set_axislabel_position('l')
-    
-        #ax.set_xlabel('Right Ascension (deg)', fontsize=8)
-        #ax.set_ylabel('Declination (deg)', fontsize=8)
+            dec.set_ticks_position("b")
+            dec.set_ticklabel_position("b")
+            dec.set_axislabel_position("b")
+            ra.set_ticks_position("l")
+            ra.set_ticklabel_position("l")
+            ra.set_axislabel_position("l")
+
+        # ax.set_xlabel('Right Ascension (deg)', fontsize=8)
+        # ax.set_ylabel('Declination (deg)', fontsize=8)
     else:
-        ax.set_xlabel('X-axis pixel number', fontsize=8)
-        ax.set_ylabel('Y-axis pixel number', fontsize=8)
+        ax.set_xlabel("X-axis pixel number", fontsize=8)
+        ax.set_ylabel("Y-axis pixel number", fontsize=8)
 
     # Modify the axis limits?
     if xaxlim is not None:
@@ -627,32 +696,33 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile,
         hival = np.max(xaxlim)
         ax.set_xbound(lower=loval, upper=hival)
         if verbose:
-            print(f'Setting X-axis limits to [{loval}, {hival}]')
+            print(f"Setting X-axis limits to [{loval}, {hival}]")
     if yaxlim is not None:
         loval = np.min(yaxlim)
         hival = np.max(yaxlim)
         ax.set_ybound(lower=loval, upper=hival)
         if verbose:
-            print(f'Setting Y-axis limits to [{loval}, {hival}]')
-    
-    output = outpngfile        
+            print(f"Setting Y-axis limits to [{loval}, {hival}]")
+
+    output = outpngfile
     if output is not None:
-        if 'interactive' in output:
-            print('Processing blocked while plotting window is open. Close it to procede.')
+        if "interactive" in output:
+            print("Processing blocked while plotting window is open. Close it to procede.")
             fig.show()
         else:
-            fig.savefig(output, dpi=200, bbox_inches='tight')
+            fig.savefig(output, dpi=200, bbox_inches="tight")
             if verbose:
-                print(f'Wrote plot to {output}')
+                print(f"Wrote plot to {output}")
     return rgb_array
-        
+
+
 def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetype):
     """
     Given the name of a calibrated input file, generate the file name for
     and output directory for one of the subsequent output file types.
-    
+
     For calibrated input files the the allowed output file types are:
-    
+
     - ``input``: This is the calibrated input file itself.
     - ``srclist``: Star detection output FITS table file.
     - ``regfile``: ds9-format region file.
@@ -663,7 +733,7 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
       sources in the input image.
     - ``navfile``: A navigated and renamed copy of the input file, but now
       with a valid WCS solution.
-    
+
     Parameters
     ----------
     input_file : str
@@ -671,12 +741,12 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
     input_rootname : str, optional, default=None
                The part of the input file name that are shared and that
                designate them being the calibrated files. If not specified
-               it is assumed that the file is from iTelescope or was 
+               it is assumed that the file is from iTelescope or was
                created by the AstroPhotography module itself, and will
-               have an input_rootname of either 'Calibrated-iTelescope', 
+               have an input_rootname of either 'Calibrated-iTelescope',
                'calibrated', or just 'cal' .
                The output file name from this function replace the rootname with
-               a file-type specific prefix, as described in the class 
+               a file-type specific prefix, as described in the class
                documentation and get_file_names function documentation.
     input_suffix : str, optional, default='.fits'
                String denoting the file type suffix of the input image file.
@@ -684,7 +754,7 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
     ap_filetype : {'input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
         The output file type for which the name should be returned.
         This should be one of the stage names described above.
-               
+
     Returns
     -------
     output_file : str
@@ -696,13 +766,13 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
     output_dir : str
         Directory name in which output_file will be written, relative
         to the root directory established by the input files.
-        
+
     Raises
     ------
     RuntimeError :
         If input_rootname is None but the input_file name does not match
         any of the expected iTelescope/AstroPhotography root names.
-        
+
     Warnings
     --------
     This function assumes that the input file is not in a subdirectory,
@@ -710,15 +780,16 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
     term this should be rewritten using the pathlib module without such
     an assumption.
     """
-    
-    allowed_stages = ['input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
+
+    allowed_stages = ["input", "srclist", "regfile", "plotfile", "qualfile", "fwhmplot", "navfile"]
     if ap_filetype not in allowed_stages:
-        err_msg = f'Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}'
-        self._logger.error(err_msg)
+        err_msg = (
+            f"Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}"
+        )
         raise RuntimeError(err_msg)
-    
+
     # Determine the root name to use.
-    default_roots = ['Calibrated-iTelescope', 'calibrated', 'cal']
+    default_roots = ["Calibrated-iTelescope", "calibrated", "cal"]
     file_root = input_rootname
     if file_root is None:
         for a_root in default_roots:
@@ -726,28 +797,29 @@ def namefn_calibrated_input(input_file, input_rootname, input_suffix, ap_filetyp
                 file_root = a_root
                 break
         if file_root is None:
-            err_msg = f'Error in namefn_calibrated_input: input file {input_file} matches none of the expected file roots: {default_roots}'
+            err_msg = f"Error in namefn_calibrated_input: input file {input_file} matches none of the expected file roots: {default_roots}"
             raise RuntimeError(err_msg)
-                
+
     name_conv_dict = _get_name_conv_dict(file_root)
 
-    conv = name_conv_dict[ap_filetype]        
+    conv = name_conv_dict[ap_filetype]
     output_file = input_file
-    output_dir  = conv['dir']
-    if conv['replace'] is not None:
-            output_file = output_file.replace(conv['replace'], conv['with'])
-    if conv['extension'] is not None:
-            output_file = output_file.replace(input_suffix, conv['extension'])
-    
+    output_dir = conv["dir"]
+    if conv["replace"] is not None:
+        output_file = output_file.replace(conv["replace"], conv["with"])
+    if conv["extension"] is not None:
+        output_file = output_file.replace(input_suffix, conv["extension"])
+
     return output_file, output_dir
 
-def namefn_getdir(ap_filetype):
+
+def namefn_getdir(ap_filetype: str) -> str:
     """
     Given a file type for star detection/astrometry, return the
     output directory such files would be placed in.
-    
+
     For calibrated input files the the allowed output file types are:
-    
+
     - ``input``: This is the calibrated input file itself.
     - ``srclist``: Star detection output FITS table file.
     - ``regfile``: ds9-format region file.
@@ -758,38 +830,40 @@ def namefn_getdir(ap_filetype):
       sources in the input image.
     - ``navfile``: A navigated and renamed copy of the input file, but now
       with a valid WCS solution.
-    
+
     Parameters
     ----------
     ap_filetype : {'input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile'}
         The AstroPhotography file type for which the directory should be returned.
         This should be one of the stage names described above.
-               
+
     Returns
     -------
     output_dir : str
         Directory name in which output files will be written, relative
         to the root directory established by the input files.
     """
-    
-    allowed_stages = ['input', 'srclist', 'regfile', 'plotfile', 'qualfile', 'fwhmplot', 'navfile']
+
+    allowed_stages = ["input", "srclist", "regfile", "plotfile", "qualfile", "fwhmplot", "navfile"]
     if ap_filetype not in allowed_stages:
-        err_msg = f'Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}'
-        self._logger.error(err_msg)
+        err_msg = (
+            f"Requested ap_filetype {ap_filetype} not one of the allowed values: {allowed_stages}"
+        )
         raise RuntimeError(err_msg)
-    
+
     # True file root not needed
-    file_root = 'Calibrated-iTelescope'
+    file_root = "Calibrated-iTelescope"
     name_conv_dict = _get_name_conv_dict(file_root)
-    conv = name_conv_dict[ap_filetype]        
-    output_dir  = conv['dir']
+    conv = name_conv_dict[ap_filetype]
+    output_dir = conv["dir"]
     return output_dir
+
 
 def _get_name_conv_dict(file_root):
     """
-    Utility function used by :func:`namefn_calibrated_input` that returns 
+    Utility function used by :func:`namefn_calibrated_input` that returns
     the file name and output directory dictionary given a file name root.
-    
+
     Parameters
     ----------
     file_root : str
@@ -797,18 +871,18 @@ def _get_name_conv_dict(file_root):
         either start with, or include. For calibrated files produced by
         Astrophotography this might be the string `cal`, while iTelescope
         uses ``Calibrated`` or ``calibrated``.
-        
+
     Returns
     -------
     name_conv_dict : dict
         Name conversion dictionary used to convert input calibrated file
         input names and paths into output file names.
-        
+
     See Also
     --------
     :class:`ApProcess` : Batch processing of calibrated files
     """
-    
+
     # Settings for output file names and output file paths
     # - This is difficult to fully automate without some assumptions about the input file names
     #   - I assume that all input file have the same file name prefix, e.g. Calibrated, or cal
@@ -818,37 +892,70 @@ def _get_name_conv_dict(file_root):
     # - If dir is not None then the various outputs files will be written to directories with the specified
     #   path relative to the **current** directory. The directory will be created if it not already
     #   present.
-    name_conv_dict = {'input':    {'replace': None,      'with': None,        'extension': None,    'dir': './'},
-                      'srclist':  {'replace': file_root, 'with': 'srclist',   'extension': '.fits', 'dir': './SourceLists/'},
-                      'regfile':  {'replace': file_root, 'with': 'ds9',       'extension': '.reg',  'dir': './SourceLists/'},
-                      'plotfile': {'replace': file_root, 'with': 'implot',    'extension': '.png',  'dir': './SourceLists/'},
-                      'fwhmplot': {'replace': file_root, 'with': 'fwhmplot',  'extension': '.png',  'dir': './SourceLists/'},
-                      'qualfile': {'replace': file_root, 'with': 'qual',      'extension': '.yaml', 'dir': './MetaData/'},
-                      'navfile':  {'replace': file_root, 'with': 'navigated', 'extension': '.fits', 'dir': './NavigatedImages/'}}
+    name_conv_dict = {
+        "input": {"replace": None, "with": None, "extension": None, "dir": "./"},
+        "srclist": {
+            "replace": file_root,
+            "with": "srclist",
+            "extension": ".fits",
+            "dir": "./SourceLists/",
+        },
+        "regfile": {
+            "replace": file_root,
+            "with": "ds9",
+            "extension": ".reg",
+            "dir": "./SourceLists/",
+        },
+        "plotfile": {
+            "replace": file_root,
+            "with": "implot",
+            "extension": ".png",
+            "dir": "./SourceLists/",
+        },
+        "fwhmplot": {
+            "replace": file_root,
+            "with": "fwhmplot",
+            "extension": ".png",
+            "dir": "./SourceLists/",
+        },
+        "qualfile": {
+            "replace": file_root,
+            "with": "qual",
+            "extension": ".yaml",
+            "dir": "./MetaData/",
+        },
+        "navfile": {
+            "replace": file_root,
+            "with": "navigated",
+            "extension": ".fits",
+            "dir": "./NavigatedImages/",
+        },
+    }
     return name_conv_dict
+
 
 def load_wcs_from_file(filename, extnum=0, verbose=False):
     """
     Load the astropy.wcs.WCS object from a given extension in a FITS file,
     returning it along with some summary statistics
-    
+
     Modified WCS example based on the `astropy documentation <https://docs.astropy.org/en/stable/wcs/loading_from_fits.html>`_.
 
     Note
     ~~~~
-    
+
     * Assumes a 2-dimensional image with angular coordinate axes
-    
+
     Parameters
     ----------
-    filename : str 
+    filename : str
         Name of the input FITS image.
-    extnum : int or str, default=0 
+    extnum : int or str, default=0
         Extension number or name for the extension holding the image data. Usually this is 0, for the ``PrimaryHDU``.
     verbose : bool, optional, default=False
-        If True then print the axis plate scale, pixel area, number of 
+        If True then print the axis plate scale, pixel area, number of
         pixels and image angular scale to stdout.
-            
+
     Returns
     -------
     w : astropy.wcs.WCS
@@ -862,48 +969,51 @@ def load_wcs_from_file(filename, extnum=0, verbose=False):
     im_scales : The angular extent of the images along the X and Y axes,
         in the default angular units of the image.
     """
-    w          = None
-    pix_scales = None # in deg
-    pix_area   = None # in deg^2
-    im_scales  = None # in deg
-    
+    w = None
+    pix_scales = None  # in deg
+    pix_area = None  # in deg^2
+    im_scales = None  # in deg
+
     # Load the FITS hdulist using astropy.io.fits
     with fits.open(filename) as hdulist:
-
         # Parse the WCS keywords in the primary HDU
         w = wcs.WCS(hdulist[0].header)
-    
+
         # Print out the "name" of the WCS, as defined in the FITS header
         if verbose:
             print(w.wcs.name)
-    
+
             # Print out all of the settings that were parsed from the header
             w.wcs.print_contents()
-    
+
         # Pixel scale at the CRPIX pixel location. Note, ideal, ignores distortions
         pix_scales = wcs.utils.proj_plane_pixel_scales(w)
-    
+
         # Pixel area at the CRPIX pixel location. Again, ideal, ignores distortions
         pix_area = wcs.utils.proj_plane_pixel_area(w.celestial)
 
         if w.wcs.naxis != 2:
-            print(f'WARNING, WCS from {filename} is {w.wcs.naxis}-dimensional, not 2-D as expected')
-        
+            print(
+                f"WARNING, WCS from {filename} is {w.wcs.naxis}-dimensional, not 2-D as expected"
+            )
+
         if len(pix_scales) != len(w.array_shape):
-            raise RuntimeError(f'Shape of pixel scales ({len(pix_scales)}) differs from shape of array ({len(w.array_shape)})')
+            raise RuntimeError(
+                f"Shape of pixel scales ({len(pix_scales)}) differs from shape of array ({len(w.array_shape)})"
+            )
         else:
             im_scales = pix_scales.copy()
             for idx in range(len(w.array_shape)):
                 im_scales[idx] *= w.array_shape[idx]
-    
+
         if verbose:
-            print(f'Pixel angular scale ({w.wcs.cunit[0]}):    {pix_scales}')
-            print(f'Pixel angular area ({w.wcs.cunit[0]}^2):   {pix_area}')
-            print(f'NAXIS1={w.array_shape[0]}   NAXIS2={w.array_shape[1]}')
-            print(f'Image angular scale ({w.wcs.cunit[0]}): {im_scales}')
-        
-    
+            print(f"Pixel angular scale ({w.wcs.cunit[0]}):    {pix_scales}")
+            print(f"Pixel angular area ({w.wcs.cunit[0]}^2):   {pix_area}")
+            print(f"NAXIS1={w.array_shape[0]}   NAXIS2={w.array_shape[1]}")
+            print(f"Image angular scale ({w.wcs.cunit[0]}): {im_scales}")
+
     return w, pix_scales, pix_area, im_scales
+
 
 def summarize_wcs(w):
     """
@@ -919,67 +1029,67 @@ def summarize_wcs(w):
     """
 
     ipwcs = w
-    
+
     dothead_list = []
 
     # Numbr of dimensions
     val_str = f"{'NAXIS':8s} = {ipwcs.wcs.naxis}"
-    dothead_list.append( val_str )
-    
+    dothead_list.append(val_str)
+
     keywords = ["NAXIS", "CTYPE", "CRVAL", "CRPIX"]
     values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
     for keyword, value in zip(keywords, values):
         for idx in range(ipwcs.naxis):
-            kw_str  = f"{keyword}{1+idx}"
-            if 'CTYPE' in keyword:
+            kw_str = f"{keyword}{1+idx}"
+            if "CTYPE" in keyword:
                 # Wrap strings in quotes
                 val_str = f"{kw_str:8s} = '{value[idx]}'"
             else:
                 val_str = f"{kw_str:8s} = {value[idx]}"
-            dothead_list.append( val_str )
+            dothead_list.append(val_str)
 
-    naxis  = ipwcs.wcs.naxis
+    naxis = ipwcs.wcs.naxis
     naxis1 = ipwcs.array_shape[0]
     naxis2 = ipwcs.array_shape[1]
     if naxis == 3:
         naxis3 = ipwcs.array_shape[2]
-        print(f'Warning: summarize_wcs() not written for 2-D images, {naxis}-dimensional data')
+        print(f"Warning: summarize_wcs() not written for 2-D images, {naxis}-dimensional data")
 
     cdelt1 = None
     cdelt2 = None
-    crot   = None
-    
+    crot = None
+
     if hasattr(ipwcs.wcs, "cd"):
         for irow in range(ipwcs.naxis):
             for jcol in range(ipwcs.naxis):
-                kw_str = f'CD{irow+1}_{jcol+1}'
-                val_str = f'{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}'
-                dothead_list.append( val_str )
+                kw_str = f"CD{irow+1}_{jcol+1}"
+                val_str = f"{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}"
+                dothead_list.append(val_str)
         cd = ipwcs.wcs.cd
         # From https://lweb.cfa.harvard.edu/~jzhao/SMA-FITS-CASA/docs/wcs88.pdf
-        cd11 = cd[0,0]
-        cd12 = cd[0,1]
-        cd21 = cd[1,0]
-        cd22 = cd[1,1]
-        cdelt1_mag = math.sqrt( cd12*cd12 + cd22*cd22 )
-        cdelt2_mag = math.sqrt( cd12*cd12 + cd22*cd22 )
+        cd11 = cd[0, 0]
+        cd12 = cd[0, 1]
+        cd21 = cd[1, 0]
+        cd22 = cd[1, 1]
+        cdelt1_mag = math.sqrt(cd12 * cd12 + cd22 * cd22)
+        cdelt2_mag = math.sqrt(cd12 * cd12 + cd22 * cd22)
         # the sign of cdelt1.cdelt2 = sign of (cd11*cd22 - cd12*cd21)
         # if the RHS is negative cdelt1 is negative by convention, so cdelt2 is always positive
-        tmpa =  cd11*cd22 - cd12*cd21
+        tmpa = cd11 * cd22 - cd12 * cd21
         cdelt1 = math.copysign(cdelt1_mag, tmpa)
         cdelt2 = cdelt2_mag
-        sign   = math.copysign(1, tmpa)
-        crot   = math.degrees( math.atan2( (sign*cd12), cd22) )
-            
+        sign = math.copysign(1, tmpa)
+        crot = math.degrees(math.atan2((sign * cd12), cd22))
+
     elif hasattr(ipwcs.wcs, "pc"):
         for irow in range(ipwcs.naxis):
             for jcol in range(ipwcs.naxis):
-                kw_str = f'PC{irow+1}_{jcol+1}'
-                val_str = f'{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}'
-                dothead_list.append( val_str )
-            kw_str = f'CDELT{1+irow}'
-            val_str = 'f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}'
-            dothead_list.append( val_str )
+                kw_str = f"PC{irow+1}_{jcol+1}"
+                val_str = f"{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}"
+                dothead_list.append(val_str)
+            kw_str = f"CDELT{1+irow}"
+            val_str = "f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
+            dothead_list.append(val_str)
             # Think that CD1_* = CDELT1 * PC1_* and CD2_* = CDELT2 * PC2_*
             pc = ipwcs.wcs.pc
             cdelt_vec = ipwcs.wcs.cdelt
@@ -987,62 +1097,68 @@ def summarize_wcs(w):
             for irow in range(ipwcs.naxis):
                 cd[irow] = cdelt_vec[irow] * pc[irow]
             # then as above
-        raise RuntimeError('summarize_wcs needs to be updated to handle cases with a PC_ matrix and no CD_ matrix')
+        raise RuntimeError(
+            "summarize_wcs needs to be updated to handle cases with a PC_ matrix and no CD_ matrix"
+        )
     else:
         # Assume we have a simple CDELT[12] case with CROTA
         for irow in range(ipwcs.naxis):
-            kw_str = f'CDELT{1+irow}'
-            val_str = 'f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}'
-            dothead_list.append( val_str )
-            kw_str = f'CROTA{1+irow}'
-            val_str = 'f{kw_str:8s} = {ipwcs.wcs.crota[irow]}'
-            dothead_list.append( val_str )
+            kw_str = f"CDELT{1+irow}"
+            val_str = "f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
+            dothead_list.append(val_str)
+            kw_str = f"CROTA{1+irow}"
+            val_str = "f{kw_str:8s} = {ipwcs.wcs.crota[irow]}"
+            dothead_list.append(val_str)
         cdelt1 = ipwcs.wcs.cdelt[0]
         cdelt2 = ipwcs.wcs.cdelt[1]
-        crot   = ipwcs.wcs.crota[1] # CROTA2 is used, CROTA1 not used. Assume crota[0] == crota[1]
+        crot = ipwcs.wcs.crota[1]  # CROTA2 is used, CROTA1 not used. Assume crota[0] == crota[1]
 
     # Convert to segagesimarl RA Dec. Assumes units are degrees, frame is ICRS
-    skycrd = SkyCoord(ra=ipwcs.wcs.crval[0]*units.degree, 
-        dec=ipwcs.wcs.crval[1]*units.degree, frame='icrs')
-    skycrd_str = skycrd.to_string('hmsdms', precision=1, sep='::', pad=True)
-    dothead_list.append( f'CRVAL1,2 RA, Dec as HMS, DMS     = {skycrd_str}' )
-    
-    cdelt1_as = cdelt1 * 3600.0      # arcseconds
-    cdelt2_as = cdelt2 * 3600.0      # arcseconds
-    ximgsz_am = cdelt1 * naxis1 * 60 # arcminutes
-    yimgsz_am = cdelt2 * naxis2 * 60 # arcminutes
-    dothead_list.append( f'Pixel size equivalent CDELT1     = {cdelt1_as:.3f} arcseconds' )
-    dothead_list.append( f'Pixel size equivalent CDELT2     = {cdelt2_as:.3f} arcseconds' )
-    dothead_list.append( f'Image X-axis angular size        = {ximgsz_am:.3f} arcminutes' )
-    dothead_list.append( f'Pixel Y-axis angular size        = {yimgsz_am:.3f} arcminutes' )
-    dothead_list.append( f'Image rotation equivalent CROTA2 = {crot:.3f} degrees' )
-    
-    dothead_list.append('END     ')
-    dothead_str = '\n'.join(dothead_list)
+    skycrd = SkyCoord(
+        ra=ipwcs.wcs.crval[0] * units.degree, dec=ipwcs.wcs.crval[1] * units.degree, frame="icrs"
+    )
+    skycrd_str = skycrd.to_string("hmsdms", precision=1, sep="::", pad=True)
+    dothead_list.append(f"CRVAL1,2 RA, Dec as HMS, DMS     = {skycrd_str}")
+
+    cdelt1_as = cdelt1 * 3600.0  # arcseconds
+    cdelt2_as = cdelt2 * 3600.0  # arcseconds
+    ximgsz_am = cdelt1 * naxis1 * 60  # arcminutes
+    yimgsz_am = cdelt2 * naxis2 * 60  # arcminutes
+    dothead_list.append(f"Pixel size equivalent CDELT1     = {cdelt1_as:.3f} arcseconds")
+    dothead_list.append(f"Pixel size equivalent CDELT2     = {cdelt2_as:.3f} arcseconds")
+    dothead_list.append(f"Image X-axis angular size        = {ximgsz_am:.3f} arcminutes")
+    dothead_list.append(f"Pixel Y-axis angular size        = {yimgsz_am:.3f} arcminutes")
+    dothead_list.append(f"Image rotation equivalent CROTA2 = {crot:.3f} degrees")
+
+    dothead_list.append("END     ")
+    dothead_str = "\n".join(dothead_list)
     print(dothead_str)
     return
-    
-def make_dothead_from_file(input_fits_with_wcs, output_swarp_dothead, extnum=0, format='fits', verbose=False):
+
+
+def make_dothead_from_file(
+    input_fits_with_wcs, output_swarp_dothead, extnum=0, format="fits", verbose=False
+):
     """
     Create the .head format file that swarp expected based on the WCS header of an input files file.
-    
+
     When generating the ASCII format file this function uses the method shown
     in `WCS.printwcs <https://docs.astropy.org/en/stable/_modules/astropy/wcs/wcs.html#WCS.printwcs>`_.
-    
+
     Note
     ~~~~
-    
+
     * Assumes a 2-dimensional image with angular coordinate axes
     * ASCII format ``.head`` files do not appear to work with current
       versions of ``swarp``. Use the ``fits`` format instead.
-    
+
     Parameters
     ----------
-    input_fits_with_wcs : str 
+    input_fits_with_wcs : str
         Name of existing FITS file with WCS in primary HDU that we want to emulate.
     output_swarp_dothead : str
         Name for the output ``.head`` file ``swarp`` will use.
-    extnum : int or str, default=0 
+    extnum : int or str, default=0
         Extension number or name for the extension holding the image data. Usually this is 0, for the ``PrimaryHDU``.
     format : {'text', 'fits'}
         If 'text' then an ASCII header will be created using the format
@@ -1050,113 +1166,118 @@ def make_dothead_from_file(input_fits_with_wcs, output_swarp_dothead, extnum=0, 
         HDU will be created.
     verbose : bool, optional, default=False
         If True then diagnostic information will be written to stdout.
-    """ 
-    
+    """
+
     with fits.open(input_fits_with_wcs) as hdulist:
         # Parse the WCS keywords in the primary HDU
         ipwcs = wcs.WCS(hdulist[0].header)
 
         if verbose:
-            print(f'WCS created from primary header of {input_fits_with_wcs}')
+            print(f"WCS created from primary header of {input_fits_with_wcs}")
             print(ipwcs)
-            print(80*"-")
-            #print(ipwcs.wcs)
-            #print(80*"-")
+            print(80 * "-")
+            # print(ipwcs.wcs)
+            # print(80*"-")
 
-        if 'text' in format:
+        if "text" in format:
             if verbose:
-                print('Generating an ASCII header following the format specified in the swarp documentation.')
-        
+                print(
+                    "Generating an ASCII header following the format specified in the swarp documentation."
+                )
+
             dothead_list = []
             keywords = ["NAXIS", "CTYPE", "CRVAL", "CRPIX"]
             values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
             for keyword, value in zip(keywords, values):
                 for idx in range(ipwcs.naxis):
-                    kw_str  = f"{keyword}{1+idx}"
-                    if 'CTYPE' in keyword:
+                    kw_str = f"{keyword}{1+idx}"
+                    if "CTYPE" in keyword:
                         # Wrap strings in quotes
                         val_str = f"{kw_str:8s} = '{value[idx]}'"
                     else:
                         val_str = f"{kw_str:8s} = {value[idx]}"
-                    dothead_list.append( val_str )
-    
+                    dothead_list.append(val_str)
+
             if hasattr(ipwcs.wcs, "pc"):
                 for irow in range(ipwcs.naxis):
                     for jcol in range(ipwcs.naxis):
-                        kw_str = f'PC{irow+1}_{jcol+1}'
-                        val_str = f'{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}'
-                        dothead_list.append( val_str )
-                    kw_str = f'CDELT{1+irow}'
-                    val_str = 'f{kw_str:8s} = {pwcs.wcs.cdelt[irow]}'
-                    dothead_list.append( val_str )
+                        kw_str = f"PC{irow+1}_{jcol+1}"
+                        val_str = f"{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}"
+                        dothead_list.append(val_str)
+                    kw_str = f"CDELT{1+irow}"
+                    val_str = "f{kw_str:8s} = {pwcs.wcs.cdelt[irow]}"
+                    dothead_list.append(val_str)
             elif hasattr(ipwcs.wcs, "cd"):
                 for irow in range(ipwcs.naxis):
                     for jcol in range(ipwcs.naxis):
-                        kw_str = f'CD{irow+1}_{jcol+1}'
-                        val_str = f'{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}'
-                        dothead_list.append( val_str )
-            
-            dothead_list.append('END     ')
-            dothead_str = '\n'.join(dothead_list)
-    
+                        kw_str = f"CD{irow+1}_{jcol+1}"
+                        val_str = f"{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}"
+                        dothead_list.append(val_str)
+
+            dothead_list.append("END     ")
+            dothead_str = "\n".join(dothead_list)
+
             if verbose:
-                print(f'--- dothead output from {input_fits_with_wcs} ---')
+                print(f"--- dothead output from {input_fits_with_wcs} ---")
                 print(dothead_str)
-                print(f'--- about to write to {output_swarp_dothead} ---')
-            
-            with open(output_swarp_dothead, 'w') as ofile:
+                print(f"--- about to write to {output_swarp_dothead} ---")
+
+            with open(output_swarp_dothead, "w") as ofile:
                 ofile.write(dothead_str)
                 if verbose:
-                    print(f'Wrote Swarp ASCII-format .head file to {output_swarp_dothead}')
-        elif 'fits' in format:
+                    print(f"Wrote Swarp ASCII-format .head file to {output_swarp_dothead}")
+        elif "fits" in format:
             if verbose:
-                print('Generating a FITS format header consisting of a PrimaryHDU only.')
+                print("Generating a FITS format header consisting of a PrimaryHDU only.")
             # based on https://docs.astropy.org/en/stable/wcs/example_create_imaging.html
             hdr = ipwcs.to_header()
 
-            # NAXIS = x, NAXISx values set from data, not by manipulating header 
+            # NAXIS = x, NAXISx values set from data, not by manipulating header
             olddata = hdulist[0].data
             data = 0 * olddata.astype(int)
 
             hdu = fits.PrimaryHDU(header=hdr, data=data)
-            hdu.writeto(output_swarp_dothead, overwrite=True, output_verify='ignore')
+            hdu.writeto(output_swarp_dothead, overwrite=True, output_verify="ignore")
             if verbose:
-                print(f'Wrote FITS header .head file to {output_swarp_dothead}')
+                print(f"Wrote FITS header .head file to {output_swarp_dothead}")
         else:
-            raise RuntimeError(f'Error, format ({format}) is not one of the allowed options: "text" "fits"')    
+            raise RuntimeError(
+                f'Error, format ({format}) is not one of the allowed options: "text" "fits"'
+            )
     return
+
 
 def get_exposure_time(hdr, verbose=False):
     """
     Return the first of EXPTIME, EXPOSURE, ONTIME, or LIVETIME from a FITS header
-    
+
     Parameters
     ----------
     hdr : astropy.io.fits.Header
         Input FITS Header instance
     verbose : bool, optional, default=False
         If True then diagnostic information will be written to stdout.
-    
+
     Returns
     -------
     exposure_time : float or None
         The exposure time in seconds, if found in the FITS header object.
         Otherwise None.
-    
+
     See Also
     --------
-    
+
     `HEASARC Commonly Used FITS Keywords <https://heasarc.gsfc.nasa.gov/docs/fcg/common_dict.html>`_
     """
-    keywords = ['EXPTIME', 'EXPOSURE', 'ONTIME', 'LIVETIME', 'TELAPSE', 'ELAPTIME']
+    keywords = ["EXPTIME", "EXPOSURE", "ONTIME", "LIVETIME", "TELAPSE", "ELAPTIME"]
     exposure_time = None
     for key in keywords:
         if hdr.count(key) > 0:
-            exposure_time = float( hdr[key] )
+            exposure_time = float(hdr[key])
             if verbose:
-                print(f'Keyword {key} found, setting exposure_time to {exposure_time}')
+                print(f"Keyword {key} found, setting exposure_time to {exposure_time}")
             break
         else:
             if verbose:
-                print(f'Keyword {key} not found, continuing search...')
+                print(f"Keyword {key} not found, continuing search...")
     return exposure_time
