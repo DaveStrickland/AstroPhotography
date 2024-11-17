@@ -16,7 +16,13 @@ from .ApUtil import (
     get_exposure_time,
     make_dothead_from_file,
 )
-from .file_writer import file_writer as file_writer
+from .file_writer import (
+    file_writer,
+    determine_file_type,
+    CapitalCase_to_snake_case,
+    update_fits_header_with_exif,
+    read_yaml_into_metadatadict,
+)
 
 __all__ = [
     "does_file_exist",
@@ -31,4 +37,8 @@ __all__ = [
     "get_exposure_time",
     "make_dothead_from_file",
     "file_writer",
+    "determine_file_type",
+    "CapitalCase_to_snake_case",
+    "update_fits_header_with_exif",
+    "read_yaml_into_metadatadict",
 ]

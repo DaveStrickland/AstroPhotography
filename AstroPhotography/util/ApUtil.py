@@ -60,7 +60,7 @@ from astropy.visualization import make_lupton_rgb
 ##from .. import __version__
 
 
-def does_file_exist(filename, verbose=False):
+def does_file_exist(filename: str, verbose: bool=False) -> bool:
     """
     Returns True if the file name or path exists, false otherwise
 
@@ -86,17 +86,17 @@ def does_file_exist(filename, verbose=False):
 
 
 def load_image_and_plot(
-    fname,
-    extnum=0,
-    output=None,
-    usewcs=True,
-    vmin=None,
-    vmax=None,
-    xaxlim=None,
-    yaxlim=None,
-    verbose=True,
-    angle_tick_spacing_am=2.0,
-    swap_radec_axis=False,
+    fname: str,
+    extnum: int|str=0,
+    output: str|None=None,
+    usewcs: bool=True,
+    vmin: float=None,
+    vmax: float=None,
+    xaxlim: Any=None,
+    yaxlim: Any=None,
+    verbose: bool=True,
+    angle_tick_spacing_am: float=2.0,
+    swap_radec_axis: bool=False,
 ):
     """
     Quick and dirty FITS image plot.
