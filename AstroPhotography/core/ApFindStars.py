@@ -1070,9 +1070,9 @@ class ApFindStars:
 
         # TODO pick color based on Filter
         reg_color = "red"
-        pix_fmt = ".2f"  # 0.01 pixels (for degrees use .6f)
+        ## = ".2f"  # 0.01 pixels (for degrees use .6f)
 
-        num_stars = len(self._phot_table)
+        ##num_stars = len(self._phot_table)
         ap_radius = math.ceil(self._ap_fwhm_mult * self._search_fwhm)
         regions = Regions()
         for x, y, id in zip(
@@ -1156,7 +1156,7 @@ class ApFindStars:
 
         for okey in im_info_struct_dict:
             fkw = im_info_struct_dict[okey]["kw"]
-            fmt = im_info_struct_dict[okey]["fmt"]
+            ##fmt = im_info_struct_dict[okey]["fmt"]
             if fkw in self._kw_dict:
                 val = self._kw_dict[fkw][0]
                 # Skip using the fmt as yaml_float_representer does a decent job.

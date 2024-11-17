@@ -581,7 +581,8 @@ class ApProcess:
                 maxval = np.amax(ext_data)
                 medval = np.median(ext_data)
                 self._logger.debug(
-                    f"After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+                    f"After PEDESTAL removal, min={minval:.2f}"
+                    f", max={maxval:.2f}, median={medval:.2f}"
                 )
 
         return ext_data, ext_hdr
@@ -1154,7 +1155,8 @@ class ApProcess:
         mkdir: bool = False,
     ) -> tuple[str, str, str, str, str, str]:
         """
-        Given an input file name and a conversion dictionary, generate all the file names that might
+        Given an input file name and a conversion dictionary,
+        generate all the file names that might
         be used to run star finding and astrometry on that image.
 
         Parameters
@@ -1403,7 +1405,9 @@ class ApProcess:
         resampled_file_prefix="resampled_",
         resampled_file_suffix="_resamp_weighted.fits",
         resampled_dir=r"./",
-        filter_list=None,
+        filter_list: list[str] | None = None,
+        resampled_summary_plot: str | None = None,
+        composite_summary_plot: str | None = None,
         preprocess_replace=None,
         preprocess_with=None,
         find_exposure_time=False,
@@ -1427,10 +1431,10 @@ class ApProcess:
         Note
         ----
 
-        **Image resampling:** The following parameters **must** specified in order to activate image
-        resampling and stacking: ``target_wcs_file``, ``resampled_file_prefix``,
-        ``resampled_file_suffix``, and ``resampled_dir``. The ``filter_list``
-        paramater is optional.
+        **Image resampling:** The following parameters **must** specified
+        in order to activate image resampling and stacking: ``target_wcs_file``,
+        ``resampled_file_prefix``, ``resampled_file_suffix``, and
+        ``resampled_dir``. The ``filter_list`` parameter is optional.
 
         **Image preprocessing:** The following parameters **must** specified in
         order to activate preprocessing: ``preprocess_replace`` and ``preprocess_with``
@@ -1584,6 +1588,24 @@ class ApProcess:
             example, to only resample the H-alpha and luminance images
             the filter list would be ``['Lum', 'Ha']``
             (resample_images_to_match parameter)
+        resampled_summary_plot: str or None, optional, default=None
+            If not None then a PNG file with the specified name containing plots
+            of each output resampled image will be generated. The plots are
+            generated using :func:`util.load_three_images_and_plot`.
+            Default intensity scaling and WCS plotting options will be used.
+            (resample_images_to_match parameter)
+        composite_summary_plot: str or None, optional, default=None
+            If there are resampled images in all three Red, Green, and Blue
+            filters and/or all three Ha, SII, and OIII filters and this
+            argument is not None then a PNG file with summary plots of three
+            color composities will be generated. If Red, Green, and Blue
+            filters are present then an ``RGB`` threee color composite plot
+            will be generated. If the SII, H-alpha, and OIII filters
+            are present then an ``SHO`` color-scheme composite plot
+            will be generated. The plots are
+            generated using :func:`util.plot_lupton_threecolor`.
+            Default intensity scaling and WCS plotting options will be used.
+            (resample_images_to_match parameter)
         preprocess_replace : str
             Substring common to all the input calibrated files that will
             be replaced with ``preprocess_with``. (preprocess_images parameter)
@@ -1735,7 +1757,7 @@ class ApProcess:
 
         # Resample and image mosaicing/stacking
         if target_wcs_file is None:
-            target_wcs_file = nav_status_table["filename"][0]
+            target_wcs_file = self._navfile_files[0]
             self._logger.info(
                 (
                     f"Adopting {target_wcs_file} as the target"
@@ -1749,6 +1771,8 @@ class ApProcess:
             resampled_file_suffix,
             resampled_dir,
             filter_list,
+            resampled_summary_plot=resampled_summary_plot,
+            composite_summary_plot=composite_summary_plot,
         )
 
         return (
@@ -1973,6 +1997,7 @@ class ApProcess:
         mkdir = True  # We want subdirectories made if not present
         proc_tstart = time.perf_counter()
         for hdu, fname in ifc_cal.hdus(return_fname=True):
+            status = "pass"
             self._logger.debug(80 * "-")
             self._logger.info(f"Processing input file {fname}")
 
@@ -2365,11 +2390,13 @@ class ApProcess:
 
     def resample_images_to_match(
         self,
-        target_wcs_file,
-        resampled_file_prefix,
-        resampled_file_suffix,
-        resampled_dir=None,
-        filter_list=None,
+        target_wcs_file: str,
+        resampled_file_prefix: str,
+        resampled_file_suffix: str,
+        resampled_dir: str | None = None,
+        filter_list: list[str] | None = None,
+        resampled_summary_plot: str | None = None,
+        composite_summary_plot: str | None = None,
     ):
         """
         Resample and combine all navigated images to match the WCS defined
@@ -2418,6 +2445,22 @@ class ApProcess:
             matching one of the input list strings will be resampled. For
             example, to only resample the H-alpha and luminance images
             the filter list would be ``['Lum', 'Ha']``
+        resampled_summary_plot: str or None, optional, default=None
+            If not None then a PNG file with the specified name containing plots
+            of each output resampled image will be generated. The plots are
+            generated using :func:`util.load_three_images_and_plot`.
+            Default intensity scaling and WCS plotting options will be used.
+        composite_summary_plot: str or None, optional, default=None
+            If there are resampled images in all three Red, Green, and Blue
+            filters and/or all three Ha, SII, and OIII filters and this
+            argument is not None then a PNG file with summary plots of three
+            color composities will be generated. If Red, Green, and Blue
+            filters are present then an ``RGB`` threee color composite plot
+            will be generated. If the SII, H-alpha, and OIII filters
+            are present then an ``SHO`` color-scheme composite plot
+            will be generated. The plots are
+            generated using :func:`util.plot_lupton_threecolor`.
+            Default intensity scaling and WCS plotting options will be used.
 
         Returns
         -------
@@ -2731,6 +2774,57 @@ class ApProcess:
                 f" in {res_telapsed:.3f} seconds: {resampled_images}"
             )
         )
+
+        # Optional plotting
+        swap_axis = False  # we do not know ahead of time if the axes should be swapped
+        angle_tick_spacing = 10  # arcmin, reasonable for iTelescope
+        qval = 8
+        stretch = 0.5
+        if resampled_summary_plot is not None:
+            imlist: list[str] = [resampled_images[key] for key in resampled_images.keys()]
+            nimgs = len(imlist)
+
+            self._logger.debug(
+                f"Generating a summary plot of {nimgs} using "
+                f"WCS info, tick spacing {angle_tick_spacing} arcmin,"
+                f" and swap_radec_axis={swap_axis}."
+            )
+            util.load_imlist_and_plot(
+                imlist,
+                extnum=self._extnum,
+                output=resampled_summary_plot,
+                usewcs=True,
+                vmin=None,
+                vmax=None,
+                xaxlim=None,
+                yaxlim=None,
+                verbose=True,
+                angle_tick_spacing_am=angle_tick_spacing,
+                swap_radec_axis=swap_axis,
+            )
+            self._logger.info(f"Resampled image summary plot generated: {resampled_summary_plot}")
+        if composite_summary_plot is not None:
+            self._logger.debug(
+                "Generating a summary color composite plot using "
+                f"WCS info, tick spacing {angle_tick_spacing} arcmin,"
+                f" and swap_radec_axis={swap_axis}."
+            )
+            util.make_lupton_threecolor_plots(
+                resampled_images,
+                composite_summary_plot,
+                extnum=self._extnum,
+                usewcs=True,
+                vmin=None,
+                xaxlim=None,
+                yaxlim=None,
+                qval=qval,
+                stretchval=stretch,
+                verbose=True,
+                angle_tick_spacing_am=angle_tick_spacing,
+                swap_radec_axis=swap_axis,
+            )
+            self._logger.info(f"Summary color composite plot generated: {composite_summary_plot}")
+
         return resampled_images, resampled_info_table
 
     def get_filter_list(self, ap_filetype="input"):

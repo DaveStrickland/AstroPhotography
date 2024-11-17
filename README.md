@@ -3,10 +3,10 @@
 The aim of the AstroPhotography python package is to provides python 
 classes and command line applications for amateur astronomy, specifically:
 
-- quick inspection and conversion of RAW digital camera format to common 
-  graphical image formats (e.g. PNG) and astronomical FITS format.
 - reduction and combination of multiple FITS images, including calibration,
   artifact removal, star detection, and astrometry.
+- quick inspection and conversion of RAW digital camera format to common 
+  graphical image formats (e.g. PNG) and astronomical FITS format.
 
 FITS images can then be viewed with the powerful features SAO `ds9`
 provides, and/or within python using `astropy`.
@@ -22,15 +22,30 @@ changed recently.
 
 ## Command Line Functionality
 
-The command line python program `dksraw` will provide a simple method of
+A series of python scripts, all beginning with the prefix `ap_`, 
+perform separate command-line driven stages of traditional astronomical 
+image data reduction given FITS files generated either by `dksraw` or obtained directly
+from some other sources (e.g. iTelescope, an archive, etc).
+
+These scripts use python class and functions (typically with names starting in `Ap`)
+that provide the main functionality. These can be called by the user from within
+python or jupyter notebooks instead of using command line scripts.
+A set of jupyter notebooks provide example walk-throughs of some
+use cases, in particular processing calibrated FITS images from iTelescope.
+
+The command line python program `dksraw` provides a simple method of
 quickly converting RAW files into useful images or FITS files without 
 the user having to mess around with `dcraw`, `gimp`, `photoshop` or 
 the equivalent.
 
-A series of python scripts, all beginning with the prefix `ap_`, will 
-perform separate stages of traditional astronomical image data reduction
-given FITS files generated either by `dksraw` or obtained directly
-from some other sources (e.g. iTelescope, an archive, etc).
+### ap_ scripts
+
+A series of python classes for FITS data processing (with names beginning 
+with Ap) can be used from the unix command line using scripts (names 
+beginning with ap_).
+
+(To be described, but see [doc/iTelescope_processing.md](doc/iTelescope_processing.md)
+for a very high level summary of what is currently implemented.)
 
 ### dksraw
 
@@ -46,15 +61,6 @@ The command line `dksraw` application will provide the following subcommands:
 - whitebalance: Perform whitebalance calculations on the input RAW file in one
                 of several ways. **Partially implemented as part of `grey`.**
 - info: Print metadata about the input RAW file to stdout.  **Not yet implemented.**
-
-### ap_ scripts
-
-A series of python classes for FITS data processing (with names beginning 
-with Ap) can be used from the unix command line using scripts (names 
-beginning with ap_).
-
-(To be described, but see [doc/iTelescope_processing.md](doc/iTelescope_processing.md)
-for a very high level summary of what is currently implemented.)
 
 ## Installation Instructions
 
@@ -112,7 +118,10 @@ make html
 
 #### Developers Only
 
-Run the test suite. For reasons I haven't resolved running pytest as a stand-alone
+Formatting and linting follow `Ruff`.
+
+The test suite is very limited and will be rewritten at some stage.
+For reasons I haven't resolved running pytest as a stand-alone
 runs into the path issues related to https://docs.pytest.org/en/latest/pythonpath.html
 
 ```bash
