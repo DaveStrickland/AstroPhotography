@@ -21,6 +21,7 @@ from ccdproc import ImageFileCollection
 from astropy.table import Table, Column
 from astropy.table import unique
 from astropy.io import fits
+from astropy import wcs
 
 # AstroPhotography includes
 from .. import __version__
@@ -1659,6 +1660,7 @@ class ApProcess:
             List of file names of the output modified files
         """
 
+        procall_tstart = time.perf_counter()
         preprocessed_modified_files = None
         nav_status_table = None
         resampled_images = None
@@ -1764,6 +1766,13 @@ class ApProcess:
                     " WCS file for resample_images_to_match."
                 )
             )
+        else:
+            self._logger.info(
+                (
+                    f"Using input {target_wcs_file} as the target"
+                    " WCS file for resample_images_to_match."
+                )
+            )
 
         resampled_images, resampled_info_table = self.resample_images_to_match(
             target_wcs_file,
@@ -1774,6 +1783,10 @@ class ApProcess:
             resampled_summary_plot=resampled_summary_plot,
             composite_summary_plot=composite_summary_plot,
         )
+
+        procall_tend = time.perf_counter()
+        procall_telapsed = procall_tend - procall_tstart  # seconds
+        self._logger.info((f"Finished. Processing took {procall_telapsed:.3f} seconds."))
 
         return (
             nav_status_table,
@@ -2596,6 +2609,25 @@ class ApProcess:
         swarp_verbose = False  # Echo swarp input string if True, echo .head for FIRST case
         resampled_images = {}
 
+        # Check target WCS file exists
+        crot: float = 0
+        if not self._check_file_exists(target_wcs_file, False):
+            err_msg = "Error, target_wcs_file {target_wcs_file} not found."
+            self._logger.error(err_msg)
+            raise RuntimeError(err_msg)
+        else:
+            # otherwise get some information on the file
+            with fits.open(target_wcs_file) as hdulist:
+                ipwcs = wcs.WCS(hdulist[self._extnum].header)
+                dothead_str, cd1as, cd2as, xsiz1am, ysiz2am, crot = util.summarize_wcs(
+                    ipwcs, False
+                )
+                self._logger.info(
+                    f"Target WCS file is {xsiz1am:.2f} x {ysiz2am:.2f}"
+                    f" arcmin (wxh) with {cd1as:.2f} x {cd2as:.2f} arcsec pixels"
+                    f" at an angle of {crot:.2f} deg from North."
+                )
+
         if resampled_dir is not None:
             mkdir = True
             dir_exists = self._check_dir_exists(resampled_dir, mkdir, False)
@@ -2776,7 +2808,11 @@ class ApProcess:
         )
 
         # Optional plotting
-        swap_axis = False  # we do not know ahead of time if the axes should be swapped
+        swap_axis = False  # assumes Y-axis roughly in line with north or south
+        if (45.0 < crot <= 135.0) or (225.0 < crot <= 315.0):
+            self._logger.debug(f"Setting swap_axis True because crot={crot:.2f} degrees.")
+            swap_axis = True
+
         angle_tick_spacing = 10  # arcmin, reasonable for iTelescope
         qval = 8
         stretch = 0.5

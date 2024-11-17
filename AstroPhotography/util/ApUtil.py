@@ -1247,10 +1247,12 @@ def load_wcs_from_file(filename, extnum=0, verbose=False):
     return w, pix_scales, pix_area, im_scales
 
 
-def summarize_wcs(w):
+def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, float, float, float]:
     """
-    Given an astropy WCS object, summarise the properties of the WCS header,
-    printing to STDOUT.
+    Given an astropy WCS object, summarise the properties of the WCS header.
+
+    If verbose is True a full summary is printed to STDOUT. A smaller subset of
+    key parameters is returned to the caller.
 
     This assumes that the images are two dimensional, and that angles are in degrees.
 
@@ -1258,6 +1260,25 @@ def summarize_wcs(w):
     ----------
     w : astropy.wcs.WCS
         A valid astropy WCS instance
+    verbose : bool, optional, default=True
+        If true, output information to STDOUT.
+
+    Returns
+    -------
+    dothead_str : str
+        Multiline string WCS summary in the text form that ``swarp`` is
+        supposed to accept (but appears not to).
+    cdelt1_as : float
+        Equivalent X-axis pixel size in arcseconds.
+    cdelt2_as : float
+        Equivalent Y-axis pixel size in arcseconds.
+    ximgsz_am : float
+        Equivalent X-axis image size in arcminutes.
+    yimgsz_am : float
+        Equivalent Y-axis image size in arcminutes.
+    crot : float
+        Image rotation angle (degrees) equiavelnt to CROTA2, the angle between
+        the Y-axis and true North.
     """
 
     ipwcs = w
@@ -1364,8 +1385,9 @@ def summarize_wcs(w):
 
     dothead_list.append("END     ")
     dothead_str = "\n".join(dothead_list)
-    print(dothead_str)
-    return
+    if verbose:
+        print(dothead_str)
+    return (dothead_str, cdelt1_as, cdelt2_as, ximgsz_am, yimgsz_am, crot)
 
 
 def make_dothead_from_file(
