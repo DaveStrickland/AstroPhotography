@@ -60,7 +60,7 @@ from astropy.visualization import make_lupton_rgb
 ##from .. import __version__
 
 
-def does_file_exist(filename: str, verbose: bool=False) -> bool:
+def does_file_exist(filename: str, verbose: bool = False) -> bool:
     """
     Returns True if the file name or path exists, false otherwise
 
@@ -87,16 +87,16 @@ def does_file_exist(filename: str, verbose: bool=False) -> bool:
 
 def load_image_and_plot(
     fname: str,
-    extnum: int|str=0,
-    output: str|None=None,
-    usewcs: bool=True,
-    vmin: float=None,
-    vmax: float=None,
-    xaxlim: Any=None,
-    yaxlim: Any=None,
-    verbose: bool=True,
-    angle_tick_spacing_am: float=2.0,
-    swap_radec_axis: bool=False,
+    extnum: int | str = 0,
+    output: str | None = None,
+    usewcs: bool = True,
+    vmin: float = None,
+    vmax: float = None,
+    xaxlim: Any = None,
+    yaxlim: Any = None,
+    verbose: bool = True,
+    angle_tick_spacing_am: float = 2.0,
+    swap_radec_axis: bool = False,
 ):
     """
     Quick and dirty FITS image plot.
@@ -173,6 +173,8 @@ def load_image_and_plot(
     if usewcs:
         w = wcs.WCS(hdu.header)
 
+    default_font_size = 7
+
     # Compute vmin and vmax if necessary
     # percentiles
     ipctls = [0.5, 99.5]
@@ -209,9 +211,9 @@ def load_image_and_plot(
         im, ax=ax, extend="neither", spacing="proportional", orientation="vertical", shrink=0.85
     )
     cbar.set_label(r"Units TBA")
-    cbar.ax.tick_params(labelsize=8)
+    cbar.ax.tick_params(labelsize=default_font_size)
     title_str = fname  # .replace("_", "\_")
-    ax.set_title(f"{title_str}", fontsize=8)
+    ax.set_title(f"{title_str}", fontsize=default_font_size)
 
     # Display default axis limits
     xlim_used = ax.get_xbound()
@@ -221,7 +223,7 @@ def load_image_and_plot(
         print(f"Default Y-axis limits: {ylim_used}")
 
     title_str = fname  # .replace("_", "\_")
-    ax.set_title(f"{title_str}", fontsize=8)
+    ax.set_title(f"{title_str}", fontsize=default_font_size)
     if usewcs:
         # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
         ra = ax.coords[0]
@@ -232,12 +234,12 @@ def load_image_and_plot(
             spacing=angle_tick_spacing_am * units.arcmin, color="red"
         )  # Ticks must be defined for axis tickvals to appear
         dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color="blue")
-        ra.set_ticklabel(color="red", fontsize=8)
-        dec.set_ticklabel(color="blue", fontsize=8)
+        ra.set_ticklabel(color="red", fontsize=default_font_size)
+        dec.set_ticklabel(color="blue", fontsize=default_font_size)
         ra.grid(color="red", linestyle="--", alpha=0.6)
         dec.grid(color="blue", linestyle="--", alpha=0.6)
-        ra.set_axislabel("Right Ascension (HMS)", fontsize=8, color="red")
-        dec.set_axislabel("Declination (dms)", fontsize=8, color="blue")
+        ra.set_axislabel("Right Ascension (HMS)", fontsize=default_font_size, color="red")
+        dec.set_axislabel("Declination (dms)", fontsize=default_font_size, color="blue")
 
         if swap_radec_axis:
             # Images where ra changes fastest on Y, not X
@@ -248,11 +250,11 @@ def load_image_and_plot(
             ra.set_ticklabel_position("l")
             ra.set_axislabel_position("l")
 
-        # ax.set_xlabel('Right Ascension (deg)', fontsize=8)
-        # ax.set_ylabel('Declination (deg)', fontsize=8)
+        # ax.set_xlabel('Right Ascension (deg)', fontsize=default_font_size)
+        # ax.set_ylabel('Declination (deg)', fontsize=default_font_size)
     else:
-        ax.set_xlabel("X-axis pixel number", fontsize=8)
-        ax.set_ylabel("Y-axis pixel number", fontsize=8)
+        ax.set_xlabel("X-axis pixel number", fontsize=default_font_size)
+        ax.set_ylabel("Y-axis pixel number", fontsize=default_font_size)
 
     # Modify the axis limits?
     if xaxlim is not None:
@@ -388,6 +390,8 @@ def load_imlist_and_plot(
         )
     )
 
+    default_font_size = 7
+
     # Percentiles to use
     ipctls = [0.5, 99.5]
 
@@ -440,7 +444,7 @@ def load_imlist_and_plot(
                 shrink=0.85,
             )
             cbar.set_label(r"Units TBA")
-            cbar.ax.tick_params(labelsize=8)
+            cbar.ax.tick_params(labelsize=default_font_size)
 
             # Display default axis limits
             xlim_used = ax.get_xbound()
@@ -449,7 +453,7 @@ def load_imlist_and_plot(
                 print(f"Default X-axis limits: {xlim_used}")
                 print(f"Default Y-axis limits: {ylim_used}")
 
-            ax.set_title(f"{title_str}", fontsize=8)
+            ax.set_title(f"{title_str}", fontsize=default_font_size)
             if usewcs:
                 # Adapted from @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
                 ra = ax.coords[0]
@@ -460,12 +464,12 @@ def load_imlist_and_plot(
                     spacing=angle_tick_spacing_am * units.arcmin, color="red"
                 )  # Ticks must be defined for axis tickvals to appear
                 dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color="blue")
-                ra.set_ticklabel(color="red", fontsize=8)
-                dec.set_ticklabel(color="blue", fontsize=8)
+                ra.set_ticklabel(color="red", fontsize=default_font_size)
+                dec.set_ticklabel(color="blue", fontsize=default_font_size)
                 ra.grid(color="red", linestyle="--", alpha=0.6)
                 dec.grid(color="blue", linestyle="--", alpha=0.6)
-                ra.set_axislabel("Right Ascension (HMS)", fontsize=8, color="red")
-                dec.set_axislabel("Declination (dms)", fontsize=8, color="blue")
+                ra.set_axislabel("Right Ascension (HMS)", fontsize=default_font_size, color="red")
+                dec.set_axislabel("Declination (dms)", fontsize=default_font_size, color="blue")
 
                 if swap_radec_axis:
                     # Images where ra changes fastest on Y, not X
@@ -476,11 +480,11 @@ def load_imlist_and_plot(
                     ra.set_ticklabel_position("l")
                     ra.set_axislabel_position("l")
 
-                # ax.set_xlabel('Right Ascension (deg)', fontsize=8)
-                # ax.set_ylabel('Declination (deg)', fontsize=8)
+                # ax.set_xlabel('Right Ascension (deg)', fontsize=default_font_size)
+                # ax.set_ylabel('Declination (deg)', fontsize=default_font_size)
             else:
-                ax.set_xlabel("X-axis pixel number", fontsize=8)
-                ax.set_ylabel("Y-axis pixel number", fontsize=8)
+                ax.set_xlabel("X-axis pixel number", fontsize=default_font_size)
+                ax.set_ylabel("Y-axis pixel number", fontsize=default_font_size)
 
             # Modify the axis limits?
             if xaxlim is not None:
@@ -623,6 +627,8 @@ def plot_lupton_threecolor(
     hdub = hdulist_b[extnum]
     w = wcs.WCS(hdur.header)
 
+    default_font_size = 7
+
     # Compute vmin and vmax if necessary. NOTE this only uses the red channel
     # percentiles
     ipctls = [0.5, 99.5]
@@ -673,8 +679,8 @@ def plot_lupton_threecolor(
     cbar = fig.colorbar(
         im, ax=ax, extend="neither", spacing="proportional", orientation="vertical", shrink=0.85
     )
-    cbar.set_label(r"Units TBA")
-    cbar.ax.tick_params(labelsize=8)
+    cbar.set_label(r"Units TBA", fontsize=default_font_size)
+    cbar.ax.tick_params(labelsize=default_font_size)
 
     # Display default axis limits
     xlim_used = ax.get_xbound()
@@ -689,7 +695,7 @@ def plot_lupton_threecolor(
         f"\nGreen = {greenfile}"
         f"\nBlue = {bluefile}\n"
     )
-    ax.set_title(f"{title_str}", fontsize=8)
+    ax.set_title(f"{title_str}", fontsize=default_font_size)
     if usewcs:
         # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
         ra = ax.coords[0]
@@ -700,12 +706,12 @@ def plot_lupton_threecolor(
             spacing=angle_tick_spacing_am * units.arcmin, color="red"
         )  # Ticks must be defined for axis tickvals to appear
         dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color="blue")
-        ra.set_ticklabel(color="red", fontsize=8)
-        dec.set_ticklabel(color="blue", fontsize=8)
+        ra.set_ticklabel(color="red", fontsize=default_font_size)
+        dec.set_ticklabel(color="blue", fontsize=default_font_size)
         ra.grid(color="red", linestyle="--", alpha=0.6)
         dec.grid(color="blue", linestyle="--", alpha=0.6)
-        ra.set_axislabel("Right Ascension (HMS)", fontsize=8, color="red")
-        dec.set_axislabel("Declination (dms)", fontsize=8, color="blue")
+        ra.set_axislabel("Right Ascension (HMS)", fontsize=default_font_size, color="red")
+        dec.set_axislabel("Declination (dms)", fontsize=default_font_size, color="blue")
 
         if swap_radec_axis:
             # Images where ra changes fastest on Y, not X
@@ -716,11 +722,11 @@ def plot_lupton_threecolor(
             ra.set_ticklabel_position("l")
             ra.set_axislabel_position("l")
 
-        # ax.set_xlabel('Right Ascension (deg)', fontsize=8)
-        # ax.set_ylabel('Declination (deg)', fontsize=8)
+        # ax.set_xlabel('Right Ascension (deg)', fontsize=default_font_size)
+        # ax.set_ylabel('Declination (deg)', fontsize=default_font_size)
     else:
-        ax.set_xlabel("X-axis pixel number", fontsize=8)
-        ax.set_ylabel("Y-axis pixel number", fontsize=8)
+        ax.set_xlabel("X-axis pixel number", fontsize=default_font_size)
+        ax.set_ylabel("Y-axis pixel number", fontsize=default_font_size)
 
     # Modify the axis limits?
     if xaxlim is not None:

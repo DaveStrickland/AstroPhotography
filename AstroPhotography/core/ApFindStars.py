@@ -309,6 +309,8 @@ class ApFindStars:
         standard graphics bitmap-format file.
         """
 
+        default_font_size = 7
+
         # Normally the range 0.5 percent to 99.5 percent clips off the
         # outliers.
         pct_interval = AsymmetricPercentileInterval(0.50, 99.5)
@@ -319,7 +321,7 @@ class ApFindStars:
         asinh_norm = ImageNormalize(self._data, interval=pct_interval, stretch=AsinhStretch())
 
         fig, ax = plt.subplots()
-        ax.tick_params(axis="both", labelsize=8)
+        ax.tick_params(axis="both", labelsize=default_font_size)
 
         im = ax.imshow(self._data, origin="lower", norm=asinh_norm)
         self._apertures.plot(color="red", lw=1.5, alpha=0.5)
@@ -338,9 +340,9 @@ class ApFindStars:
         if self._max_adu is not None:
             info_str = "Brightest " + info_str
 
-        ax.set_title(f"{fname_str}\n{info_str}", fontsize=8)
-        ax.set_xlabel("X-axis (pixels)", fontsize=8)
-        ax.set_ylabel("Y-axis (pixels)", fontsize=8)
+        ax.set_title(f"{fname_str}\n{info_str}", fontsize=default_font_size)
+        ax.set_xlabel("X-axis (pixels)", fontsize=default_font_size)
+        ax.set_ylabel("Y-axis (pixels)", fontsize=default_font_size)
         # plt.show()
         plt.savefig(self._plotfile, dpi=200, bbox_inches="tight")
         self._logger.debug(
