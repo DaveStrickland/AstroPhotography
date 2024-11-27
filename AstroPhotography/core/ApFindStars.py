@@ -323,7 +323,7 @@ class ApFindStars:
         fig, ax = plt.subplots()
         ax.tick_params(axis="both", labelsize=default_font_size)
 
-        im = ax.imshow(self._data, origin="lower", norm=asinh_norm)
+        ax.imshow(self._data, origin="lower", norm=asinh_norm)
         self._apertures.plot(color="red", lw=1.5, alpha=0.5)
 
         # Clean up file name string to prevent _ becoming subscripts.

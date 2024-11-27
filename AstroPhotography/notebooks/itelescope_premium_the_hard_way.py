@@ -54,7 +54,7 @@ e and version
     return
 
 
-# In[66]:
+# In[3]:
 
 
 # Get Version information
@@ -90,9 +90,9 @@ InteractiveShell.ast_node_interactivity = "all"
 
 
 print('Enter the path to the directory containing the premium image set')
-wdir = input('Image set path:')
+wdir = input('Image set path:').strip()
 try:
-    os.chdir(wdir.strip())
+    os.chdir(wdir)
     print('Switched directory to ' + os.getcwd())
 except:
     print(f'Error, os.chdir threw an exception changing to {wdir}')
@@ -375,7 +375,7 @@ p_scale_err_ratio = None
 p_clean = False
 
 
-# In[1]:
+# In[11]:
 
 
 def does_file_exists(filename, verbose=False):
@@ -390,7 +390,7 @@ def does_file_exists(filename, verbose=False):
     return True
 
 
-# In[11]:
+# In[12]:
 
 
 def find_stars_wrapper(p_loglevel, p_fitsimg, p_fitstbl, 
@@ -437,7 +437,7 @@ def find_stars_wrapper(p_loglevel, p_fitsimg, p_fitstbl,
     return
 
 
-# In[12]:
+# In[13]:
 
 
 find_stars_wrapper(p_loglevel, p_fitsimg, p_fitstbl, 
@@ -463,7 +463,7 @@ find_stars_wrapper(p_loglevel, p_fitsimg, p_fitstbl,
 # 
 # To attempt astrometry using `Astrometry.net` we need an **API key**.  If you have set up the astroquery config file with one already (see `doc/iTelescope_processing.md`) you can hope that it is picked up, or you can eneter one in the following prompt.
 
-# In[13]:
+# In[14]:
 
 
 msg = 'Enter your Astrometry.net API key, or hit return to use one preconfigured with astroquery: '
@@ -473,23 +473,23 @@ if p_astnetkey is None:
     print("  If this is not the case processing will fail.")
 
 
-# In[14]:
+# In[15]:
 
 
 ap_astrom = ap.ApAstrometry(p_inpimg, 
-    p_extnum,
-    p_srclist, 
-    p_src_extname,
+    p_srclist,
     p_outimg, 
-    p_astnetkey,
-    p_use_sip,
-    p_user_scale,
-    p_scale_err_ratio,
-    p_loglevel)
+    inp_img_extnum=p_extnum,
+    srclist_extname=p_src_extname,
+    astnet_key=p_astnetkey,
+    use_sip=p_use_sip,
+    user_scale=p_user_scale,
+    scale_err_ratio=p_scale_err_ratio,
+    loglevel=p_loglevel)
 p_status = ap_astrom.status()
 print(f'ApAstrometry return status: {p_status}')
 if p_status == ap.ApAstrometry.NOMINAL:
-    print('  Astrometric solution suceeded.')
+    print('  Astrometric solution succeeded.')
 elif p_status == ap.ApAstrometry.INPUT_ERROR:
     print('  Error, incorrect or missing input.')
 elif p_status == ap.ApAstrometry.NO_SOLUTION:
@@ -519,7 +519,7 @@ else:
 # 
 # We'll now run though processing all the images, but still doing most of the coding work by hand.
 
-# In[15]:
+# In[16]:
 
 
 p_dir = pathlib.Path(r'./')
@@ -529,7 +529,7 @@ for fpath in flist:
     print(f'  {fpath.name}')
 
 
-# In[16]:
+# In[17]:
 
 
 keys = ['naxis1', 'naxis2', 'imagetyp', 'object', 'filter', 'exposure']
@@ -541,9 +541,9 @@ print(ifc_cal.summary)
 # 
 # For a list of commonly used (in professional settings) FITS keywords see https://heasarc.gsfc.nasa.gov/docs/fcg/common_dict.html. Note that the [official standard](https://fits.gsfc.nasa.gov/fits_standard.html) is defined elsewhere. This [HEASARC webpage has a subset of the standard keywords](https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html) but note that it does not include the recommendations from the FITS papers.
 # 
-# This is not a huge issue for getting an Astrometric solution, where each iage is processed separately. However, when later combining and mosaicing images we are likely to want to select on the exposure time of the observation in order to maximise the final signal to noise ratio.
+# This is not a huge issue for getting an Astrometric solution, where each image is processed separately. However, when later combining and mosaicing images we are likely to want to select on the exposure time of the observation in order to maximize the final signal to noise ratio.
 
-# In[17]:
+# In[18]:
 
 
 # define a structure to hold the processing status of the images
@@ -561,7 +561,7 @@ processing_results['astrometry_time'].info.format = '7.3f'
 print(processing_results)
 
 
-# In[18]:
+# In[19]:
 
 
 # Assorted processing settings# parameters used with source detection
@@ -586,7 +586,7 @@ p_user_scale      = None
 p_scale_err_ratio = None
 
 
-# In[19]:
+# In[20]:
 
 
 # Settings for output file names and output file paths
@@ -615,7 +615,7 @@ name_conv_dict = {'srclist':  {'replace': 'Calibrated-iTelescope', 'with': 'srcl
 p_clean = False
 
 
-# In[20]:
+# In[21]:
 
 
 def mk_output_file_path(inpfile, prefix_replace_this, prefix_with_this, new_file_extension=None, sub_dir=None, mkdir=False, verbose=True):
@@ -694,7 +694,7 @@ def mk_all_file_names(inpfile, name_conv_dict, mkdir=True, verbose=False):
     return ofile['srclist'], ofile['regfile'], ofile['plotfile'], ofile['fwhmfile'], ofile['qualfile'], ofile['navfile']
 
 
-# In[21]:
+# In[22]:
 
 
 # test the function
@@ -716,7 +716,7 @@ f_srclist, f_regfile, f_plotfile, f_fwhmplot, f_qualfile, f_navfile = mk_all_fil
 print(f'  srclist={f_srclist}\n  regfile={f_regfile}\n  plotfile={f_plotfile}\n  fwhmplot={f_fwhmplot}\n  qualfile={f_qualfile}\n  navfile={f_navfile}')
 
 
-# In[22]:
+# In[23]:
 
 
 def check_file_exists(filename):
@@ -726,7 +726,7 @@ def check_file_exists(filename):
     return True
 
 
-# In[23]:
+# In[24]:
 
 
 # iterate over files in the image file collection
@@ -779,15 +779,15 @@ for hdu, fname in ifc_cal.hdus(return_fname=True):
             try:
     
                 ap_astrom = ap.ApAstrometry(fname, 
-                    p_extnum,
-                    f_srclist, 
-                    p_src_extname,
+                    f_srclist,
                     f_navfile, 
-                    p_astnetkey,
-                    p_use_sip,
-                    p_user_scale,
-                    p_scale_err_ratio,
-                    p_loglevel)
+                    inp_img_extnum=p_extnum,
+                    srclist_extname=p_src_extname,
+                    astnet_key=p_astnetkey,
+                    use_sip=p_use_sip,
+                    user_scale=p_user_scale,
+                    scale_err_ratio=p_scale_err_ratio,
+                    loglevel=p_loglevel)
                 p_status = ap_astrom.status()
                 print(f'  ApAstrometry return status: {ast_status}')
                 if p_status == ap.ApAstrometry.NOMINAL:
@@ -825,7 +825,7 @@ proc_telapsed = proc_tend - proc_tstart
 print(f'Finished processing {idx+1} files in {proc_telapsed:.3f} seconds.')
 
 
-# In[24]:
+# In[25]:
 
 
 #print(processing_results)
@@ -851,7 +851,7 @@ processing_results.pprint(max_lines=-1, max_width=-1)
 # 
 # The same stars/features in each separate image should appear to be in the same place on the screen, even as the brightness and noise levels change between frames. 
 
-# In[25]:
+# In[26]:
 
 
 # Make sure we're still in the original directory, then move into the directory with the navigated images
@@ -880,7 +880,7 @@ except:
 # 
 # Such ideals run afoul of cases where the fits files don't have those keywords or are using different keywords. For now I don't have a work around for such cases and for automatically incorporating the seeing/FWHM measurements.
 
-# In[26]:
+# In[27]:
 
 
 nav_file_pattern=f'{fprefix}*{fext}'
@@ -890,7 +890,7 @@ ifc_nav = ImageFileCollection(p_dir, keywords=keys, glob_include=nav_file_patter
 print(ifc_nav.summary)
 
 
-# In[27]:
+# In[28]:
 
 
 from astropy.table import unique
@@ -898,7 +898,7 @@ uniq_filter_exposure = unique(ifc_nav.summary, keys=['filter', 'exposure'], keep
 uniq_filter_exposure.pprint(max_lines=-1, max_width=-1)
 
 
-# In[28]:
+# In[29]:
 
 
 filter_list = []
@@ -982,7 +982,7 @@ print(f'There are {len(filter_list)} unique filters among {len(ifc_nav.summary)}
 # 
 # First let's specify the file we want to match...
 
-# In[29]:
+# In[30]:
 
 
 f_default_match = ifc_nav.summary['file'][0]
@@ -991,7 +991,7 @@ f_to_match = input(msg).strip() or f_default_match
 print(f'WCS of resampled files will match {f_to_match}')
 
 
-# In[71]:
+# In[31]:
 
 
 from astropy import wcs
@@ -1048,7 +1048,7 @@ def load_wcs_from_file(filename, verbose=False):
     return w, pix_scales, pix_area, im_scales
 
 
-# In[92]:
+# In[32]:
 
 
 def summarize_wcs(w):
@@ -1160,7 +1160,7 @@ def summarize_wcs(w):
     return
 
 
-# In[93]:
+# In[33]:
 
 
 # Test load_wcs_from_file
@@ -1175,7 +1175,7 @@ print(f'Square pixel equivalent size (arcsec): {root_area_as}')
 summarize_wcs(w)
 
 
-# In[32]:
+# In[34]:
 
 
 def make_dothead_from_file(input_fits_with_wcs, output_swarp_dothead, format='fits', verbose=False):
@@ -1269,7 +1269,7 @@ def make_dothead_from_file(input_fits_with_wcs, output_swarp_dothead, format='fi
     return
 
 
-# In[33]:
+# In[35]:
 
 
 # Test make_dothead_from_file
@@ -1301,7 +1301,7 @@ make_dothead_from_file(f_default_match, oheadname, 'fits', True)
 # 
 # In the case of the M101 SN premium images `SUBTRACT_BACK` should be `N`. The premium dataset is not a great test of the different center type options because the three input images very closely overlap.
 
-# In[35]:
+# In[36]:
 
 
 # ***You may want to disable this, as it uses assumed file names and directory paths*** 
@@ -1418,7 +1418,7 @@ if do_better_test:
 # 
 # The new challenge is to compute the appropriate scale factors and which header keywords need to be updated post-resampling (e.g. exposure related keywords, history, and so on). We'll also want some form of summary table.
 
-# In[36]:
+# In[37]:
 
 
 def get_exposure_time(hdr, verbose=False):
@@ -1437,7 +1437,7 @@ def get_exposure_time(hdr, verbose=False):
     return exposure_time
 
 
-# In[37]:
+# In[38]:
 
 
 do_better_test_center_type = "FIRST"  # MANUAL, MOST, ALL, FIRST (MANUAL and ALL are swarp types)
@@ -1552,24 +1552,43 @@ for img in final_images:
 # 
 # We can load one or more of the resampled images and plot them... Here we'll just pick the first one in the `final_images` list.
 
-# In[38]:
+# In[39]:
 
 
 from astropy.visualization import (ManualInterval, AsinhStretch,
                                    ImageNormalize)
-def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxlim=None, yaxlim=None, verbose=True):
+from astropy import units
+def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxlim=None, yaxlim=None, verbose=True,
+                       angle_tick_spacing_am=2.0, swap_radec_axis=False):
     """
     Quick and dirty FITS image plot.
 
     By default `asinh` scaling will be used between a minimum and maximum data value. If vmin
     and/or vmnax are not specified then the 0.5th and 99.5th perciles will be used, as appropriate.
-    A viridis color map is used by default, along with a color bar.
+    A viridis color map is used by default, arag with a color bar.
 
-    Note that axis limits (xaxlim and yaxlim) are currently defined in image x-axis and y-axis
+    Note
+    ----
+    Axis limits (xaxlim and yaxlim) are currently defined in image x-axis and y-axis
     pixels.
+
+    Astropy WCSAxes transforms do not reorient the image to be North up, East left, in the same
+    way SAOImage ds9 does when the WCS is applied. It still plots the original data rows and
+    column as a 2-D XY grid. Consequently, for images not already in NE alignment, the RA may
+    change most rapidly along Y and Dec most rapidly along X, in contrast to normal expectation.
+    To avoid highly confusing plots this function plots RA/Dec grids when `usewcs=True`. Line 
+    of constant RA are red, lines of constant Declination are blue. In cases where your data
+    is aligned closer to 90 degrees or 270 degrees away from North up, East left, specifying
+    `swap_radec_axis=True` will reduce confusion by showing RA tickmarks and values along the Y
+    axes and Declination tickmarks and values along the X axis (contrary to the normal convention).
+
+    If your `usewcs=True` plot appears without axis tick values and labels then it is likely you
+    need to alter `swap_radec_axis` or `angle_tick_spacing_am`
 
     TODO: Find out how to specify them in RA and Dec.
 
+    Parameters
+    ----------
     :param fname: Name of existing FITS file with WCS in HDU number extnum that we want to plot.
     :param extnum: Extension number (zero-based) for data and WCS header
     :param usewcs: If True then plot using WCS information
@@ -1582,6 +1601,12 @@ def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxl
       plot. If None then the default axis limits will be used. To see those limits run
       with verbose=True.
     :param verbose: If True then diagnostic information will be written to stdout.
+    :param angle_tick_spacing_am: If usewcs is True, specify the spacing between RA/Dec axis
+        tick values in units of arcminutes. Astropy won't label the RA/Dec axis without 
+        specifying a value for this.
+    :param swap_radec_axis: If True then plot RA tickmarks and values along the Y
+        axes and Declination tickmarks and values along the X axis (contrary to the normal 
+        convention). This does not alter how the image data itself is plotted.
     """
     
     hdu = fits.open(fname)[extnum]
@@ -1610,12 +1635,20 @@ def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxl
     # Display the image
     fig = plt.figure()
     if usewcs:
+        if verbose:
+            print('Using WCS information for axis projection')
+            print(w)
         ax = fig.add_subplot(1, 1, 1, projection=w)
     else:
         ax = fig.add_subplot(1, 1, 1)
         
     im = ax.imshow(hdu.data, origin='lower', norm=norm)
-    fig.colorbar(im, ax=ax)
+    cbar = fig.colorbar(im, ax=ax, extend='neither', spacing='proportional',
+                orientation='vertical', shrink=0.85)
+    cbar.set_label(r"Units TBA")
+    cbar.ax.tick_params(labelsize=8) 
+    title_str = fname#.replace("_", "\_")
+    ax.set_title(f'{title_str}', fontsize=8)
 
     # Display default axis limits
     xlim_used = ax.get_xbound()
@@ -1624,11 +1657,32 @@ def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxl
         print(f'Default X-axis limits: {xlim_used}')
         print(f'Default Y-axis limits: {ylim_used}')
     
-    title_str = fname#.replace("_", "\_")
-    ax.set_title(f'{title_str}', fontsize=8)
     if usewcs:
-        ax.set_xlabel('Right Ascension (deg)', fontsize=8)
-        ax.set_ylabel('Declination (deg)', fontsize=8)
+        # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
+        ra = ax.coords[0]
+        dec = ax.coords[1]
+        ra.set_major_formatter('dd:mm:ss.ss')
+        dec.set_major_formatter('dd:mm:ss.ss')
+        ra.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='red')      # Ticks must be defined for axis tickvals to appear
+        dec.set_ticks(spacing=angle_tick_spacing_am * units.arcmin, color='blue')
+        ra.set_ticklabel(color='red', fontsize=8)
+        dec.set_ticklabel(color='blue', fontsize=8)
+        ra.grid(color='red', linestyle='--', alpha=0.6)
+        dec.grid(color='blue', linestyle='--', alpha=0.6)
+        ra.set_axislabel('Right Ascension (dms)', fontsize=8, color='red')
+        dec.set_axislabel('Declination (dms)', fontsize=8, color='blue')
+
+        if swap_radec_axis:
+            # Images where ra changes fastest on Y, not X
+            dec.set_ticks_position('b')
+            dec.set_ticklabel_position('b')
+            dec.set_axislabel_position('b')
+            ra.set_ticks_position('l')
+            ra.set_ticklabel_position('l')
+            ra.set_axislabel_position('l')
+    
+        #ax.set_xlabel('Right Ascension (deg)', fontsize=8)
+        #ax.set_ylabel('Declination (deg)', fontsize=8)
     else:
         ax.set_xlabel('X-axis pixel number', fontsize=8)
         ax.set_ylabel('Y-axis pixel number', fontsize=8)
@@ -1649,21 +1703,53 @@ def load_image_and_plot(fname, extnum=0, usewcs=True, vmin=None, vmax=None, xaxl
     return
 
 
-# In[39]:
+# In[40]:
 
 
-load_image_and_plot(final_images[0])
+# 2024-08-23 Something weird with matplotlib plots 
+# Basically they don't rotate the image to N up E left the way ds9 does,
+# so the coord labelling is odd
+# see https://github.com/astropy/astropy/issues/13458
+
+
+# ---
+# **WARNING**
+# 
+# Astropy's WCS axis plotting projection code does *NOT* work the way you might expect based on other FITS viewers.
+# 
+# The image itself is not projected to align with the Right Ascension/Declination coordinate system *North up, East left),
+# e.g. the way `ds9`'s  Align mode works.
+# Instead, the axis tickmark labeling and any over-plotted grid is aware of the actual image WCS, and can correctly label
+# and mark the RA and Dec values. This isn't apparent in most cases because many images are provided with the data already
+# in North up and East left mode.
+# 
+# See:
+# 
+# - Astropy issue discussing this: https://github.com/astropy/astropy/issues/13458 This also discussed getting the axis labels and tickmarks right
+# - Astropy request for it to do the right thing: https://github.com/astropy/astropy/issues/8423
+# - Work-around using montage to resample the data to NE-aligned: https://stackoverflow.com/questions/51952436/plotting-sdss-images-with-python/51967697#51967697
+# 
+# ---
+# 
+
+# In[41]:
+
+
+print(f'Final images: {final_images}')
+output_plot = 'delme.png'
+ap.util.load_image_and_plot(final_images[0], 0, output_plot, True, angle_tick_spacing_am=10, swap_radec_axis=True)
 
 
 # **Axis limits:** Note that the axis limits are in terms of pixel coordinates, not astronomical RA or Dec.
 # 
 # **For now, `xaxlim` and `yaxlim` passed to `load_image_and_plot` must be in pixels.**
 
-# In[40]:
+# In[42]:
 
 
 # We can plot without the WCS axes, just raw pixels..
-load_image_and_plot(final_images[0], 0, False)
+output_plot = None
+ap.util.load_image_and_plot(final_images[0], 0, output=output_plot, usewcs=False)
 
 
 # So what do we see here?
@@ -1724,27 +1810,27 @@ load_image_and_plot(final_images[0], 0, False)
 # 
 # **Problem 2:** The sky background in the image is really bright (approx 0.6 per pixel) compared to the maximum data values from the stars and galaxy (about 0.78 per pixel at the 99.5th percentile). We can plot using a hand-chosen minimum, e.g.
 
-# In[41]:
+# In[43]:
 
 
-load_image_and_plot(final_images[0], 0, True, vmin=0.6, vmax=None)
+ap.util.load_image_and_plot(final_images[0], 0, output_plot, True, vmin=0.6, vmax=None,  angle_tick_spacing_am=10, swap_radec_axis=True)
 
 
 # ...at which point we can start to see signs of the third problem.
 # 
 # Zooming in on a smaller region we see a repeated pattern of two bright points, separated by approximately the maximum offset between the raw frames used to make the composite image. The points are also more compact than real stars in the image.
 
-# In[42]:
+# In[44]:
 
 
-load_image_and_plot(final_images[0], 0, True, vmin=0.6, vmax=1.0, xaxlim=[1100, 1500], yaxlim=[350, 750], verbose=True)
+ap.util.load_image_and_plot(final_images[0], 0, output_plot, True, vmin=0.6, vmax=1.0, xaxlim=[1100, 1500], yaxlim=[350, 750], verbose=True, angle_tick_spacing_am=2, swap_radec_axis=True)
 
 
-# In[43]:
+# In[45]:
 
 
 # Zoom in even further
-load_image_and_plot(final_images[0], 0, True, vmin=0.6, vmax=1.0, xaxlim=[1240, 1440], yaxlim=[500, 700], verbose=True)
+ap.util.load_image_and_plot(final_images[0], 0, output_plot, True, vmin=0.6, vmax=1.0, xaxlim=[1240, 1440], yaxlim=[500, 700], verbose=True,  angle_tick_spacing_am=2, swap_radec_axis=True)
 
 
 # So we have uncorrected hot pixels!
@@ -1759,7 +1845,7 @@ load_image_and_plot(final_images[0], 0, True, vmin=0.6, vmax=1.0, xaxlim=[1240, 
 # 
 # The second option is to install Astromatic [stiff](https://vizier.cfa.harvard.edu/vizier/catstd/man/stiff.pdf) and call it via the subprocess module in the same way we used `swarp`. This gives us more options.
 
-# In[44]:
+# In[46]:
 
 
 # First, lets just plot each resampled image separately
@@ -1886,7 +1972,7 @@ def plot_threecolor(redfile, greenfile, bluefile, extnum=0, usewcs=True, vmin=No
     return
 
 
-# In[45]:
+# In[47]:
 
 
 bluef  = 'M101_Supernova_2023ixf_Blue_resamp_weighted.fits'
@@ -1895,12 +1981,12 @@ lumf   = 'M101_Supernova_2023ixf_Lum_resamp_weighted.fits'
 redf   = 'M101_Supernova_2023ixf_Red_resamp_weighted.fits'
 valmin  = None
 valmax  = None
-plot_threecolor(redf, greenf, bluef, extnum=0, usewcs=True, vmin=0.6, vmax=1.6, xaxlim=None, yaxlim=None, verbose=True)
+ap.util.load_imlist_and_plot([redf, greenf, bluef], extnum=0, output=output_plot, usewcs=True, vmin=0.6, vmax=1.6, xaxlim=None, yaxlim=None, verbose=True, angle_tick_spacing_am=10, swap_radec_axis=True)
 
 
 # ### Astropy make_lupton_rgb
 
-# In[46]:
+# In[48]:
 
 
 from astropy.visualization import make_lupton_rgb
@@ -2002,7 +2088,7 @@ def plot_lupton_threecolor(redfile, greenfile, bluefile, outpngfile, extnum=0, u
     return rgb_array
 
 
-# In[47]:
+# In[49]:
 
 
 bluef  = 'M101_Supernova_2023ixf_Blue_resamp_weighted.fits'
@@ -2013,7 +2099,7 @@ qval    = 8
 stretch = 0.5
 valmin  = None
 outf    = 'M101_lupton_RedGreenBlue.png'
-rgb = plot_lupton_threecolor(redf, greenf, bluef, outf, extnum=0, usewcs=True, vmin=valmin, xaxlim=None, yaxlim=None, qval=qval, stretchval=stretch, verbose=True)
+rgb = ap.util.plot_lupton_threecolor(redf, greenf, bluef, outf, extnum=0, usewcs=True, vmin=valmin, xaxlim=None, yaxlim=None, qval=qval, stretchval=stretch, verbose=True, angle_tick_spacing_am=10, swap_radec_axis=True)
 
 
 # **Analysis:** That looks reasonably decent from a professional astronomer's point of view, but isn't quite good enough for the more display-oriented astrophotographer's point of view: 
@@ -2053,7 +2139,7 @@ rgb = plot_lupton_threecolor(redf, greenf, bluef, outf, extnum=0, usewcs=True, v
 # 
 # ```
 
-# In[54]:
+# In[50]:
 
 
 # where are we?
@@ -2079,7 +2165,7 @@ else:
 # 
 # Anyway, on to running STIFF from python...
 
-# In[57]:
+# In[51]:
 
 
 stiff_verbose  = True  # Echo stiff input string if True
@@ -2257,7 +2343,8 @@ else:
 # 
 # | Version | Date | Description |
 # |:--------|------|-------------|
-# | 0.5.2-beta1 | 2024-04-26 | Partial version includes by-hand processing, but not first version of pipeline script |
+# | 0.5.2-alpha | 2024-04-26 | Partial version includes by-hand processing, but not first version of pipeline script |
+# | 0.6.0        | 2024-11-26 | Final version worked under issue-002 |
 
 # In[ ]:
 

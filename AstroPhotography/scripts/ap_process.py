@@ -578,14 +578,14 @@ def command_line_opts(argv):
         ),
     )
 
-    def_value = False
+    def_value = True
     parser.add_argument(
-        "--show_summary_info",
+        "--no_summary_info",
         default=def_value,
-        action="store_true",
+        action="store_false",
         help=(
-            "If specified then print the summary tables and lists output by"
-            " ApProcess.process_all to STDOUT."
+            "If specified then do not print the summary tables and lists output by"
+            " ApProcess.process_all to STDOUT at the end of the run."
             f" Default value: {def_value}"
         ),
     )

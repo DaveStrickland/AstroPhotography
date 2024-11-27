@@ -45,7 +45,9 @@ with Ap) can be used from the unix command line using scripts (names
 beginning with ap_).
 
 (To be described, but see [doc/iTelescope_processing.md](doc/iTelescope_processing.md)
-for a very high level summary of what is currently implemented.)
+for a very high level summary of what is currently implemented. The
+jupyter notebooks in `AstroPhotography/notebooks` are more up-to-date,
+but focussed on processing calibrated FITS imagery.)
 
 ### dksraw
 

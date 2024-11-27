@@ -180,7 +180,10 @@ class ApImageDifference:
         elif (mask1 is not None) and (mask2 is not None):
             # Check the shapes are the same.
             if mask1.shape != mask2.shape:
-                err_msg = f"Error, mask shapes do not match. mask1 is {mask1.shape}, while mask2 is {mask2.shape}"
+                err_msg = (
+                    f"Error, mask shapes do not match. mask1 is {mask1.shape}"
+                    f", while mask2 is {mask2.shape}"
+                )
                 self._logger.error(err_msg)
                 raise RuntimeError(err_msg)
             good1 = mask1 == 0
@@ -254,7 +257,8 @@ class ApImageDifference:
         self._numgood = np.sum(self._good_pixel_mask)
         numbad = self._numpix - self._numgood
         self._logger.debug(
-            f"Final good pixel mask has {self._numgood} good pixels out of {self._numpix} pixels ({numbad} bad)."
+            f"Final good pixel mask has {self._numgood} good pixels out of"
+            f" {self._numpix} pixels ({numbad} bad)."
         )
 
         return
@@ -276,9 +280,7 @@ class ApImageDifference:
         """
 
         sigma = 3.0
-        self._logger.debug(
-            f"Generating a good pixel mask using sigma={sigma} clipping on input image data values."
-        )
+        self._logger.debug(f"Generating a good pixel mask using sigma={sigma} clipping.")
 
         # Clip first input image
         mean1, med1, std1 = sigma_clipped_stats(data1, sigma=sigma)
@@ -297,10 +299,12 @@ class ApImageDifference:
         good2 = np.logical_and(good2_lo, good2_hi)
 
         self._logger.debug(
-            f"Good pixels in the first image have pixel values between {lo1:.2f} and {hi1:.2f} ADU."
+            "Good pixels in the first image have pixel values"
+            f" between {lo1:.2f} and {hi1:.2f} ADU."
         )
         self._logger.debug(
-            f"Good pixels in the second image have pixel values between {lo2:.2f} and {hi2:.2f} ADU."
+            "Good pixels in the second image have pixel values"
+            f" between {lo2:.2f} and {hi2:.2f} ADU."
         )
 
         self._good_pixel_mask = np.logical_and(good1, good2)
@@ -526,7 +530,8 @@ class ApCalcReadNoise:
                 maxval = np.amax(ext_data)
                 medval = np.median(ext_data)
                 self._logger.debug(
-                    f"After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+                    "After PEDESTAL removal, "
+                    f"min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
                 )
 
         return ext_data, ext_hdr
@@ -565,12 +570,13 @@ class ApCalcReadNoise:
             data1, data2, sigmaclip, self._loglevel, mask1=None, mask2=None
         )
         stddev = im_diff.stddev()
-        mindiff = im_diff.min()
-        maxdiff = im_diff.max()
+        ##mindiff = im_diff.min()
+        ##maxdiff = im_diff.max()
         npix_good, npix_total = im_diff.numpix()
         pct_bad = 100 * (npix_total - npix_good) / npix_total
         self._logger.info(
-            f"Standard deviation={stddev:.2f} ADU using {npix_good}/{npix_total} pixels ({pct_bad:.3f} % bad)."
+            f"Standard deviation={stddev:.2f} ADU using "
+            f"{npix_good}/{npix_total} pixels ({pct_bad:.3f} % bad)."
         )
 
         # Generate plot
@@ -614,7 +620,7 @@ class ApCalcReadNoise:
         # Get min and max values to use for histogram.
         minval = im_diff.min()
         maxval = im_diff.max()
-        stddev = im_diff.stddev()
+        ##stddev = im_diff.stddev()
         meanval = im_diff.mean()
         medval = im_diff.median()
         bins = np.arange(minval, maxval + 1) - 0.5
@@ -714,7 +720,10 @@ class ApCalcReadNoise:
         # Gains can differ by this much and be OK (e/ADU)
         tolerance = 0.001
         if math.fabs(gain1 - gain2) > tolerance:
-            err_msg = f"Error, gains differ by more than {tolerance:.3f} e/ADU, where gain1={gain1:.3f}, gain2={gain2:.3f}."
+            err_msg = (
+                f"Error, gains differ by more than {tolerance:.3f} e/ADU"
+                f", where gain1={gain1:.3f}, gain2={gain2:.3f}."
+            )
             self._logger.error(err_msg)
             raise RuntimeError(err_msg)
 

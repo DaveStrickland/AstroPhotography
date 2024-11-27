@@ -8,12 +8,14 @@
 # 
 # **Version: 0.5.2-beta1**
 # 
-# This notebook illustrates how to generate a master bad pixel files given a master dark. The master bad pixel file is normally used as part of the calibration process (e.g. `ApCalibrate` or `ap_calibrate.py` from the command line), but can also be applied to calibrated files when you do not have the raw images. You must have a master dark frame, the longer the exposuer time the better. Master bias files can be used, but will fail to pick up hot pixels where the charge increases with time.
+# This notebook illustrates 
 # 
-# The python environment used corresponds to a miniconda emvironment `ap-env.yml`.
+# 1. how to generate a master bad pixel files given a master dark. The master bad pixel file is normally used as part of the calibration process (e.g. `ApCalibrate` or `ap_calibrate.py` from the command line), but can also be applied to calibrated files when you do not have the raw images. You must have a master dark frame, the longer the exposure time the better. Master bias files can be used, but will fail to pick up hot pixels where the charge increases with time.
+# 2. How to generate a master dark given a set of darks.
 # 
-# The example darks used are iTelescope T24 calibration files from 
-# Note that these files are not provided with this package. However the notebook should work with your own files if you specify a valid fits-file containing directory at the prompt below.
+# The python environment used corresponds to a `miniconda` or `mini-forge` environment `ap-env.yml`.
+# 
+# The example master darks used are iTelescope T24 calibration files. Note that these files are not provided with this package. However the notebook should work with your own files if you specify a valid fits-file containing directory at the prompt below.
 # 
 # The notebook demonstrates processing using existing master dark files in the first section, followed by generation of master calibration files from raw dark, bias and flat field files in a later section.
 # 
@@ -147,12 +149,15 @@ for fpath in flist:
 
 
 # Look at the files in ds9. Note the annoying spaces cause trouble...
-import shutil
-if shutil.which("ds9") is not None:
-    print('Calling shell to execute ds9...')
-    get_ipython().system('ds9 -cmap viridis -asinh -scale mode 99.5 -zoom 0.125 $(find . -name "$default_pattern" | xargs)')
-else:
-    print('No ds9 was found in your $PATH')
+show_in_ds9=False
+
+if show_in_ds9:
+    import shutil
+    if shutil.which("ds9") is not None:
+        print('Calling shell to execute ds9...')
+        get_ipython().system('ds9 -cmap viridis -asinh -scale mode 99.5 -zoom 0.125 $(find . -name "$default_pattern" | xargs)')
+    else:
+        print('No ds9 was found in your $PATH')
 
 
 # ### Command line usage
@@ -174,7 +179,7 @@ else:
 
 
 fname1 = 'Master_Dark_11_3056x3056_Bin1x1_Temp-25C_ExpTime900s.fit'
-ap.load_image_and_plot(fname1, 0, usewcs=False)
+ap.util.load_image_and_plot(fname1, 0, usewcs=False)
 
 
 # In[10]:
@@ -190,7 +195,7 @@ userbadpix = None
 # Defaults, don't have to actually use these
 loglevel = 'INFO'
 sigma    = 4.0
-mkbadpix = ap.ApFindBadPixels(masterdark)
+mkbadpix = ap.ApFindBadPixels(masterdark, sigma, loglevel)
         
 if userbadpix is not None:
     mkbadpix.add_user_badpix(userbadpix)
@@ -202,7 +207,7 @@ mkbadpix.write_mask(badpixfile)
 # In[11]:
 
 
-ap.load_image_and_plot(badpixfile, 0, usewcs=False)
+ap.util.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=0, vmax=1)
 
 
 # Lets zoom in on a smaller region of the files... For example the lower right hand corner
@@ -212,13 +217,13 @@ ap.load_image_and_plot(badpixfile, 0, usewcs=False)
 
 xreg = (2500, 2750)
 yreg = (0, 250)
-ap.load_image_and_plot(masterdark, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
+ap.util.load_image_and_plot(masterdark, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
 
 
 # In[13]:
 
 
-ap.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
+ap.util.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
 
 
 # The tool appears to have done a good job at finding individual bad pixels, but there are columns where every pixel is either hot or cold that it either hasn't completely detected (e.g. the column near X=2560) or completely missed (the cold columns between X=2700 and X=2750).
@@ -310,7 +315,7 @@ userbadpix = badcolfile
 # Defaults, don't have to actually use these
 loglevel = 'INFO'
 sigma    = 4.0
-mkbadpix = ap.ApFindBadPixels(masterdark)
+mkbadpix = ap.ApFindBadPixels(masterdark, sigma, loglevel)
         
 if userbadpix is not None:
     mkbadpix.add_user_badpix(userbadpix)
@@ -325,8 +330,8 @@ mkbadpix.write_mask(badpixfile)
 # Now load and plot the updated badpixel file ...
 xreg = (2500, 2750)
 yreg = (0, 250)
-ap.load_image_and_plot(masterdark, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
-ap.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
+ap.util.load_image_and_plot(masterdark, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
+ap.util.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
 
 
 # Note that two new bad columns were added. In the bad pixel file user-specified bad pixels/columns/rows are given the dtata quality flag 2, to contrast with the pixels found by ApFindBadPixels.
@@ -375,17 +380,216 @@ ap.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=None, vmax=None, xaxlim
 # 
 # 
 
+# In[18]:
+
+
+# Finally print out the name of the master bad pixel file including the full path
+p = pathlib.Path(badpixfile)
+print(f'Absolute path to bad pixel file: {str(p.absolute())}')
+
+
+# # Processing from Individual Dark Files
+# 
+# In this example we combine a set of 10 dark files into a master dark file, then create a master bad pixel file from that. These are 300 second dark files taken from iTelescope T24 with the dome closed, just after dawn on 2024-10-01.
+# 
+# If you have a directory with a set of dark files you should enter the path to it when prompted.
+
+# In[19]:
+
+
+default_path = '/old_lnx/home/dks/Downloads/iTelescopeScratch/T24/CALIBRATION/Dark/Bin1/300'
+print(f'Enter the full path to the directory containing the raw dark calibration files, or return to accept {default_path}')
+wdir = input('Dark file set path:').strip() or default_path
+try:
+    os.chdir(wdir.strip())
+    print('Switched directory to ' + os.getcwd())
+except:
+    print(f'Error, os.chdir threw an exception changing to {wdir}')
+    print('Check that the path you supplied is a valid filesystem path.')
+    raise
+
+
+# In[20]:
+
+
+default_pattern = 'T24*-Dark-*.fit*'
+print(f'Default file pattern for input files: {default_pattern}')
+msg = 'Enter new input file pattern (or return to accept default pattern)'
+file_pattern = input(msg).strip() or default_pattern
+print(f'Using "{file_pattern}" as the input file pattern.')
+
+
+# In[21]:
+
+
+p_dir = pathlib.Path(r'./')
+flist = list(sorted(p_dir.rglob(file_pattern)))
+print(f'{len(flist)} files match pattern "{file_pattern}" in current directory.')
+for fpath in flist:
+    print(f'  {fpath}')
+
+
+# In[22]:
+
+
+# Create an instance of ApMasterCal
+exclude_pattern = 'master*'
+master_maker = ap.ApMasterCal(r'./', exclude_pattern=exclude_pattern, telescop='iTelescope 24', loglevel='DEBUG')
+
+
+# In[23]:
+
+
+# Run it
+masterdark = 'master_dark_T24_20241001_3056x3056_Bin1x1_Temp-25C_ExpTime300s.fits'
+master_maker.make_master(masterdark)
+
+
+# In[24]:
+
+
+# Look at this file before proceding
+ap.util.load_image_and_plot(masterdark, 0, usewcs=False)
+
+
+# In[25]:
+
+
+badpixfile = masterdark.replace('dark', 'badpix')
+print(f'For master dark {masterdark}, output bad pixel file is {badpixfile}')
+
+# Have not got a file yet
+userbadpix = None
+
+# Defaults, don't have to actually use these
+loglevel = 'INFO'
+sigma    = 4.0
+mkbadpix = ap.ApFindBadPixels(masterdark, sigma, loglevel)
+        
+if userbadpix is not None:
+    mkbadpix.add_user_badpix(userbadpix)
+        
+# Write final bad pixels mask.
+mkbadpix.write_mask(badpixfile)
+
+
+# In[26]:
+
+
+ap.util.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=0, vmax=1)
+
+
+# In[27]:
+
+
+xreg = (2500, 2750)
+yreg = (0, 250)
+ap.util.load_image_and_plot(masterdark, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
+
+
+# In[28]:
+
+
+ap.util.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=0, vmax=2, xaxlim=xreg, yaxlim=yreg, verbose=True)
+
+
+# In[29]:
+
+
+# Create an instance of the ApAutoBadcols.
+auto_badcols = ap.ApAutoBadcols('INFO')
+
+# Process the masterdark
+sigma = 5.0  # default, you don't have to specify them if you
+window = 11  # want the defaults
+badcols, badrows = auto_badcols.process_fits(masterdark, 
+    sigma, 
+    window)
+
+# remember the master dark is 'master_dark_T24_20241001_3056x3056_Bin1x1_Temp-25C_ExpTime300s.fits'
+badcolfile = 't24_user_badpixels_20241001_3056x3056_Bin1x1_Temp-25C_ExpTime300s.yml'
+overwrite  = True
+plotstats  = 't24_20241001_badcolplot.png'
+colstats   = None
+rowstats   = None
+
+# We don't actually have to use the badcols and badrows here unless we want to
+if badcols is not None:
+    print(f'Bad columns ({len(badcols)}): {badcols}')
+else:
+    print('No bad columns...')
+if badrows is not None:
+    print(f'Bad row ({len(badrows)}): {badrows}')
+else:
+    print('No bad rows...')
+
+if badcolfile is not None:
+    auto_badcols.write_badcols_file(badcolfile, overwrite)
+    
+if plotstats is not None:
+    auto_badcols.generate_stats_plot(plotstats)
+    
+if (colstats is not None) or (rowstats is not None):
+    auto_badcols.write_stats(colstats, rowstats)
+
+
+# In[30]:
+
+
+get_ipython().system('cat $badcolfile')
+
+
+# In[31]:
+
+
+# Now incorporate that back into generating the master bad pixel file...
+print(f'For master dark {masterdark}, output bad pixel file is {badpixfile}')
+
+# Have not got a file yet
+userbadpix = badcolfile
+
+# Defaults, don't have to actually use these
+loglevel = 'INFO'
+sigma    = 4.0
+mkbadpix = ap.ApFindBadPixels(masterdark, sigma, loglevel)
+        
+if userbadpix is not None:
+    mkbadpix.add_user_badpix(userbadpix)
+        
+# Write final bad pixels mask.
+mkbadpix.write_mask(badpixfile)
+
+
+# In[32]:
+
+
+# Now load and plot the updated badpixel file ...
+xreg = (2500, 2750)
+yreg = (0, 250)
+ap.util.load_image_and_plot(masterdark, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
+ap.util.load_image_and_plot(badpixfile, 0, usewcs=False, vmin=None, vmax=None, xaxlim=xreg, yaxlim=yreg, verbose=True)
+
+
+# In[33]:
+
+
+# Finally print out the name of the master bad pixel file including the full path
+p = pathlib.Path(badpixfile)
+print(f'Absolute path to bad pixel file: {str(p.absolute())}')
+
+
 # In[ ]:
 
 
 
 
 
-# ## Versions and Changes
+# # Versions and Changes
 # 
 # | Version | Date | Description |
 # |:--------|------|-------------|
-# | 0.5.2-beta1 | 2024-04-26 | Partial version includes use of master bad pixel file and auto badcols use |
+# | 0.5.2-alpha | 2024-04-26 | Partial version includes use of master bad pixel file and auto badcols use |
+# | 0.6.0        | 2024-11-26 | Final version worked under issue-002 |
 
 # In[ ]:
 

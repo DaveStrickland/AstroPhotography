@@ -628,6 +628,7 @@ def plot_lupton_threecolor(
     w = wcs.WCS(hdur.header)
 
     default_font_size = 7
+    cbar_font_size = 5
 
     # Compute vmin and vmax if necessary. NOTE this only uses the red channel
     # percentiles
@@ -679,8 +680,8 @@ def plot_lupton_threecolor(
     cbar = fig.colorbar(
         im, ax=ax, extend="neither", spacing="proportional", orientation="vertical", shrink=0.85
     )
-    cbar.set_label(r"Units TBA", fontsize=default_font_size)
-    cbar.ax.tick_params(labelsize=default_font_size)
+    cbar.set_label(r"Units TBA", fontsize=cbar_font_size)  # TODO get real data units
+    cbar.ax.tick_params(labelsize=cbar_font_size)
 
     # Display default axis limits
     xlim_used = ax.get_xbound()

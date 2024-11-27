@@ -125,10 +125,12 @@ class ApMeasureStars:
         self._num_per_reg = 5  # Number of sources per region to fit
         self._skip_brightest = 0  # Skip the brightest N stars in each region
         self._logger.info(
-            f"Measuring the source extent (Gaussian FWHM) from input list of {len(srclist)} sources."
+            "Measuring the source extent (Gaussian FWHM)"
+            f" from input list of {len(srclist)} sources."
         )
         self._logger.debug(
-            f"Up to {self._num_per_reg} stars per sub-region will be fitted, excluding the brightest {self._skip_brightest} stars."
+            f"Up to {self._num_per_reg} stars per sub-region will be fitted"
+            f", excluding the brightest {self._skip_brightest} stars."
         )
 
         # Settings related to source fitting.
@@ -464,7 +466,8 @@ class ApMeasureStars:
         if overall_circular:
             circ_str = "are circular"
         self._logger.info(
-            f"Source average axis ratio = {overall_axrat:.3f} +/- {overall_axrat_err:.3f}, overall sources {circ_str}."
+            f"Source average axis ratio = {overall_axrat:.3f} +/- {overall_axrat_err:.3f}"
+            f", overall sources {circ_str}."
         )
 
         for idx in range(num_stars):
@@ -515,7 +518,8 @@ class ApMeasureStars:
         if sigma > ApMeasureStars._circ_thresh_sigma:
             circular = False
 
-        ##print(f'fwhm_x={fwhm_x} fwhm_xerr={fwhm_xerr} fwhm_y={fwhm_y} fwhm_yerr={fwhm_yerr} d_fwhm={d_fwhm} sigma={sigma} circular={circular}')
+        ##print(f'fwhm_x={fwhm_x} fwhm_xerr={fwhm_xerr} fwhm_y={fwhm_y}'
+        # f' fwhm_yerr={fwhm_yerr} d_fwhm={d_fwhm} sigma={sigma} circular={circular}')
         return circular
 
     def _do_single_fit(
@@ -702,7 +706,10 @@ class ApMeasureStars:
 
         # Make axis box stand out as viridis can be dark.
         matplotlib.rc("axes", edgecolor="r")
-        title_font_size = 6
+        title_font_size = 5
+        ylabel_font_size = 5
+        panel_title_font_size = 4
+        panel_info_font_size = 3
 
         # Hand-tuning suggests a linear scale between the
         # min max of these stars is the best. Global limits or
@@ -774,7 +781,10 @@ class ApMeasureStars:
         if self._plot_title is not None:
             title = self._plot_title
         title += f"\nMedian FWHM={median_fwhm:.2f} +/- {madstd_fwhm:.2f} (MAD stddev) pixels"
-        title += f"\nAlong X FWHM={median_fwhm_x:.2f} +/- {madstd_fwhm_x:.2f} pixels, along Y FWHM={median_fwhm_y:.2f} +/- {madstd_fwhm_y:.2f} pixels"
+        title += (
+            f"\nAlong X FWHM={median_fwhm_x:.2f} +/- {madstd_fwhm_x:.2f} pixels"
+            f", along Y FWHM={median_fwhm_y:.2f} +/- {madstd_fwhm_y:.2f} pixels"
+        )
         fig.suptitle(title, fontsize=title_font_size)
 
         for idx in range(num_stars):
@@ -791,10 +801,12 @@ class ApMeasureStars:
             # Titles, fit info etc
             title_str = self._get_subplot_title(idx)
             fitinfo_str = self._get_subplot_fitinfo(idx)
-            ax_arr[row_idx, col_idx].set_title(title_str, fontsize=4, pad=3)
-            ax_arr[row_idx, col_idx].text(text_x, text_y, fitinfo_str, fontsize=3, color="w")
-            # ax_arr[row_idx, col_idx].set_xlabel('X-axis (pixels)', fontsize=6)
-            ax_arr[row_idx, col_idx].set_ylabel(this_reg, fontsize=6)
+            ax_arr[row_idx, col_idx].set_title(title_str, fontsize=panel_title_font_size, pad=3)
+            ax_arr[row_idx, col_idx].text(
+                text_x, text_y, fitinfo_str, fontsize=panel_info_font_size, color="w"
+            )
+            # ax_arr[row_idx, col_idx].set_xlabel('X-axis (pixels)', fontsize=ylabel_font_size)
+            ax_arr[row_idx, col_idx].set_ylabel(this_reg, fontsize=ylabel_font_size)
 
             # Get artists related to best-fit parameters
             artist_list = self._get_fit_artists(idx)
@@ -924,7 +936,8 @@ class ApMeasureStars:
 
         num_srcs = len(self._init_srcs)
         self._logger.debug(
-            f"Selecting candidate stars for fitting out of {num_srcs} stars in {self._rows} row x {self._cols} column image."
+            f"Selecting candidate stars for fitting out of {num_srcs} stars"
+            f" in {self._rows} row x {self._cols} column image."
         )
 
         radius = float(min(self._cols, self._rows)) / 4
@@ -977,7 +990,8 @@ class ApMeasureStars:
         srclist = self._init_srcs[ok_mask]
         num_ok = len(srclist)
         self._logger.debug(
-            f"There are {num_ok} stars more than {self._edge_excl_pix} pixels away from the edge of the detector."
+            f"There are {num_ok} stars more than {self._edge_excl_pix} pixels"
+            " away from the edge of the detector."
         )
 
         for reg in ["CN", "TL", "TR", "BR", "BL"]:
@@ -1003,7 +1017,8 @@ class ApMeasureStars:
                     self._logger.error("Logic error in _select_candidates?")
                     self._logger.error(
                         f"Region={reg}, num_cand={num_cand}, n_start={n_start},"
-                        + f" m_end={m_end}, num_per_reg={self._num_per_reg}, skip_brightest={self._skip_brightest}"
+                        f" m_end={m_end}, num_per_reg={self._num_per_reg},"
+                        f" skip_brightest={self._skip_brightest}"
                     )
                     continue
 
@@ -1123,13 +1138,15 @@ class ApMeasureStars:
         clipped = sigma_clip(ok_fwhm, sigma=numsig, masked=False)
         num_used = len(clipped)
         self._logger.debug(
-            f"Estimating median FWHM (direction={direction}) using {num_used} FWHM measurements ({len(ok_fwhm)} OK fits before clipping)."
+            f"Estimating median FWHM (direction={direction}) using {num_used}"
+            f" FWHM measurements ({len(ok_fwhm)} OK fits before clipping)."
         )
 
         median_fwhm = float(np.median(clipped))
         madstd_fwhm = float(mad_std(clipped))
         self._logger.debug(
-            f"Measured FWHM={median_fwhm:.3f} +/- {madstd_fwhm:.3f} pixels in direction {direction}"
+            f"Measured FWHM={median_fwhm:.3f} +/- {madstd_fwhm:.3f} pixels"
+            f" in direction {direction}"
         )
         return (median_fwhm, madstd_fwhm, num_used)
 
