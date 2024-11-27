@@ -19,13 +19,17 @@ import AstroPhotography
 # -- General configuration ---------------------------------------------
 
 # The full version, including alpha/beta/rc tags
-release = '0.5.1'
+release = '0.6.0'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode', 
-    'sphinx.ext.napoleon', 'sphinx.ext.autosummary',
-    'sphinxcontrib.apidoc', 'myst_parser']
+extensions = ['sphinx.ext.autodoc', 
+    'sphinx.ext.viewcode', 
+    'sphinx.ext.napoleon', 
+    'sphinx.ext.autosummary',
+    'sphinxcontrib.apidoc',
+    'sphinxarg.ext', 
+    'myst_parser']
 
 apidoc_module_dir = '../AstroPhotography/'
 ##apidoc_output_dir = 'reference'
@@ -53,7 +57,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'AstroPhotography'
-copyright = "2022, Dave Strickland"
+copyright = "2022-2024, Dave Strickland"
 author = "Dave Strickland"
 
 # The version info for the project you're documenting, acts as replacement
@@ -90,7 +94,8 @@ todo_include_todos = False
 # a list of builtin themes.
 #
 ##html_theme = 'alabaster'
-html_theme = 'sizzle'
+##html_theme = 'sizzle'     # not working sphinx 7.2.6, sizzle 0.1.3
+html_theme = 'sphinxdoc'
 
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
@@ -105,6 +110,7 @@ html_static_path = ['_static']
 
 # Sort members by type
 autodoc_member_order = 'groupwise'
+autoclass_content = "both"
 
 # -- Options for HTMLHelp output ---------------------------------------
 

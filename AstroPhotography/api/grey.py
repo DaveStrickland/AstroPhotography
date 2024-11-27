@@ -4,10 +4,11 @@ Implements the grey command caling RawConv.
 import time
 from ..core.logger import logger
 from ..core.RawConv import *
-from ..core.file_writer import file_writer
+from ..util.file_writer import file_writer
 
 def main(rawfile, output, method, keepblack, whitebalance, renormalize):
-    """ Execute the grey command.
+    """
+    Execute the grey command.
     
     :param rawfile: RAW input file to process.
     :param output: Name of the output file to write the luminance image to. This

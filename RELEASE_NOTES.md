@@ -2,30 +2,61 @@
 
 Release notes for versions starting at v0.2.2 and later.
 
-## Version 0.5
+**Note:** Standard sematic versioning API stability is not guaranteed
+until version 1.0 or later.
 
-The objectives of version 0.5 are:
+## Version 0.6
 
-- Catch up to latest astropy (>=6.0) and affiliated package changes.
+Version 0.6 continues work on FITS file processing. Work on photographic
+RAW file conversion will resume at some point in the future.
+
+The objectives of version 0.6 are:
+
 - Working `sphinx` documentation!
-- *Package layout reorganization* to move past some limitations imposed
-  by the original `cookiecutter` template, that are no longer helpful.
+- Semi-tutorial jupyer notebooks.
 - Easier and more pythonic configuration for processing a set of images.
-  The example `bash` shell scripts are not sustainable.
+  The example `bash` shell scripts provided in the `scripts` directory
+  are neither flexiable nor sustainable.
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
+
+### Version 0.6.0 2024-11-26
+
+- Python wrapper for processing multiple calibrated image sets, e.g.
+  iTelescope premium image sets. (ApProcessor, ap_processor)
+- Walk throughs of processing calibrated images and generating
+  bad pixel maps using jupyter notebooks.
+- API breaking package re-organization with creation of `util` subpackage.
+- API breaking changes to other classes, e.g. ApAstrometry.
+- Various minor fixes to ApAstrometry, ApFindBadPixels, etc.
+- Continuing work on improving the Sphinx documentation.
+- In process switch to Ruff for formatting/linting.
+
+## Version 0.5
 
 ### Version 0.5.1 2024-01-30
 
 - Improve documentation now that we can run sphinx on the module.
 - Resolved #017, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
   that works on iTelescope premium images. 
-- #021, catch up to latest astropy (>=6.0) and affiliated package changes.
+- Issue #021, catch up to latest astropy (>=6.0) and affiliated package changes.
   Fixes to `ApFindStars`, `ApMeasureStars`, `ApFixCosmicRays`, and
   `ApMeasureBackground`.
 - Add AP_CALIB_DIR to `calibrate_all.sh` script, document in `doc/iTelescope_processing.md`
 
 ### Version 0.5.0 2022-09-18
+
+Version 0.5 continued work on FITS file processing. Work on photographic
+RAW file conversion will resume at some point in the future.
+
+The objectives of version 0.5 were:
+
+- Catch up to latest astropy (>=6.0) and affiliated package changes.
+- Working `sphinx` documentation!
+- *Package layout reorganization* to move past some limitations imposed
+  by the original `cookiecutter` template, that are no longer helpful.
+
+Changes:
 
 - The module itself has moved from `./src/AstroPhotography` to `./AstroPhotography`.
 - `sphinx`-generated documenation, including the module docstrings, now

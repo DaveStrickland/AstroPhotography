@@ -1,5 +1,6 @@
 """
-AstroPhotography
+The AstroPhotography Python Package
+------------------------------------
 
 The AstroPhotography python package provides python classes and command line 
 applications for quick and convenient processing amateur astronomical images
@@ -10,3 +11,5 @@ of FITS images.
 from .__version__ import __version__
 from .__main__ import warn
 from .core import *
+from .api import *
+from .util import *

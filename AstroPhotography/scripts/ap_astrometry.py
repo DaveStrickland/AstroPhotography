@@ -28,6 +28,7 @@
 # 2020-12-28 dks : Disable SIP by default because swarp does not support it.
 # 2021-01-19 dks : Moved ApAstrometry class over to core.
 # 2022-02-08 dks : Make key optional, depending on whether already in config.
+# 2024-08-17 dks : Change in ApAstrometry argument order.
 
 import argparse
 import sys
@@ -125,16 +126,16 @@ def main(args=None):
     p_user_scale  = p_args.user_scale        # User specified pixel scale (arcsec)
     p_scale_err_ratio = p_args.scale_err_ratio # Scale error ratio
 
-    ap_astrom = ap.ApAstrometry(p_inpimg, 
-        p_img_extnum,
-        p_srclist, 
-        p_src_extname,
+    ap_astrom = ap.ApAstrometry((p_inpimg, 
+        p_srclist,
         p_outimg, 
-        p_astnetkey,
-        p_use_sip,
-        p_user_scale,
-        p_scale_err_ratio,
-        p_loglevel)
+        inp_img_extnum=p_extnum,
+        srclist_extname=p_src_extname,
+        astnet_key=p_astnetkey,
+        use_sip=p_use_sip,
+        user_scale=p_user_scale,
+        scale_err_ratio=p_scale_err_ratio,
+        loglevel=p_loglevel)
     return ap_astrom.status()
 
 if __name__ == '__main__':

@@ -9,10 +9,12 @@ import logging
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+import textwrap                     # for dedent
 
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
 
+# AstroPhotography includes    
 from .. import __version__
 
 class ApAutoBadcols:
@@ -82,18 +84,20 @@ class ApAutoBadcols:
             raise ValueError('Invalid log level: {}'.format(loglevel))
         self._logger.setLevel(numeric_level)
     
-        # create console handler and set level to debug
-        ch = logging.StreamHandler()
-        ch.setLevel(numeric_level)
-    
-        # create formatter
-        formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-    
-        # add formatter to ch
-        ch.setFormatter(formatter)
-    
-        # add ch to logger
-        self._logger.addHandler(ch)
+        # check if handlers already present
+        if not len(self._logger.handlers):
+            # create console handler and set level to debug
+            ch = logging.StreamHandler()
+            ch.setLevel(numeric_level)
+        
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+        
+            # add formatter to ch
+            ch.setFormatter(formatter)
+        
+            # add ch to logger
+            self._logger.addHandler(ch)
         
         # Used in cases where we get the same message twice or more
         # See https://stackoverflow.com/a/44426266
@@ -205,7 +209,7 @@ class ApAutoBadcols:
             std_data[idx]  = cstd
         return mean_data, std_data
     
-    def process_fits(self, fitsimg, nsigma=None, window_len=None):
+    def process_fits(self, fitsimg, nsigma=5, window_len=11):
         """
         Identify bad columns and rows in a numpy 2-dimensional array,
         returning a 1-d array of the (zero-based) bad column and row
@@ -216,7 +220,7 @@ class ApAutoBadcols:
         badcols, badrows = self.process(idata, nsigma, window_len)
         return badcols, badrows
     
-    def process(self, data_array, nsigma=None, window_len=None):
+    def process(self, data_array, nsigma=5, window_len=11):
         """
         Identify bad columns and rows in a numpy 2-dimensional array,
         returning a 1-d array of the (zero-based) bad column and row 
@@ -448,6 +452,8 @@ class ApAutoBadcols:
             nsigma = self._meta['nsigma']
             window_len = self._meta['window_len']
             f.write( f'# Processing parameters: badness sigma threshold={nsigma:.2f}, sliding window_len={window_len}\n' )
+            for line in self._get_formatting_str():
+                f.write(line)
 
             if self._badcols is not None:
                 if len(self._badcols) > 0:
@@ -474,9 +480,46 @@ class ApAutoBadcols:
             else:
                 f.write('# No bad rows detected.\n')
                     
-            f.write( '---\n' )
+            f.write( '...\n' )
             self._logger.info(f'Wrote bad column/row YaML file to {badcolfile}' )
         return
+        
+    def _get_formatting_str(self):
+        """
+        Return a multi-line string witj bad column file format information
+        """
+        
+        formatstr = textwrap.dedent("""\
+            #
+            # This is a YaML file that consists of three named sections:
+            # - bad_columns: Entries are column indices of any entire column 
+            #   to be marked bad.
+            # - bad_rows: Entries are row indices of any entire row to be marked bad.
+            # - bad_rectangles: Entries are lists of the coordinates 
+            #   [row_start, row_end, col_start, col_end] of the rectangle to be marked
+            #   bad.
+            #
+            # Note that these are:
+            # 0. You need separate user-defined bad pixel files for different chip
+            #    binnings!
+            # 1. 1-based indices, e.g. as reported by ds9, not python/C style 
+            #    0-based indices. So the index of the second column in the image
+            #    is 2, not 1.
+            # 2. Inclusive ranges (mathematical notation "[]"), so the rectangle 
+            #    2,3,60,62 is a 2 row, 3 column region that includes rows 2 and 3, 
+            #    columns 61, 62, and 63.
+            # 3. The origin of the coordinates matches that of the data you pass
+            #    to ApFindBadPixels.
+            #
+            # These coordinates will be converted to python 0-based inclusive lower
+            # bound exclusive upper bound (mathematically "[)") by ApFindBadPixels.
+            #
+            # Comments (starting "#") can and should be used to note which telescope
+            # or camera the file applies to, and why you chose to mark the 
+            # row/column/rectangle bad, or where you first noted the problem region.
+            #
+            """)
+        return formatstr
         
     def write_stats(self, fcolstat, frowstat):
         """
@@ -502,16 +545,18 @@ class ApAutoBadcols:
         chdr_str = '{:3s},{:>10s},{:>10s},{:>10s},{:>10s},{:>5s}'.format('col', 'median', 'local_mean', 'local_std', 'nsigma', 'isbad')
         rhdr_str = chdr_str.replace('col', 'row')
         
-        with open(fcolstat, 'w', encoding="utf-8") as f:
-            f.writelines(info_strings)
-            np.savetxt(f, self._colstats, header=chdr_str,
-                fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
-            self._logger.debug(f'Wrote column statistics CSV data to {fcolstat}')
+        if fcolstat is not None:
+            with open(fcolstat, 'w', encoding="utf-8") as f:
+                f.writelines(info_strings)
+                np.savetxt(f, self._colstats, header=chdr_str,
+                    fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
+                self._logger.debug(f'Wrote column statistics CSV data to {fcolstat}')
 
-        with open(frowstat, 'w', encoding="utf-8") as f:
-            f.writelines(info_strings)
-            np.savetxt(f, self._rowstats, header=rhdr_str,
-                fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
-            self._logger.debug(f'Wrote row statistics CSV data to {frowstat}')
+        if frowstat is not None:
+            with open(frowstat, 'w', encoding="utf-8") as f:
+                f.writelines(info_strings)
+                np.savetxt(f, self._rowstats, header=rhdr_str,
+                    fmt=['%05d', '%10.2f', '%10.2f', '%10.2f', '%10.2f', '%5d'], delimiter=',')
+                self._logger.debug(f'Wrote row statistics CSV data to {frowstat}')
         
         return

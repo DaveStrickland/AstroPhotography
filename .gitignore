@@ -10,6 +10,8 @@ dist/
 *.pyc
 *.pyo
 
+# Jupyter temporary files
+.ipynb_checkpoints/
 
 # Ignore pyenv files.
 .python-version

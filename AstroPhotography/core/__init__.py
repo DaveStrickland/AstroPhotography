@@ -1,5 +1,9 @@
-""" Core implementation package.
+"""
+AstroPhotography Core Python Interface Classes
+----------------------------------------------
 
+The `Astrophotography.core` module contains classes for FITS
+image reduction and processing.
 """
 
 # This seems overly verbose, but it works.
@@ -14,12 +18,12 @@ from .ApFindStars import ApFindStars as ApFindStars
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
 from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 from .ApAstrometry import ApAstrometry as ApAstrometry
-from .file_writer import file_writer as file_writer
 from .ApImArith import ApImArith as ApImArith
 from .ApMeasureBackground import ApMeasureBackground as ApMeasureBackground 
+from .ApProcess import ApProcess as ApProcess
+from .ApMasterCal import ApMasterCal as ApMasterCal
 
 __all__ = ["RawConv", 
-    "file_writer", 
     "ApCalibrate",
     "ApFindBadPixels", 
     "ApFixBadPixels",
@@ -31,4 +35,7 @@ __all__ = ["RawConv",
     "ApQualitySummarizer",
     "ApAstrometry",
     "ApImArith",
-    "ApMeasureBackground"]
+    "ApMeasureBackground",
+    "ApProcess",
+    "ApMasterCal"
+    ]

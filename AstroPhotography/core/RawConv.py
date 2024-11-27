@@ -1,4 +1,5 @@
-""" Implements the RawConv, which encapsulates raw data manipulations.
+"""
+Implements the RawConv, which encapsulates raw photo file manipulations.
 """
 
 from .logger import logger
@@ -8,6 +9,7 @@ import os.path
 import ast
 import exifread     # Read camera RAW exif data
 
+# AstroPhotography includes    
 from .. import __version__
 
 class RawConv:

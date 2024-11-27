@@ -198,6 +198,10 @@ for p_cal_file in $(find . -name "cal-*fits"); do
             echo "  Skipping star detection as sourcelist $p_src_path exists." | tee -a $p_log
         else
             echo "  Performing star detection on $p_cal_file" | tee -a $p_log
+            echo "    About the run the following command" python3 $p_find_stars -l $p_loglevel -m $p_maxstars \
+                $p_cal_file $p_src_path --retain_saturated \
+                --plotfile=$p_implot_path --fwhm_plot=$p_fwhmplot_path \
+                --quality_report=$p_qual_path --ds9=$p_ds9_path  | tee -a $p_log
             python3 $p_find_stars -l $p_loglevel -m $p_maxstars \
                 $p_cal_file $p_src_path --retain_saturated \
                 --plotfile=$p_implot_path --fwhm_plot=$p_fwhmplot_path \
@@ -237,6 +241,8 @@ for p_cal_file in $(find . -name "cal-*fits"); do
             fi
             
             echo "  Performing astrometry on $p_cal_file" | tee -a $p_log
+            echo "    About the run the following command: " python3 $p_astrometry -l $p_loglevel \
+                $p_cal_file $p_src_path $p_nav_path | tee -a $p_log
             python3 $p_astrometry -l $p_loglevel \
                 $p_cal_file $p_src_path $p_nav_path >& $p_navlog
             p_status=$?
@@ -264,7 +270,8 @@ if [ $p_do_qual -eq 1 ]; then
     if [ -e $p_qualcsv ]; then
         rm $p_qualcsv
     fi
-    python3 $p_quality $p_meta_dir $p_qualcsv --loglevel=DEBUG
+    echo "  About to run the following command: " python3 $p_quality $p_meta_dir $p_qualcsv --loglevel=DEBUG  | tee -a $p_log
+    python3 $p_quality $p_meta_dir $p_qualcsv --loglevel=DEBUG | tee -a $p_log
     if [ $? -eq 0 ]; then
         echo "  Succesfully generated $p_qualcsv" | tee -a $p_log
     else

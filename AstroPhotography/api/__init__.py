@@ -1,8 +1,12 @@
 """
-Application commands common to all interfaces.
+AstroPhotography api module
+---------------------------
+
+The ``api`` module contains functins and classes associated with camera
+RAW format conversion and processing, e.g. through the ``dksraw`` command
+line utility.
 """
 
-# This is just ugly, but it is how the cookiecutter package was set up.
 from .split import main as split
 from .grey import main as grey
 from .rgb import main as rgb

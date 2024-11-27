@@ -4,10 +4,11 @@ Implements the split command calling RawConv.
 import time
 from ..core.logger import logger
 from ..core.RawConv import RawConv
-from ..core.file_writer import file_writer
+from ..util.file_writer import file_writer
 
 def main(rawfile, output, keepblack, extension):
-    """ Execute the split command.
+    """
+    Execute the split command.
     
     :param rawfile: RAW input file to process.
     :param output: File prefix for output images. Output image 
