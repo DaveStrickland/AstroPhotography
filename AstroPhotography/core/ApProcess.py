@@ -1397,6 +1397,7 @@ class ApProcess:
         nosatmask=True,
         sat_frac=0.8,
         quiet=True,
+        exclude_corner_pct: float | None = None,
         srclist_extname="AP_XYPOS",
         astnet_key=None,
         use_sip=False,
@@ -1529,6 +1530,13 @@ class ApProcess:
         quiet : bool, optional, default=True
             If True this suppresses the runtime source list printing
             to STDOUT (navigate_image parameter)
+        exclude_corner_pct : float or None, optional, default=None
+            If a positive value in the range [0,100] is specified then semi-circular
+            regions of radius (exclude_corner_pct/100)*max(img_rows, img_cols)
+            around each corner will be excluded from source detection. This
+            parameter should be used if the image suffers from poor flat-fielding
+            or vignetting that creates spurious sources at the image corners.
+            (navigate_image parameter)
         srclist_extname : str, optional, default='AP_XYPOS'
             FITS extension name for star X,Y position data. Default=``AP_XYPOS``
             (navigate_image parameter)
@@ -1750,6 +1758,7 @@ class ApProcess:
             nosatmask,
             sat_frac,
             quiet,
+            exclude_corner_pct,
             srclist_extname,
             astnet_key,
             use_sip,
@@ -1815,6 +1824,7 @@ class ApProcess:
         nosatmask=True,
         sat_frac=0.8,
         quiet=True,
+        exclude_corner_pct: float | None = None,
         srclist_extname="AP_XYPOS",
         astnet_key=None,
         use_sip=False,
@@ -1927,6 +1937,13 @@ class ApProcess:
         quiet : bool, optional, default=True
             If True this suppresses the runtime source list printing
             to STDOUT (ApFindStars parameter)
+        exclude_corner_pct : float or None, optional, default=None
+            If a positive value in the range [0,100] is specified then semi-circular
+            regions of radius (exclude_corner_pct/100)*max(img_rows, img_cols)
+            around each corner will be excluded from source detection. This
+            parameter should be used if the image suffers from poor flat-fielding
+            or vignetting that creates spurious sources at the image corners.
+            (ApFindStars parameter)
         srclist_extname : str, optional, default='AP_XYPOS'
             FITS extension name for star X,Y position data. Default=``AP_XYPOS``
             (ApAstrometry parameter)
@@ -2058,6 +2075,7 @@ class ApProcess:
                         nosatmask,
                         f_plotfile,
                         quiet,
+                        exclude_corner_pct,
                         f_fwhmplot,
                         f_qualfile,
                         f_regfile,
@@ -2277,6 +2295,7 @@ class ApProcess:
         do_nosatmask=True,
         a_plotfile=None,
         do_quiet=False,
+        exclude_corner_pct: float | None = None,
         a_fwhm_plot=None,
         a_qual_rprt=None,
         a_regfile=None,
@@ -2318,6 +2337,12 @@ class ApProcess:
             image with detected sources plotted as circles.
         do_quiet : bool, default=False
             If True this suppresses the runtime source list printing to STDOUT
+        exclude_corner_pct : float or None, optional, default=None
+            If a positive value in the range [0,100] is specified then semi-circular
+            regions of radius (exclude_corner_pct/100)*max(img_rows, img_cols)
+            around each corner will be excluded from source detection. This
+            parameter should be used if the image suffers from poor flat-fielding
+            or vignetting that creates spurious sources at the image corners.
         a_fwhm_plot : str, default=None
             If not None then a PNG plot zooming in around a subset of the detected
             sources, and their best-fit parameters, is generated.
@@ -2346,6 +2371,7 @@ class ApProcess:
             self._loglevel,
             a_plotfile,
             do_quiet,
+            exclude_corner_pct=exclude_corner_pct,
         )
 
         # Measure 2-Gaussian FWHM for select stars, get average over x and y

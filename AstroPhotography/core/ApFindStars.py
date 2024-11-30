@@ -36,6 +36,7 @@
 # 2024-01-25 dks : Catch up to latest astropy/photutils changes
 # 2024-08-14 dks : Start switch over to numpy format docstrings
 # 2024-11-10 dks : Format changes based on Ruff/Mypy
+# 2024-11-28 dks : issue-028, add optional source exclusion at image corners
 
 import sys
 import logging
@@ -112,6 +113,7 @@ class ApFindStars:
         loglevel: str,
         plotfile: str,
         quiet: bool,
+        exclude_corner_pct: float | None = None,
     ):
         """
         The constructor reads an input image, and performs by default the following
@@ -119,9 +121,9 @@ class ApFindStars:
 
         - initial background estimates using hard-wired constants.
         - thresholding and simple segmentation-based source detection
-        - sigma-clipped background esrtimates using the initial source mask
+        - sigma-clipped background estimates using the initial source mask
         - saturated pixel detection
-        - improved source searching using the :fund:``source_search`` function
+        - improved source searching using the :func:``source_search`` function
         - performs aperture photometry to better categorize the initial
           source list, using :func:``aperture_photometry``
         - optionally plots the input image and detected sources using
@@ -165,22 +167,31 @@ class ApFindStars:
             the image with detected sources plotted as circles.
         quiet : bool
             If True this suppresses the runtime source list printing to STDOUT
+        exclude_corner_pct : float or None, optional, default=None
+            If a positive value in the range [0,100] is specified then semi-circular
+            regions of radius (exclude_corner_pct/100)*max(img_rows, img_cols)
+            around each corner will be excluded from source detection. This
+            parameter should be used if the image suffers from poor flat-fielding
+            or vignetting that creates spurious sources at the image corners.
         """
 
         self._status = ApFindStars.GOOD
-        self._loglevel = loglevel
-        self._fitsimg = fitsimg
-        self._extnum = extnum
-        self._search_fwhm = search_fwhm
-        self._search_nsigma = search_nsigma
-        self._bitdepth = detector_bitdepth
-        self._max_sources = max_sources
-        self._nosatmask = nosatmask
-        self._sat_frac = sat_frac
-        self._plotfile = plotfile
-        self._max_adu = math.pow(2, detector_bitdepth) - 1
-        self._sat_thresh = math.floor(sat_frac * self._max_adu)
-        self._quiet = quiet
+        self._loglevel: str = loglevel
+        self._fitsimg: str = fitsimg
+        self._extnum: int | str = extnum
+        self._search_fwhm: float = search_fwhm
+        self._search_nsigma: float = search_nsigma
+        self._bitdepth: int = detector_bitdepth
+        self._max_sources: int = max_sources
+        self._nosatmask: bool = nosatmask
+        self._sat_frac: float = sat_frac
+        self._plotfile: str = plotfile
+        self._max_adu: int = math.pow(2, detector_bitdepth) - 1
+        self._sat_thresh: float = math.floor(sat_frac * self._max_adu)
+        self._quiet: bool = quiet
+        self._exclude_corner_pct: float | None = None
+        if exclude_corner_pct is not None:
+            self._exclude_corner_pct = float(exclude_corner_pct)
 
         # Not calculated by default, only if a user calls measure_fwhm
         self._psf_table = None
@@ -205,31 +216,61 @@ class ApFindStars:
         self._data, self._hdr = self._read_fits(fitsimg, extnum)
 
         # Get initial background estimates using hard-wired constants.
-        self._bg_mean, self._bg_median, self._bg_stddev = sigma_clipped_stats(
-            self._data, sigma=3.0
-        )
-        self._logger.debug(
-            "Sigma clipped image stats: mean={:.3f}, median={:.3f}, stddev={:.3f}".format(
-                self._bg_mean, self._bg_median, self._bg_stddev
-            )
-        )
-
-        sigma_clip = SigmaClip(sigma=3.0, maxiters=10)
-        threshold = detect_threshold(self._data, nsigma=2.0, sigma_clip=sigma_clip)
-        segment_img = detect_sources(self._data, threshold, npixels=5)
-        tmp_mask = segment_img.make_source_mask(size=11)
-        # tmp_mask    = make_source_mask(self._data, nsigma=2, npixels=5, dilate_size=11) # old
-        self._bg_mean, self._bg_median, self._bg_stddev = sigma_clipped_stats(
-            self._data, sigma=3.0, mask=tmp_mask
-        )
-        self._logger.debug(
-            "Source-masked image stats: mean={:.3f}, median={:.3f}, stddev={:.3f}".format(
-                self._bg_mean, self._bg_median, self._bg_stddev
-            )
-        )
+        self._bg_mean: float = 0
+        self._bg_median: float = 0
+        self._bg_stddev: float = 0
+        self._bg_mean, self._bg_median, self._bg_stddev = self._estimate_background_level()
 
         # Generate mask for DAOStarFinder. 0 is good, 1 is bad.
-        self._mask = np.zeros(self._data.shape, dtype=bool)
+        self._mask: np.ndarray = self._create_search_mask(
+            self._nosatmask, self._exclude_corner_pct
+        )
+
+        # Search for stars using the supplied FWHM and threshold.
+        self.source_search(self._search_fwhm, self._search_nsigma)
+
+        # Use initial source list for aperture photometry, generate
+        # self._phot_table
+        self.aperture_photometry()
+
+        if self._plotfile is not None:
+            self.plot_image(self._plotfile)
+        return
+
+    def _create_search_mask(self, nosatmask: bool, exclude_corner_pct: float | None) -> np.ndarray:
+        """
+        Create the source searching mask used by DAOStarFind
+
+        This mask is used to exclude regions of the image from source detection:
+
+        - Saturated stars are excluded unless ``nosatmask`` was specified
+        - A variable semi-circular region around each chip edge can be excluded
+          if exclude_corner_pct is a possible value in the range [0,100]
+
+        Parameters
+        ----------
+        nosatmask : bool
+            If True, keep possibly saturated stars.
+        sat_frac : float
+            Fraction of full well at which we assume star saturated
+        exclude_corner_pct : float or None, optional, default=None
+            If a positive value in the range [0,100] is specified then semi-circular
+            regions of radius (exclude_corner_pct/100)*max(img_rows, img_cols)
+            around each corner will be excluded from source detection. This
+            parameter should be used if the image suffers from poor flat-fielding
+            or vignetting that creates spurious sources at the image corners.
+
+        Returns
+        -------
+        mask : np.ndarray
+        """
+
+        # Generate mask for DAOStarFinder. 0 is good, 1 is bad.
+        mask: np.ndarray = np.zeros(self._data.shape, dtype=bool)
+        ncols = self._data.shape[1]
+        nrows = self._data.shape[0]
+
+        # Saturated star search
         self._logger.debug("Checking for possibly saturated stars or regions.")
         saturated_locations = self._find_saturated(self._data, self._sat_thresh, self._search_fwhm)
         num_sat_candidates = 0
@@ -239,8 +280,6 @@ class ApFindStars:
             # Find possibly saturated stars and exclude them from source
             # detection and photometry.
             box_width = int(4 * self._search_fwhm)
-            ncols = self._data.shape[1]
-            nrows = self._data.shape[0]
 
             self._logger.debug(
                 (
@@ -260,7 +299,7 @@ class ApFindStars:
                 srow = saturated_locations["y_peak"][isat]
                 rowmin = max(0, srow - box_width + 1)
                 rowmax = min(nrows, srow + box_width)
-                self._mask[rowmin:rowmax, colmin:colmax] = True
+                mask[rowmin:rowmax, colmin:colmax] = True
         else:
             # Leave possibly saturated stars in the image.
             self._logger.debug(
@@ -271,20 +310,85 @@ class ApFindStars:
             )
         self._nsrcs_saturated = num_sat_candidates
 
-        # Search for stars using the supplied FWHM and threshold.
-        self.source_search(self._search_fwhm, self._search_nsigma)
+        # Optional corner exclusion
+        # TODO
+        if exclude_corner_pct is not None:
+            if (exclude_corner_pct < 0.0) or (exclude_corner_pct > 100.0):
+                self._logger.error(
+                    "Error, exclude_corner_pct should be a number"
+                    f" in the range [0,100] but was {exclude_corner_pct}"
+                )
+            corner_pix_rad: float = (exclude_corner_pct / 100.0) * max(nrows, ncols)
+            self._logger.debug(
+                f"Excluding corners to {exclude_corner_pct:.1f}% of image size"
+                f", {corner_pix_rad} pixels."
+            )
 
-        # Use initial source list for aperture photometry, generate
-        # self._phot_table
-        self.aperture_photometry()
+            corners_xy = [(0, 0), (nrows - 1, 0), (nrows - 1, ncols - 1), (0, ncols - 1)]
+            # sparse coordinate grid
+            Ypix, Xpix = np.ogrid[0:nrows, 0:ncols]  # NB square brackets  # noqa: N806
+            for corner in corners_xy:
+                delta_from_corner = np.sqrt((Xpix - corner[0]) ** 2 + (Ypix - corner[1]) ** 2)
+                corner_mask: np.ndarray = delta_from_corner <= corner_pix_rad
+                mask = np.logical_or(mask, corner_mask)
 
-        if self._plotfile is not None:
-            self.plot_image(self._plotfile)
-        return
+        num_pix = nrows * ncols
+        num_masked: int = np.sum(mask)
+        pct_masked: float = 100.0 * num_masked / num_pix
+        self._logger.debug(
+            f"Search mask excludes {num_masked} pixels out of {num_pix} ({pct_masked:.3f}%)"
+        )
+        return mask
 
-    def trim(self, max_srcs):
-        """Reduce the size of the photometry and XY positions tables
-           to at most max_srcs of the brightest sources.
+    def _estimate_background_level(self) -> tuple[float, float, float]:
+        """
+        Perform an initial estimate of the background level using sigma-clipping
+        and segmentation-based source detection
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        bg_mean : float
+            Average pixel background value over the entire image, in the default units.
+        bg_median : float
+            Median pixel background value over the entire image, in the default units.
+        bg_stddev : float
+            Standard deviation of the background estimate.
+        """
+
+        bg_mean, bg_median, bg_stddev = sigma_clipped_stats(self._data, sigma=3.0)
+
+        # In most cases the image is in counts, but in rare cases the images have
+        # been converted to counts/per or some other units where the pixel values
+        # are small.
+        value_fmt: str = "{:.3f}"
+        small_value_thresh: float = 1.0
+        if bg_mean < small_value_thresh:
+            value_fmt = "{:.6f}"
+
+        info_str_fmt = (
+            f"Sigma clipped image stats: mean={value_fmt}, median={value_fmt}, stddev={value_fmt}"
+        )
+        self._logger.debug(info_str_fmt.format(bg_mean, bg_median, bg_stddev))
+
+        # Use image segmentation to create simple source/background estimation
+        sigma_clip = SigmaClip(sigma=3.0, maxiters=10)
+        threshold = detect_threshold(self._data, nsigma=2.0, sigma_clip=sigma_clip)
+        segment_img = detect_sources(self._data, threshold, npixels=5)
+        tmp_mask = segment_img.make_source_mask(size=11)
+        bg_mean, bg_median, bg_stddev = sigma_clipped_stats(self._data, sigma=3.0, mask=tmp_mask)
+        info_str_fmt = (
+            f"Source-masked image stats: mean={value_fmt}, median={value_fmt}, stddev={value_fmt}"
+        )
+        self._logger.debug(info_str_fmt.format(self._bg_mean, self._bg_median, self._bg_stddev))
+        return bg_mean, bg_median, bg_stddev
+
+    def trim(self, max_srcs: int) -> None:
+        """
+        Reduce the size of the photometry and XY positions tables
+        to at most max_srcs of the brightest sources.
 
         This function is useful in restricting the number of sources
         written to the output FITS source list. Supplying too many
@@ -294,6 +398,11 @@ class ApFindStars:
         This function is called by aperture_photometry using the
         constructed value of max_sources unless it aperture_photometry
         was called with notrim=False.
+
+        Parameters
+        ----------
+        max_srcs : int
+            The maximum number of sources allowed in the final source list.
         """
 
         # Trim and update apertures
@@ -344,20 +453,19 @@ class ApFindStars:
         ax.set_xlabel("X-axis (pixels)", fontsize=default_font_size)
         ax.set_ylabel("Y-axis (pixels)", fontsize=default_font_size)
         # plt.show()
-        plt.savefig(self._plotfile, dpi=200, bbox_inches="tight")
-        self._logger.debug(
-            f"Plotted asinh-stretched bitmap of image and sources to {self._plotfile}"
-        )
+        plt.savefig(plotfile, dpi=200, bbox_inches="tight")
+        self._logger.debug(f"Plotted asinh-stretched bitmap of image and sources to {plotfile}")
         return
 
     def _make_apertures(self, colpos, rowpos):
-        """Create an apertures, bg annular, and annular mask object for
-           aperture photometry.
+        """
+        Create an apertures, bg annular, and annular mask object for
+        aperture photometry.
 
         See https://photutils.readthedocs.io/en/stable/aperture.html#sigma-clipped-median-within-a-circular-annulus
         """
 
-        positions = np.transpose((colpos, rowpos))
+        positions: np.ndarray = np.transpose((colpos, rowpos))
 
         # Radius of circular source region radius
         ap_radius = math.ceil(self._ap_fwhm_mult * self._search_fwhm)
@@ -381,10 +489,18 @@ class ApFindStars:
 
         return apertures, bg_apertures, bg_aperture_masks
 
-    def source_search(self, search_fwhm, search_nsigma):
-        """Search for star-like objects with the given FWHM that have
+    def source_search(self, search_fwhm: float, search_nsigma: float) -> None:
+        """
+        Search for star-like objects with the given FWHM that have
         a statistical significance nsigma above the established
         background noise level.
+
+        Parameters
+        ----------
+        search_fwhm : float
+            FHWM of the Gaussian kernel search used by DAOStarFinder, in pixels.
+        search_nsigma : float
+            Minimum statistical significance required to be classed as a source
         """
 
         self._logger.debug(
