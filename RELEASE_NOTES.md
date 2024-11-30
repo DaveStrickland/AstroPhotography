@@ -20,6 +20,10 @@ The objectives of version 0.6 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
+### Version 0.6.1 TBD
+
+- #28 Added option to exclude source detection at the corners of images
+
 ### Version 0.6.0 2024-11-26
 
 - Python wrapper for processing multiple calibrated image sets, e.g.
@@ -37,9 +41,9 @@ The objectives of version 0.6 are:
 ### Version 0.5.1 2024-01-30
 
 - Improve documentation now that we can run sphinx on the module.
-- Resolved #017, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
+- Resolved #17, added `yamlkeyval` mode to ApAddMetadata / ap_add_metadata
   that works on iTelescope premium images. 
-- Issue #021, catch up to latest astropy (>=6.0) and affiliated package changes.
+- Issue #21, catch up to latest astropy (>=6.0) and affiliated package changes.
   Fixes to `ApFindStars`, `ApMeasureStars`, `ApFixCosmicRays`, and
   `ApMeasureBackground`.
 - Add AP_CALIB_DIR to `calibrate_all.sh` script, document in `doc/iTelescope_processing.md`
