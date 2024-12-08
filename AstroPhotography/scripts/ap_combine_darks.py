@@ -31,6 +31,7 @@
 
 import argparse
 import AstroPhotography as ap
+import logging
 
 def command_line_opts(argv):
     """ Parse command line arguments.

@@ -4,96 +4,110 @@
 #  ap_find_badpix.py
 #
 #  Generates a bad pixel mask given a master dark file.
-#  
+#
 #  Copyright 2020 Dave Strickland <dave.strickland@gmail.com>
-#  
+#
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation; either version 2 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#  
-#  2020-10-11 dks : Initial skeleton. 
+#
+#  2020-10-11 dks : Initial skeleton.
 #  2020-10-17 dks : Working version completed.
 #  2020-12-31 dks : Move ApFindBadPixels out of script into core.
+#  2024-12-07 dks : Adopt Ruff formating
 
 import argparse
-import sys
 import logging
 
-import AstroPhotography as ap
+import AstroPhotography as ap  # noqa: N813
+
 
 def command_line_opts(argv):
-    """ Parse command line arguments.
+    """Parse command line arguments.
 
     :param argv: argument list to parse
     """
-    parser = argparse.ArgumentParser(prog='ap_find_badpix',
-        description='Generates a bad pixel mask given a master dark or master bias FITS file.')
-        
+    parser = argparse.ArgumentParser(
+        prog="ap_find_badpix",
+        description="Generates a bad pixel mask given a master dark or master bias FITS file.",
+    )
+
     # Required
-    parser.add_argument('masterdark',
-        metavar='IN_MASTER_DARK.FITS',
-        help='Path/name of the input master dark/bias to use.')
-    parser.add_argument('badpixfile',
-        metavar='OUT_BADPIX.FITS',
-        help='Path/name of the output badpix file to generate.')
-        
+    parser.add_argument(
+        "masterdark",
+        metavar="IN_MASTER_DARK.FITS",
+        help="Path/name of the input master dark/bias to use.",
+    )
+    parser.add_argument(
+        "badpixfile",
+        metavar="OUT_BADPIX.FITS",
+        help="Path/name of the output badpix file to generate.",
+    )
+
     # Optional
     p_sigma = 4.0
-    parser.add_argument('--sigma',
-        metavar='NSIGMA',
+    parser.add_argument(
+        "--sigma",
+        metavar="NSIGMA",
         default=p_sigma,
-        help=('Number of MAD standard deviations to use in sigma clipping.'
-            ' After clipping pixels that are more than this number of sigma'
-            f' from the median will be marked bad. Default: {p_sigma:.2f}'))
-    parser.add_argument('--user_badpix',
-        metavar='USER_BADPIX.YML',
+        help=(
+            "Number of MAD standard deviations to use in sigma clipping."
+            " After clipping pixels that are more than this number of sigma"
+            f" from the median will be marked bad. Default: {p_sigma:.2f}"
+        ),
+    )
+    parser.add_argument(
+        "--user_badpix",
+        metavar="USER_BADPIX.YML",
         default=None,
-        help=('The name of an optional YaML format file containing the'
-            ' the location of addition user-defined bad rows, columns,'
-            ' or rectangles to be applied. This can be used to apply'
-            ' correction to flickering bad pixels that may not appear'
-            ' in the combined master dark. An example of the format can'
-            ' be found in etc/user_badpixels.yml'))
-    parser.add_argument('-l', '--loglevel', 
-        default='INFO',
-        help='Logging message level. Default: INFO')
-                
+        help=(
+            "The name of an optional YaML format file containing the"
+            " the location of addition user-defined bad rows, columns,"
+            " or rectangles to be applied. This can be used to apply"
+            " correction to flickering bad pixels that may not appear"
+            " in the combined master dark. An example of the format can"
+            " be found in etc/user_badpixels.yml"
+        ),
+    )
+    parser.add_argument(
+        "-l", "--loglevel", default="INFO", help="Logging message level. Default: INFO"
+    )
+
     args = parser.parse_args(argv)
     return args
 
-                
+
 def main(args=None):
-    p_args      = command_line_opts(args)
+    p_args = command_line_opts(args)
     p_inmstrdrk = p_args.masterdark
     p_outbadpix = p_args.badpixfile
-    p_sigma     = p_args.sigma
-    p_userbad   = p_args.user_badpix
-    p_loglevel  = p_args.loglevel
-    
-    mkbadpix = ap.ApFindBadPixels(p_inmstrdrk,
-        p_sigma,
-        p_loglevel)
-        
+    p_sigma = p_args.sigma
+    p_userbad = p_args.user_badpix
+    p_loglevel = p_args.loglevel
+
+    mkbadpix = ap.ApFindBadPixels(p_inmstrdrk, p_sigma, p_loglevel)
+
     if p_userbad is not None:
         mkbadpix.add_user_badpix(p_userbad)
-        
+
     # Write final bad pixels mask.
     mkbadpix.write_mask(p_outbadpix)
-    
+
     return 0
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     try:
         status = main()
     except:

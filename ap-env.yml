@@ -20,6 +20,7 @@ dependencies:
   - astropy>=6.0
   - notebook
   - pip
+  - psutil
   - pip:
     - bump2version
     - regions>=0.8

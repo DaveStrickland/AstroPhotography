@@ -21,12 +21,15 @@
 #  MA 02110-1301, USA.
 #  
 #  2024-10-01 dks : Moved ApMasterCal into core from ap_combine_darks.py
+#  2024-12-06 dks : Use up to half the free ram.
 
 import sys
 import logging
 from pathlib import Path
 import math
 from datetime import datetime, timezone
+import psutil
+import warnings
 
 import numpy as np
 import matplotlib                # for rc
@@ -35,6 +38,7 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.nddata import CCDData
 from astropy.stats import mad_std
+from astropy.utils.exceptions import AstropyWarning
 
 import ccdproc as ccdp
 
@@ -375,52 +379,67 @@ class ApMasterCal:
         """
         
         # Recommended settings
-        comb_method       = 'average'
-        do_sig_clip       = True
-        sig_clip_lothresh = 5
-        sig_clip_hithresh = 5
-        max_ram_bytes     = 5e8
-        data_units        = 'adu'
+        comb_method: str       = 'average'
+        do_sig_clip: bool      = True
+        sig_clip_lothresh: int = 5
+        sig_clip_hithresh: int = 5
+        max_ram_bytes: float   = 5e8     # Min ram to use
+        data_units: str        = 'adu'
+
+        mem = psutil.virtual_memory()
+        avail_ram_bytes = mem.available
+        self._logger.debug(f'Currently available RAM: {avail_ram_bytes/1.0e6:.3f} MB')
+        max_ram_bytes = max(0.5*avail_ram_bytes, max_ram_bytes)
 
         # Calculate the header keywords to update
         kw_dict   = self._generate_final_keywords()
         cal_type  = kw_dict['IMAGETYP'][0]
         nfiles    = len(self._files.summary)
         
-        # Combine files
-        msg = (f'About to combine {nfiles} {cal_type} files, method={comb_method}'
-            f' sigma_clip={do_sig_clip} sig_clip_lothresh={sig_clip_lothresh}'
-            f' sig_clip_hithresh={sig_clip_hithresh} max_ram_bytes={max_ram_bytes:.3e}.')
-        self._logger.debug(msg)        
-        master = ccdp.combine(self._files.files_filtered(include_path=True),
-             method=comb_method,
-             sigma_clip=do_sig_clip, 
-             sigma_clip_low_thresh=sig_clip_lothresh, 
-             sigma_clip_high_thresh=sig_clip_hithresh,
-             sigma_clip_func=np.ma.median, 
-             sigma_clip_dev_func=mad_std,
-             mem_limit=max_ram_bytes,
-             unit=data_units,
-             output_verify='ignore')
+        # Use a context manager to suppress FITSFixedWarnings warnings that
+        # spam the output
         
-        # Calculate the header keywords to update, and update them
-        master.meta['combined'] = True
-        master.unit             = 'adu'
-        # Remove...
-        kw_to_remove_list = ['UT', 'TIME-OBS', 'SWOWNER',
-            'SWCREATE', 'SBSTDVER']
-        for kw in kw_to_remove_list:
-            if kw in master.header:
-                del master.header[kw]
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', AstropyWarning)
+            self._logger.debug('Note: Suppressing all warnings from AstroPy')
         
-        # Update/add
-        for kw, val in kw_dict.items():
-            master.header[kw] = val
+            # TODO capture ccdproc logging
+        
+            # Combine files
+            msg = (f'About to combine {nfiles} {cal_type} files, method={comb_method}'
+                f' sigma_clip={do_sig_clip} sig_clip_lothresh={sig_clip_lothresh}'
+                f' sig_clip_hithresh={sig_clip_hithresh} max_ram_bytes={max_ram_bytes:.3e}.')
+            self._logger.debug(msg)        
+            master = ccdp.combine(self._files.files_filtered(include_path=True),
+                 method=comb_method,
+                 sigma_clip=do_sig_clip, 
+                 sigma_clip_low_thresh=sig_clip_lothresh, 
+                 sigma_clip_high_thresh=sig_clip_hithresh,
+                 sigma_clip_func=np.ma.median, 
+                 sigma_clip_dev_func=mad_std,
+                 mem_limit=max_ram_bytes,
+                 unit=data_units,
+                 output_verify='ignore')
+            
+            # Calculate the header keywords to update, and update them
+            master.meta['combined'] = True
+            master.unit             = 'adu'
+            # Remove...
+            kw_to_remove_list = ['UT', 'TIME-OBS', 'SWOWNER',
+                'SWCREATE', 'SBSTDVER']
+            for kw in kw_to_remove_list:
+                if kw in master.header:
+                    del master.header[kw]
+            
+            # Update/add
+            for kw, val in kw_dict.items():
+                master.header[kw] = val
 
-        # Write file
-        master.write(output_master_file, 
-            overwrite=True, 
-            output_verify='ignore')
+            # Write file
+            master.write(output_master_file, 
+                overwrite=True, 
+                output_verify='ignore')
+                
         self._logger.info(f'Wrote combined calibration file: {output_master_file}')
         return
 

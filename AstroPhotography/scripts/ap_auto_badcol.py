@@ -6,146 +6,181 @@
 #  Attempts to automatically detect statistically bad columns and rows
 #  in a given FITS image, reporting the output in a format that can be
 #  cut and pasted into a user badpixel YaML file.
-#  
+#
 #  Copyright 2021 Dave Strickland <dave.strickland@gmail.com>
-#  
+#
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation; either version 2 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
 #  along with this program; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
-#  
+#
 #  2021-08-14 dks : Initial skeleton.
 #  2024-04-11 dks : Issue-023 improvements
+#  2024-12-08 dks : Adopt Ruff linting
 
 import argparse
-import sys
 import logging
-import AstroPhotography as ap
-import numpy as np
+import AstroPhotography as ap  # noqa: N813
+
 
 def command_line_opts(argv):
-    """Parse command line arguments.
+    """
+    Parse command line arguments.
 
     :param argv: argument list to parse
     """
-    parser = argparse.ArgumentParser(prog='ap_auto_badcol',
-        description=('Attempts to automatically detect statistically'
-        ' bad columns and rows'
-        ' in a given FITS image, reporting the output in a format that can be'
-        ' cut and pasted into a user badpixel YaML file.'))
-    
+    parser = argparse.ArgumentParser(
+        prog="ap_auto_badcol",
+        description=(
+            "Attempts to automatically detect statistically"
+            " bad columns and rows"
+            " in a given FITS image, reporting the output in a format that can be"
+            " cut and pasted into a user badpixel YaML file."
+        ),
+    )
+
     # Required
-    parser.add_argument('fitsimage',
-        metavar='FITSIMAGE.FITS',
-        help=('Path/name of input FITS image to look for bad columns or rows in.'
-        ' The image data is assumed to be in the primary extension of the FITS file.'))
-                
+    parser.add_argument(
+        "fitsimage",
+        metavar="FITSIMAGE.FITS",
+        help=(
+            "Path/name of input FITS image to look for bad columns or rows in."
+            " The image data is assumed to be in the primary extension of the FITS file."
+        ),
+    )
+
     # Optional
-    p_sigma      = 5.0
+    p_sigma = 5.0
     p_window_len = 11
 
-    parser.add_argument('--user_badcol_file',
-        metavar='USER_BADCOL.YML',
+    parser.add_argument(
+        "--user_badcol_file",
+        metavar="USER_BADCOL.YML",
         default=None,
-        help=('The name of the optional user-defined bad column/row/rectangle YaML'
-        ' file that identified bad columns, rows, or rectangular regions will be written to.'
-        ' If this file already exists it will not be over-written unless the user'
-        ' also specifies --overwrite on the command line.'))
-        
-    parser.add_argument('--overwrite',
-        action='store_true',
-        default=False,
-        help=('If specified, overwrite the user badcol YaML file even if it already'
-        ' exists. By default the behaviour is not to overwrite existing files.'))
+        help=(
+            "The name of the optional user-defined bad column/row/rectangle YaML"
+            " file that identified bad columns, rows, or rectangular regions will be written to."
+            " If this file already exists it will not be over-written unless the user"
+            " also specifies --overwrite on the command line."
+        ),
+    )
 
-    parser.add_argument('--column_stats',
-        metavar='COLUMN_STATS.CSV',
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help=(
+            "If specified, overwrite the user badcol YaML file even if it already"
+            " exists. By default the behaviour is not to overwrite existing files."
+        ),
+    )
+
+    parser.add_argument(
+        "--column_stats",
+        metavar="COLUMN_STATS.CSV",
         default=None,
-        help=('If specified, generate a CSV file of statistics with the'
-        ' specified name, for all columns in the input image to allow' 
-        ' independent analysis. Existing files of the same'
-        ' name will be overwritten.'))
-    parser.add_argument('--row_stats',
-        metavar='ROW_STATS.CSV',
+        help=(
+            "If specified, generate a CSV file of statistics with the"
+            " specified name, for all columns in the input image to allow"
+            " independent analysis. Existing files of the same"
+            " name will be overwritten."
+        ),
+    )
+    parser.add_argument(
+        "--row_stats",
+        metavar="ROW_STATS.CSV",
         default=None,
-        help=('If specified, generate a CSV file of statistics with the'
-        ' specified name, for all rows in the input image to allow' 
-        ' independent analysis. Existing files of the same'
-        ' name will be overwritten.'))
-    parser.add_argument('--plot_stats',
-        metavar='STATS_PLOT.PNG',
+        help=(
+            "If specified, generate a CSV file of statistics with the"
+            " specified name, for all rows in the input image to allow"
+            " independent analysis. Existing files of the same"
+            " name will be overwritten."
+        ),
+    )
+    parser.add_argument(
+        "--plot_stats",
+        metavar="STATS_PLOT.PNG",
         default=None,
-        help=('If specified, generate graphs of the row and column statistics'
-        ' written to a file of the specified name. Existing files of the same'
-        ' name will be overwritten.'))
-                
-    parser.add_argument('--sigma',
-        metavar='NSIGMA',
+        help=(
+            "If specified, generate graphs of the row and column statistics"
+            " written to a file of the specified name. Existing files of the same"
+            " name will be overwritten."
+        ),
+    )
+
+    parser.add_argument(
+        "--sigma",
+        metavar="NSIGMA",
         default=p_sigma,
         type=float,
-        help=('Columns or rows are identified as being bad if the median'
-        ' pixel value is more than NSIGMA standard deviations away from'
-        ' the locally determined average.'
-        f' Default: {p_sigma}'))
-    parser.add_argument('--window',
-        metavar='LENGTH',
+        help=(
+            "Columns or rows are identified as being bad if the median"
+            " pixel value is more than NSIGMA standard deviations away from"
+            " the locally determined average."
+            f" Default: {p_sigma}"
+        ),
+    )
+    parser.add_argument(
+        "--window",
+        metavar="LENGTH",
         default=p_window_len,
         type=int,
-        help=('Size of the moving average window function used to generate'
-        ' the local estimate of the column or row value.'
-        f' Default value: {p_window_len}'))
-    parser.add_argument('-l', '--loglevel', 
-        default='INFO',
-        help='Logging message level. Default: INFO')
-                
+        help=(
+            "Size of the moving average window function used to generate"
+            " the local estimate of the column or row value."
+            f" Default value: {p_window_len}"
+        ),
+    )
+    parser.add_argument(
+        "-l", "--loglevel", default="INFO", help="Logging message level. Default: INFO"
+    )
+
     args = parser.parse_args(argv)
     return args
 
+
 def main(args=None):
-    p_args       = command_line_opts(args)
-    p_fitsimg    = p_args.fitsimage
+    p_args = command_line_opts(args)
+    p_fitsimg = p_args.fitsimage
     p_badcolfile = p_args.user_badcol_file
-    p_over       = p_args.overwrite
-    p_colstats   = p_args.column_stats
-    p_rowstats   = p_args.row_stats
-    p_plotstats  = p_args.plot_stats
-    p_sigma      = p_args.sigma
-    p_window     = p_args.window
-    p_loglevel   = p_args.loglevel
-    retcode      = 0
-        
+    p_over = p_args.overwrite
+    p_colstats = p_args.column_stats
+    p_rowstats = p_args.row_stats
+    p_plotstats = p_args.plot_stats
+    p_sigma = p_args.sigma
+    p_window = p_args.window
+    p_loglevel = p_args.loglevel
+    retcode = 0
+
     # Create an instance of the ApAutoBadcols.
     auto_badcols = ap.ApAutoBadcols(p_loglevel)
-    
+
     # Process based on a file - we're not actually using the data
-    badcols, badrows = auto_badcols.process_fits(p_fitsimg, 
-        p_sigma, 
-        p_window)
-        
+    badcols, badrows = auto_badcols.process_fits(p_fitsimg, p_sigma, p_window)
+
     if p_badcolfile is not None:
         auto_badcols.write_badcols_file(p_badcolfile, p_over)
-        
+
     if p_plotstats is not None:
         auto_badcols.generate_stats_plot(p_plotstats)
-        
+
     if (p_colstats is not None) or (p_rowstats is not None):
         auto_badcols.write_stats(p_colstats, p_rowstats)
-                
 
-            
     return retcode
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     try:
         status = main()
     except:
