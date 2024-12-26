@@ -9,6 +9,7 @@ image reduction and processing.
 # This seems overly verbose, but it works.
 from .RawConv import RawConv as RawConv
 from .ApFixBadPixels import ApFixBadPixels as ApFixBadPixels
+from .ApFixHoles import ApFixHoles as ApFixHoles
 from .ApFindBadPixels import ApFindBadPixels as ApFindBadPixels
 from .ApAddMetadata import ApAddMetadata as ApAddMetadata
 from .ApAutoBadcols import ApAutoBadcols as ApAutoBadcols
@@ -19,13 +20,15 @@ from .ApMeasureStars import ApMeasureStars as ApMeasureStars
 from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 from .ApAstrometry import ApAstrometry as ApAstrometry
 from .ApImArith import ApImArith as ApImArith
-from .ApMeasureBackground import ApMeasureBackground as ApMeasureBackground 
+from .ApMeasureBackground import ApMeasureBackground as ApMeasureBackground
 from .ApProcess import ApProcess as ApProcess
 from .ApMasterCal import ApMasterCal as ApMasterCal
 
-__all__ = ["RawConv", 
+__all__ = [
+    "RawConv",
     "ApCalibrate",
-    "ApFindBadPixels", 
+    "ApFindBadPixels",
+    "ApFixHoles",
     "ApFixBadPixels",
     "ApFixCosmicRays",
     "ApAddMetadata",
@@ -37,5 +40,5 @@ __all__ = ["RawConv",
     "ApImArith",
     "ApMeasureBackground",
     "ApProcess",
-    "ApMasterCal"
-    ]
+    "ApMasterCal",
+]
