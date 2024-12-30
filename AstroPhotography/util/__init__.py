@@ -4,6 +4,8 @@ AstroPhotography Utilities
 
 # This seems overly verbose, but it works.
 from .ApUtil import (
+    regionprops_to_astropy_table,
+    img_stats,
     does_file_exist,
     load_image_and_plot,
     load_imlist_and_plot,
@@ -25,6 +27,8 @@ from .file_writer import (
 )
 
 __all__ = [
+    "regionprops_to_astropy_table",
+    "img_stats",
     "does_file_exist",
     "load_image_and_plot",
     "load_imlist_and_plot",

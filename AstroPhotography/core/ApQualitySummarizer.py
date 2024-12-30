@@ -106,7 +106,7 @@ class ApQualitySummarizer:
 
     def _build_summary_table(self):
         """
-        Build an astrtopy table containing the summmary of all the
+        Build an astropy table containing the summmary of all the
         quality files, ordered by target:telescope:filter group.
         """
 

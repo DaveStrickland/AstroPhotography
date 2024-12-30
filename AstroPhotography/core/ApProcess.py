@@ -395,7 +395,7 @@ class ApProcess:
             raise RuntimeError(err_msg)
         return exists
 
-    def _img_stats(self, data, label, verbose=False):
+    def _img_stats(self, data, label, verbose=False) -> tuple[float, float, float, float]:
         """
         Calculate and optionally display some image statistics, returning
         a list of the minimum, maximum, mean and median values
@@ -2227,7 +2227,7 @@ class ApProcess:
         """
 
         walk_tree = False
-        summarizer = ApQualitySummarizer(
+        summarizer = ApQualitySummarizer(  # noqa: F841
             qual_file_dir,
             quality_summary_file,
             self._loglevel,
@@ -2566,7 +2566,7 @@ class ApProcess:
         fine for visualization, but the statistical and photometric
         accuracy of the output has not been investigated enough to make
         any claims in that regard.
-        """
+        """  # noqa: E501
 
         res_tstart = time.perf_counter()
 
