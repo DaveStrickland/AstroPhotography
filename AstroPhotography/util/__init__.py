@@ -17,6 +17,8 @@ from .ApUtil import (
     summarize_wcs,
     get_exposure_time,
     make_dothead_from_file,
+    make_dothead_from_keywords,
+    make_dothead_from_wcs,
 )
 from .file_writer import (
     file_writer,
@@ -45,4 +47,6 @@ __all__ = [
     "CapitalCase_to_snake_case",
     "update_fits_header_with_exif",
     "read_yaml_into_metadatadict",
+    "make_dothead_from_keywords",
+    "make_dothead_from_wcs",
 ]

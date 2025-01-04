@@ -28,6 +28,7 @@
 from typing import Any
 from pathlib import Path
 import numpy as np
+import numpy.typing as npt
 import skimage.measure as skm
 
 ##import matplotlib  # for rc
@@ -1601,9 +1602,113 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
     return (dothead_str, cdelt1_as, cdelt2_as, ximgsz_am, yimgsz_am, crot)
 
 
+def make_dothead_from_keywords(
+    output_swarp_dothead: str,
+    naxis: list[int, int],
+    crval: list[float, float],
+    cdelt: list[float, float],
+    crpix: list[float, float] | None = None,
+    ctype: list[str, str] | None = None,
+    cunit: list[str, str] | None = None,
+    extnum: int | str = 0,
+    format: str = "fits",
+    verbose: bool = False,
+) -> None:
+    """
+    Create the .head format file that swarp expects based on user-supplied values
+    for the standard FITS NAXIS, CRVAL, CDELT, and optionally CRPIX keywords.
+
+    When generating the ASCII format file this function uses the method shown
+    in `WCS.printwcs <https://docs.astropy.org/en/stable/_modules/astropy/wcs/wcs.html#WCS.printwcs>`_.
+
+    Note
+    ~~~~
+
+    * Input value lists are ordered followuing the FITS (Fortran) convention,
+      with the X-axis value first and the Y-axis value second. For example,
+      ``naxis=[3056, 2048]`` denotes an image with 2048 rows and 3056 columns.
+    * Images are aligned North-up, East-left (if CDELT1 is positive). Currently
+      rotations are not supported.
+    * Assumes a 2-dimensional image with angular coordinate axes
+    * ASCII format ``.head`` files do not appear to work with current
+      versions of ``swarp``. Use the ``fits`` format instead.
+
+    Parameters
+    ----------
+    output_swarp_dothead : str
+        Name for the output ``.head`` file ``swarp`` will use.
+    naxis : list of int
+        A list containing the number of columns and rows in the final image,
+        corresponding to the NAXIS1 and NAXIS2 FITS keywords.
+    crval : list of int
+        A list containing the Right Ascension and Declination of pixel coordinates
+        corresponding to CRPIX1 and CRPIX2. Values should be in decimal degrees.
+        Note that the ``crpix`` input is optional, and if not specified it is
+        assumed that CRVAL1, CRVAL2 refer to the exact center of the image.
+    cdelt : list of int
+        A list containing the pixel size parameters CDELT1 and CDELT2.
+        Values should be in decimal degrees.
+    crpix : list of int, optional, default=None
+        A list containing the pixel coordinates CRPIX1, CRPIX2, that correspond
+        to the RA, Dec coordinates in ``crval``. This follows the FITS convention
+        that the center of the first pixel is 1.0, and stretches from 0.5 to 1.5
+        in pixel coordinates. If ``None`` then crpix will automatically be
+        set to the center of the image, ``0.5 + 0.5*NAXIS1, 0.5 + 0.5*NAXIS2``.
+    ctype : list of str, optional, default=None
+        A list containing the ``CTYPE`` keywords for the X and Y axes
+        respectively. If ``None`` then the default values of ``"RA---TAN", "DEC--TAN"``
+        will be used.
+    cunit : list of str, optional, default=None
+        A list containing the ``CUNIT`` keywords for the X and Y axes
+        respectively. If ``None`` then the default values of ``"deg", "deg"``
+        will be used.
+    extnum : int or str, optional, default=0
+        Extension number or name for the extension holding the image data.
+        Usually this is 0, for the ``PrimaryHDU``.
+    format : {'text', 'fits'}
+        If 'text' then an ASCII header will be created using the format
+        specified in the Swarp manual. If 'fits' is specified, an empty FITS
+        file consisting only of a primary HDU will be created.
+    verbose : bool, optional, default=False
+        If True then diagnostic information will be written to stdout.
+    """
+
+    # Parse the WCS keywords in the primary HDU
+    ipwcs = wcs.WCS(naxis=2)
+    ipwcs.array_shape = (naxis[1], naxis[0])  # Note python row, column order
+    ipwcs.wcs.crval = crval
+    ipwcs.wcs.cdelt = cdelt
+
+    if ctype is None:
+        ctype = ["RA---TAN", "DEC--TAN"]
+    ipwcs.wcs.ctype = ctype
+
+    if crpix is None:
+        crpix = [0.5 + 0.5 * naxis[0], 0.5 + 0.5 * naxis[1]]
+    ipwcs.wcs.crpix = crpix
+
+    if cunit is None:
+        cunit = ["deg", "deg"]
+    ipwcs.wcs.cunit = cunit
+
+    make_dothead_from_wcs(
+        ipwcs,
+        output_swarp_dothead=output_swarp_dothead,
+        data=None,
+        extnum=extnum,
+        format=format,
+        verbose=verbose,
+    )
+    return
+
+
 def make_dothead_from_file(
-    input_fits_with_wcs, output_swarp_dothead, extnum=0, format="fits", verbose=False
-):
+    input_fits_with_wcs: str,
+    output_swarp_dothead: str,
+    extnum: int | str = 0,
+    format: str = "fits",
+    verbose: bool = False,
+) -> None:
     """
     Create the .head format file that swarp expects based on the WCS header of an input files file.
 
@@ -1637,80 +1742,121 @@ def make_dothead_from_file(
     with fits.open(input_fits_with_wcs) as hdulist:
         # Parse the WCS keywords in the primary HDU
         ipwcs = wcs.WCS(hdulist[0].header)
+        make_dothead_from_wcs(
+            ipwcs,
+            output_swarp_dothead=output_swarp_dothead,
+            data=None,
+            extnum=extnum,
+            format=format,
+            verbose=verbose,
+        )
+    return
+
+
+def make_dothead_from_wcs(
+    ipwcs: Any,
+    output_swarp_dothead: str,
+    data: npt.NDArray = None,
+    extnum: int | str = 0,
+    format: str = "fits",
+    verbose: bool = False,
+) -> None:
+    """
+    Create the .head format file that swarp expects based on a WCS object.
+
+    When generating the ASCII format file this function uses the method shown
+    in `WCS.printwcs <https://docs.astropy.org/en/stable/_modules/astropy/wcs/wcs.html#WCS.printwcs>`_.
+
+    Note
+    ~~~~
+
+    * Assumes a 2-dimensional image with angular coordinate axes
+    * ASCII format ``.head`` files do not appear to work with current
+      versions of ``swarp``. Use the ``fits`` format instead.
+
+    Parameters
+    ----------
+    ipwcs : astropy.wcs
+        Astropy WCS instance we want to emulate.
+    output_swarp_dothead : str
+        Name for the output ``.head`` file ``swarp`` will use.
+    extnum : int or str, default=0
+        Extension number or name for the extension holding the image data.
+        Usually this is 0, for the ``PrimaryHDU``.
+    format : {'text', 'fits'}
+        If 'text' then an ASCII header will be created using the format
+        specified in the Swarp manual. If 'fits' is specified, an empty FITS
+        file consisting only of a primary HDU will be created.
+    verbose : bool, optional, default=False
+        If True then diagnostic information will be written to stdout.
+    """
+
+    if "text" in format:
+        if verbose:
+            print(
+                "Generating an ASCII header using the format"
+                " specified in the swarp documentation."
+            )
+
+        dothead_list = []
+        keywords = ["NAXIS", "CTYPE", "CRVAL", "CRPIX"]
+        values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
+        for keyword, value in zip(keywords, values):
+            for idx in range(ipwcs.naxis):
+                kw_str = f"{keyword}{1+idx}"
+                if "CTYPE" in keyword:
+                    # Wrap strings in quotes
+                    val_str = f"{kw_str:8s} = '{value[idx]}'"
+                else:
+                    val_str = f"{kw_str:8s} = {value[idx]}"
+                dothead_list.append(val_str)
+
+        if hasattr(ipwcs.wcs, "pc"):
+            for irow in range(ipwcs.naxis):
+                for jcol in range(ipwcs.naxis):
+                    kw_str = f"PC{irow+1}_{jcol+1}"
+                    val_str = f"{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}"
+                    dothead_list.append(val_str)
+                kw_str = f"CDELT{1+irow}"
+                val_str = "f{kw_str:8s} = {pwcs.wcs.cdelt[irow]}"
+                dothead_list.append(val_str)
+        elif hasattr(ipwcs.wcs, "cd"):
+            for irow in range(ipwcs.naxis):
+                for jcol in range(ipwcs.naxis):
+                    kw_str = f"CD{irow+1}_{jcol+1}"
+                    val_str = f"{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}"
+                    dothead_list.append(val_str)
+
+        dothead_list.append("END     ")
+        dothead_str = "\n".join(dothead_list)
 
         if verbose:
-            print(f"WCS created from primary header of {input_fits_with_wcs}")
-            print(ipwcs)
-            print(80 * "-")
-            # print(ipwcs.wcs)
-            # print(80*"-")
+            print("==== dothead output from make_dothead_from_wcs ====")
+            print(dothead_str)
+            print(f"==== about to write to {output_swarp_dothead} ====")
 
-        if "text" in format:
+        with open(output_swarp_dothead, "w") as ofile:
+            ofile.write(dothead_str)
             if verbose:
-                print(
-                    "Generating an ASCII header using the format"
-                    " specified in the swarp documentation."
-                )
+                print(f"Wrote Swarp ASCII-format .head file to {output_swarp_dothead}")
+    elif "fits" in format:
+        if verbose:
+            print("Generating a FITS format header consisting of a PrimaryHDU only.")
+        # based on https://docs.astropy.org/en/stable/wcs/example_create_imaging.html
+        hdr = ipwcs.to_header()
 
-            dothead_list = []
-            keywords = ["NAXIS", "CTYPE", "CRVAL", "CRPIX"]
-            values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
-            for keyword, value in zip(keywords, values):
-                for idx in range(ipwcs.naxis):
-                    kw_str = f"{keyword}{1+idx}"
-                    if "CTYPE" in keyword:
-                        # Wrap strings in quotes
-                        val_str = f"{kw_str:8s} = '{value[idx]}'"
-                    else:
-                        val_str = f"{kw_str:8s} = {value[idx]}"
-                    dothead_list.append(val_str)
+        # NAXIS = x, NAXISx values set from data, not by manipulating header
+        if data is None:
+            data = np.zeros(ipwcs.array_shape, dtype=np.int16)
 
-            if hasattr(ipwcs.wcs, "pc"):
-                for irow in range(ipwcs.naxis):
-                    for jcol in range(ipwcs.naxis):
-                        kw_str = f"PC{irow+1}_{jcol+1}"
-                        val_str = f"{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}"
-                        dothead_list.append(val_str)
-                    kw_str = f"CDELT{1+irow}"
-                    val_str = "f{kw_str:8s} = {pwcs.wcs.cdelt[irow]}"
-                    dothead_list.append(val_str)
-            elif hasattr(ipwcs.wcs, "cd"):
-                for irow in range(ipwcs.naxis):
-                    for jcol in range(ipwcs.naxis):
-                        kw_str = f"CD{irow+1}_{jcol+1}"
-                        val_str = f"{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}"
-                        dothead_list.append(val_str)
-
-            dothead_list.append("END     ")
-            dothead_str = "\n".join(dothead_list)
-
-            if verbose:
-                print(f"--- dothead output from {input_fits_with_wcs} ---")
-                print(dothead_str)
-                print(f"--- about to write to {output_swarp_dothead} ---")
-
-            with open(output_swarp_dothead, "w") as ofile:
-                ofile.write(dothead_str)
-                if verbose:
-                    print(f"Wrote Swarp ASCII-format .head file to {output_swarp_dothead}")
-        elif "fits" in format:
-            if verbose:
-                print("Generating a FITS format header consisting of a PrimaryHDU only.")
-            # based on https://docs.astropy.org/en/stable/wcs/example_create_imaging.html
-            hdr = ipwcs.to_header()
-
-            # NAXIS = x, NAXISx values set from data, not by manipulating header
-            olddata = hdulist[0].data
-            data = 0 * olddata.astype(int)
-
-            hdu = fits.PrimaryHDU(header=hdr, data=data)
-            hdu.writeto(output_swarp_dothead, overwrite=True, output_verify="ignore")
-            if verbose:
-                print(f"Wrote FITS header .head file to {output_swarp_dothead}")
-        else:
-            raise RuntimeError(
-                f'Error, format ({format}) is not one of the allowed options: "text" "fits"'
-            )
+        hdu = fits.PrimaryHDU(header=hdr, data=data)
+        hdu.writeto(output_swarp_dothead, overwrite=True, output_verify="ignore")
+        if verbose:
+            print(f"Wrote FITS header .head file to {output_swarp_dothead}")
+    else:
+        raise RuntimeError(
+            f'Error, format ({format}) is not one of the allowed options: "text" "fits"'
+        )
     return
 
 
