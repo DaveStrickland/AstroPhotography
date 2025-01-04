@@ -22,6 +22,7 @@
 # History:
 # 2024-11-26 dks : issue-2 Initial script implemented
 # 2024-11-29 dks : issue-28 Added exclude_corner_pct
+# 2024-12-31 dks : issue-31 Add holemaskfile for hole filling
 
 import sys
 import argparse
@@ -89,6 +90,7 @@ def command_line_opts(argv):
         "metadata_yaml": None,
         "replace_keywords": False,
         "badpixelfile": None,
+        "holemaskfile": None,
         "deltapix": 2,
         "fix_cosmic_rays": False,
     }
@@ -569,6 +571,17 @@ def command_line_opts(argv):
         ),
     )
 
+    def_value = defaults["holemaskfile"]
+    parser.add_argument(
+        "--holemaskfile",
+        default=def_value,
+        help=(
+            " File path and name to the hole mask file to apply. This file"
+            " should conform to the format used by ApFixHoles."
+            f" Default value: {def_value}"
+        ),
+    )
+
     def_value = defaults["deltapix"]
     parser.add_argument(
         "--deltapix",
@@ -680,6 +693,7 @@ def main(args):
         replace_keywords=p_args.replace_keywords,
         badpixelfile=p_args.badpixelfile,
         deltapix=p_args.deltapix,
+        holemaskfile=p_args.holemaskfile,
         fix_cosmic_rays=p_args.fix_cosmic_rays,
     )
 

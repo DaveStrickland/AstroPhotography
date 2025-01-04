@@ -5,6 +5,7 @@ Contains the implementation of the ApProcess class.
 # 2024-05-02 dks : Initial implementation.
 # 2024-08-12 dks : Numpy format documentation
 # 2024-11-01 dks : Ruff/Mypy changes
+# 2024-12-31 dks : Add ApFixHoles to preprocessing
 
 from typing import Any
 import sys
@@ -17,6 +18,7 @@ import subprocess
 import shlex
 
 import numpy as np
+import numpy.typing as npt
 from ccdproc import ImageFileCollection
 from astropy.table import Table, Column
 from astropy.table import unique
@@ -31,6 +33,7 @@ from .ApFindStars import ApFindStars as ApFindStars
 from .ApAstrometry import ApAstrometry as ApAstrometry
 from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 from .ApFixBadPixels import ApFixBadPixels as ApFixBadPixels
+from .ApFixHoles import ApFixHoles as ApFixHoles
 
 # ApFixCosmicRays did not, instead requiring the more verbose line shown.
 
@@ -68,7 +71,8 @@ class ApProcess:
       These functions can be
       used before processing to check that it will process the files you
       expect.
-    - Reapply bad pixel/column/row removal and/or adding image header
+    - Reapply one or more forms of pixel corrections (bad pixel correction,
+      hole inpainting, and cosmic ray correction), and/or add image header
       metadata in cases where the input calibrated images are deficient.
       See :func:`preprocess_images`. These functions should be run before image
       navigation and resampling.
@@ -134,21 +138,25 @@ class ApProcess:
     deficient in one or more regards:
 
     1. Added metadata to the FITS header to identify the observation,
-        telescope, or instrument characteristics. This mode is controlled
-        by the ``keyword_dict`` and ``replace_keywords`` parameters.
+       telescope, or instrument characteristics. This mode is controlled
+       by the ``keyword_dict`` and ``replace_keywords`` parameters.
     2. Add an ``EXPOSURE`` keyowrd value based on the value of a less
-        commonly used varient already present in the FITS headers
-        (e.g. ``ONTIME``). This is controlled by the ``find_exposure_time``
-        parameter.
+       commonly used varient already present in the FITS headers
+       (e.g. ``ONTIME``). This is controlled by the ``find_exposure_time``
+       parameter.
     3. Perform additional bad pixel, bad row, and/or bad column
-        correction based on a user-supplied bad pixel file and using
-        the :class:`ApFixBadPixels` class
-        This mode is controlled
-        by the ``badpixelfile`` and ``deltapix`` parameters.
-    4. Apply Cosmic Ray (CR) rejection using :class:`ApFixCosmicRays`.
-        If you decide that additional bad pixel
-        processing is necessary then it is likely you will also require
-        additional CR rejection as well.
+       correction based on a user-supplied bad pixel file and using
+       the :class:`ApFixBadPixels` class
+       This mode is controlled
+       by the ``badpixelfile`` and ``deltapix`` parameters.
+    4. Inpaint "holes" in the image with values matching the local pixel
+       statistics based on a user-supplied hole mask and
+       :class:`ApFixHoles`. This mode is controlled by the ``holemaskfile``
+       parameter.
+    5. Apply Cosmic Ray (CR) rejection using :class:`ApFixCosmicRays`.
+       If you decide that additional bad pixel
+       processing is necessary then it is likely you will also require
+       additional CR rejection as well.
 
     Preprocessing does not modify the original input files. Instead it
     creates new files with names based on string replacement of the of
@@ -361,7 +369,7 @@ class ApProcess:
                     raise RuntimeError(err_msg)
         return exists
 
-    def _check_file_exists(self, filename, throws=True):
+    def _check_file_exists(self, filename: str, throws=True) -> bool:
         """
         Check if a file or path exists, by default raising an exception
         if it does not exist, also returning a boolean True if the file exists
@@ -395,7 +403,9 @@ class ApProcess:
             raise RuntimeError(err_msg)
         return exists
 
-    def _img_stats(self, data, label, verbose=False) -> tuple[float, float, float, float]:
+    def _img_stats(
+        self, data: npt.NDArray, label: str, verbose=False
+    ) -> tuple[float, float, float, float]:
         """
         Calculate and optionally display some image statistics, returning
         a list of the minimum, maximum, mean and median values
@@ -452,7 +462,7 @@ class ApProcess:
             self._logger.info(msg3)
         return [minval, maxval, meanval, medval]
 
-    def _initialize_logger(self, loglevel):
+    def _initialize_logger(self, loglevel: str) -> None:
         """
         Initialize the logger
 
@@ -487,7 +497,9 @@ class ApProcess:
             self._logger.addHandler(ch)
         return
 
-    def _read_fits(self, image_filename, image_extension):
+    def _read_fits(
+        self, image_filename: str, image_extension: int | str
+    ) -> tuple[npt.NDArray, Any]:
         """
         Read a single extension's data and header from a FITS file
 
@@ -588,7 +600,7 @@ class ApProcess:
 
         return ext_data, ext_hdr
 
-    def _remove_pedestal_kw(self, hdr):
+    def _remove_pedestal_kw(self, hdr: Any) -> None:
         """
         Removes the PEDESTAL keyword from the input FITS header
 
@@ -612,7 +624,14 @@ class ApProcess:
 
         return
 
-    def _write_corrected_image(self, inpdata_file, ext_num, outdata_file, odata, odict):
+    def _write_corrected_image(
+        self,
+        inpdata_file: str,
+        ext_num: int | str,
+        outdata_file: str,
+        odata: npt.NDArray,
+        odict: dict[str, Any],
+    ) -> None:
         """
         Writes the calibrated data to the specified output
         file, preserving all other items from the original input file.
@@ -675,16 +694,16 @@ class ApProcess:
 
     def get_file_names(
         self,
-        ap_filetype,
-        data_dir,
-        ap_filestate="conceptual",
-        include_pattern=None,
-        exclude_pattern=None,
-        input_file_list=None,
-        input_rootname=None,
-        input_suffix=".fits",
-        name_and_dir=False,
-    ):
+        ap_filetype: str,
+        data_dir: str,
+        ap_filestate: str = "conceptual",
+        include_pattern: str | None = None,
+        exclude_pattern: str | None = None,
+        input_file_list: list[str] | None = None,
+        input_rootname: str | None = None,
+        input_suffix: str | None = ".fits",
+        name_and_dir: bool = False,
+    ) -> list[str]:
         """
         Returns a list of the file names that would correspond to a certain
         AstroPhotography file type given the other input parameters
@@ -950,8 +969,13 @@ class ApProcess:
         return output_fname_list
 
     def _get_file_names(
-        self, ap_filetype, ifc_cal, input_rootname=None, input_suffix=".fits", name_and_dir=False
-    ):
+        self,
+        ap_filetype: str,
+        ifc_cal: Any,
+        input_rootname: str | None = None,
+        input_suffix: str | None = ".fits",
+        name_and_dir: bool = False,
+    ) -> list[str]:
         """
         Returns a list of the file names that would correspond to a certain
         AstroPhotography file type given the existing set of input files.
@@ -1242,13 +1266,13 @@ class ApProcess:
 
     def set_file_names(
         self,
-        data_dir,
-        include_pattern=None,
-        exclude_pattern=None,
-        input_file_list=None,
-        input_rootname=None,
-        input_suffix=".fits",
-    ):
+        data_dir: str,
+        include_pattern: str | None = None,
+        exclude_pattern: str | None = None,
+        input_file_list: list[str] | None = None,
+        input_rootname: str | None = None,
+        input_suffix: str | None = ".fits",
+    ) -> None:
         """
         Sets the input and output file names associated with `ApProcess`
         and finds all the existing files matching those prescription.
@@ -1379,45 +1403,46 @@ class ApProcess:
 
     def process_all(
         self,
-        data_dir,
-        include_pattern=None,
-        exclude_pattern=None,
-        input_file_list=None,
-        input_rootname=None,
-        input_suffix=".fits",
-        final_quality_file=None,
-        clean_star_detection=False,
-        clean_astrometry=False,
-        stop_on_error=False,
-        extnum=0,
-        search_fwhm=3.0,
-        search_nsigma=7.0,
-        detector_bitdepth=16,
-        max_sources=200,
-        nosatmask=True,
-        sat_frac=0.8,
-        quiet=True,
+        data_dir: str | None,
+        include_pattern: str | None = None,
+        exclude_pattern: str | None = None,
+        input_file_list: list[str] | None = None,
+        input_rootname: str | None = None,
+        input_suffix: str | None = ".fits",
+        final_quality_file: str | None = None,
+        clean_star_detection: bool = False,
+        clean_astrometry: bool = False,
+        stop_on_error: bool = False,
+        extnum: str | int = 0,
+        search_fwhm: float = 3.0,
+        search_nsigma: float = 7.0,
+        detector_bitdepth: int = 16,
+        max_sources: int = 200,
+        nosatmask: bool = True,
+        sat_frac: float = 0.8,
+        quiet: bool = True,
         exclude_corner_pct: float | None = None,
-        srclist_extname="AP_XYPOS",
+        srclist_extname: str = "AP_XYPOS",
         astnet_key=None,
-        use_sip=False,
-        user_scale=None,
-        scale_err_ratio=None,
-        target_wcs_file=None,
-        resampled_file_prefix="resampled_",
-        resampled_file_suffix="_resamp_weighted.fits",
-        resampled_dir=r"./",
+        use_sip: bool = False,
+        user_scale: float | None = None,
+        scale_err_ratio: float | None = None,
+        target_wcs_file: str | None = None,
+        resampled_file_prefix: str = "resampled_",
+        resampled_file_suffix: str = "_resamp_weighted.fits",
+        resampled_dir: str = r"./",
         filter_list: list[str] | None = None,
         resampled_summary_plot: str | None = None,
         composite_summary_plot: str | None = None,
-        preprocess_replace=None,
-        preprocess_with=None,
-        find_exposure_time=False,
-        keyword_dict=None,
-        replace_keywords=False,
-        badpixelfile=None,
-        deltapix=2,
-        fix_cosmic_rays=False,
+        preprocess_replace: str | None = None,
+        preprocess_with: str | None = None,
+        find_exposure_time: bool = False,
+        keyword_dict: dict[str, Any] | None = None,
+        replace_keywords: bool = False,
+        badpixelfile: str | None = None,
+        deltapix: int = 2,
+        holemaskfile: str | None = None,
+        fix_cosmic_rays: bool = False,
     ):
         """
         Performs all processing stages
@@ -1442,7 +1467,7 @@ class ApProcess:
         order to activate preprocessing: ``preprocess_replace`` and ``preprocess_with``
         along with at least one of the following parameters **not** being None:
         ``find_exposure_time``, ``keyword_dict``,
-        ``badpixelfile``, or ``fix_cosmic_rays``.
+        ``badpixelfile``, ``holemaskfile``, or ``fix_cosmic_rays``.
 
         Parameters
         ----------
@@ -1649,6 +1674,10 @@ class ApProcess:
             surrounding 24 pixels will be used. Values above 2 are not
             recommended.
             (preprocess_images parameter)
+        holemaskfile : str, optional, default=None
+            File path and name to any hole mask file to apply. This file
+            should conform to the format used by ``ApFixHoles``.
+            (preprocess_images parameter)
         fix_cosmic_rays : bool, optional, default=False
             If True then perform Cosmic Ray rejection on the images.
             (preprocess_images parameter)
@@ -1680,7 +1709,13 @@ class ApProcess:
         if (preprocess_replace is not None) and (preprocess_with is not None):
             # Check that at least one pre-processing option has been
             # selected, otherwise this is an error
-            if find_exposure_time or keyword_dict or badpixelfile or fix_cosmic_rays:
+            if (
+                find_exposure_time
+                or keyword_dict
+                or badpixelfile
+                or holemaskfile
+                or fix_cosmic_rays
+            ):
                 preprocessed_modified_files = self.preprocess_images(
                     data_dir,
                     preprocess_replace,
@@ -1694,9 +1729,10 @@ class ApProcess:
                     find_exposure_time,
                     keyword_dict,
                     replace_keywords,
-                    badpixelfile,
-                    deltapix,
-                    fix_cosmic_rays,
+                    badpixelfile=badpixelfile,
+                    deltapix=deltapix,
+                    holemaskfile=holemaskfile,
+                    fix_cosmic_rays=fix_cosmic_rays,
                 )
                 self._logger.debug(
                     (
@@ -3257,21 +3293,22 @@ class ApProcess:
 
     def preprocess_images(
         self,
-        data_dir,
-        preprocess_replace,
-        preprocess_with,
-        include_pattern=None,
-        exclude_pattern=None,
-        input_file_list=None,
-        input_rootname=None,
-        input_suffix=".fits",
-        extnum=0,
-        find_exposure_time=False,
-        keyword_dict=None,
-        replace_keywords=False,
-        badpixelfile=None,
-        deltapix=2,
-        fix_cosmic_rays=False,
+        data_dir: str,
+        preprocess_replace: str,
+        preprocess_with: str,
+        include_pattern: str | None = None,
+        exclude_pattern: str | None = None,
+        input_file_list: list[str] | None = None,
+        input_rootname: str | None = None,
+        input_suffix: str = ".fits",
+        extnum: str | int = 0,
+        find_exposure_time: bool = False,
+        keyword_dict: dict[str, Any] | None = None,
+        replace_keywords: bool = False,
+        badpixelfile: str | None = None,
+        deltapix: int = 2,
+        holemaskfile: str | None = None,
+        fix_cosmic_rays: bool = False,
     ):
         """
         Modify the calibrated input files before performing image navigation
@@ -3293,7 +3330,11 @@ class ApProcess:
            the :class:`ApFixBadPixels` class
            This mode is controlled
            by the ``badpixelfile`` and ``deltapix`` parameters.
-        4. Apply Cosmic Ray (CR) rejection using :class:`ApFixCosmicRays`.
+        4. Inpaint "holes" in the image with values matching the local pixel
+           statistics based on a user-supplied hole mask and
+           :class:`ApFixHoles`. This mode is controlled by the ``holemaskfile``
+           parameter.
+        5. Apply Cosmic Ray (CR) rejection using :class:`ApFixCosmicRays`.
            If you decide that additional bad pixel
            processing is necessary then it is likely you will also require
            additional CR rejection as well.
@@ -3419,6 +3460,10 @@ class ApProcess:
             will be used. If 2 then the median of the good pixels within the
             surrounding 24 pixels will be used. Values above 2 are not
             recommended.
+        holemaskfile : str, optional, default=None
+            File path and name to any hole mask file to apply. This file
+            should conform to the format used by ``ApFixHoles``.
+            (preprocess_images parameter)
         fix_cosmic_rays : bool, optional, default=False
             If True then perform Cosmic Ray rejection on the images.
 
@@ -3463,6 +3508,11 @@ class ApProcess:
         if badpixelfile is not None:
             bad_pixel_fixer = ApFixBadPixels(self._loglevel)
             msk_data, msk_hdr = self._read_fits(badpixelfile, extnum)
+
+        hole_fixer = None
+        if holemaskfile is not None:
+            hole_fixer = ApFixHoles(self._loglevel)
+            hole_msk_data, hole_msk_hdr = self._read_fits(holemaskfile, extnum)
 
         cr_fixer = None
         if fix_cosmic_rays:
@@ -3509,6 +3559,17 @@ class ApProcess:
                 out_dict["BPIXFILE"] = (
                     Path(badpixelfile).name,
                     "Name of master bad pixel file used",
+                )
+                for key, val in out_dict.items():
+                    inp_hdr[key] = val
+                hdu.data = out_data
+                hdu.header = inp_hdr
+
+            if holemaskfile is not None:
+                out_data, out_dict = hole_fixer.fix_holes(out_data, hole_msk_data)
+                out_dict["HOLEFILE"] = (
+                    Path(holemaskfile).name,
+                    "Name of master hole mask file used",
                 )
                 for key, val in out_dict.items():
                     inp_hdr[key] = val

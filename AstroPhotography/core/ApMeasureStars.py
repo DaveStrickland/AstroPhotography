@@ -915,7 +915,7 @@ class ApMeasureStars:
         list, based on the full set of sources. The trimmed list is further
         filtered to remove all stars having neighbors within a radius of
         _box_width.
-        """
+        """  # noqa: W605
 
         # Algorithm:
         #
