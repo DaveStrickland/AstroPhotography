@@ -146,8 +146,9 @@ def regionprops_to_astropy_table(
     ##for key, val in props_tbl.items():
     ##    print(key, val)
 
-    # properties currently handled. Note that non-scalar properties like the bbox will be split into multiple keys
-    # and not caught by these lists. They are handled separated below.
+    # properties currently handled. Note that non-scalar properties like the
+    # bbox will be split into multiple keys and not caught by these lists.
+    # They are handled separated below.
     int_props = ["label", "num_pixels"]
     float_props = [
         "area",
@@ -176,7 +177,8 @@ def regionprops_to_astropy_table(
             table_format = "i4"
         else:
             print(
-                f"Warning: unexpected property {prop_key} encountered. This will not be added to the Table."
+                f"Warning: unexpected property {prop_key} encountered."
+                " This will not be added to the Table."
             )
             continue
 
@@ -594,6 +596,7 @@ def load_imlist_and_plot(
     )
 
     default_font_size = 7
+    cbar_font_size = 5
 
     # Percentiles to use
     ipctls = [0.5, 99.5]
@@ -648,8 +651,8 @@ def load_imlist_and_plot(
                 orientation="vertical",
                 shrink=0.85,
             )
-            cbar.set_label(r"Units TBA", fontsize=default_font_size)
-            cbar.ax.tick_params(labelsize=default_font_size)
+            cbar.set_label(r"Units TBA", fontsize=cbar_font_size)
+            cbar.ax.tick_params(labelsize=cbar_font_size)
 
             # Display default axis limits
             xlim_used = ax.get_xbound()
@@ -881,6 +884,7 @@ def plot_lupton_threecolor(
         panel_plotter = True
         fig = plt.gcf()
 
+    ax.tick_params(labelsize=default_font_size)
     im = ax.imshow(rgb_array, origin="lower")
     cbar = fig.colorbar(
         im, ax=ax, extend="neither", spacing="proportional", orientation="vertical", shrink=0.85
@@ -1518,7 +1522,7 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
     naxis2 = ipwcs.array_shape[1]
     if naxis == 3:
         ##naxis3 = ipwcs.array_shape[2]
-        print(f"Warning: summarize_wcs() not written for 2-D images, {naxis}-dimensional data")
+        print(f"Warning: summarize_wcs() written for 2-D images, not {naxis}-dimensional data")
 
     cdelt1 = None
     cdelt2 = None
@@ -1553,7 +1557,7 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
                 val_str = f"{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}"
                 dothead_list.append(val_str)
             kw_str = f"CDELT{1+irow}"
-            val_str = "f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
+            val_str = f"{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
             dothead_list.append(val_str)
             # Think that CD1_* = CDELT1 * PC1_* and CD2_* = CDELT2 * PC2_*
             pc = ipwcs.wcs.pc
@@ -1562,17 +1566,29 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
             for irow in range(ipwcs.naxis):
                 cd[irow] = cdelt_vec[irow] * pc[irow]
             # then as above
-        raise RuntimeError(
-            "summarize_wcs needs to be updated to handle cases with a PC_ matrix and no CD_ matrix"
-        )
+            # From https://lweb.cfa.harvard.edu/~jzhao/SMA-FITS-CASA/docs/wcs88.pdf
+            cd11 = cd[0, 0]
+            cd12 = cd[0, 1]
+            cd21 = cd[1, 0]
+            cd22 = cd[1, 1]
+            cdelt1_mag = math.sqrt(cd12 * cd12 + cd22 * cd22)
+            cdelt2_mag = math.sqrt(cd12 * cd12 + cd22 * cd22)
+            # the sign of cdelt1.cdelt2 = sign of (cd11*cd22 - cd12*cd21)
+            # if the RHS is negative cdelt1 is negative by convention, so cdelt2 is always positive
+            tmpa = cd11 * cd22 - cd12 * cd21
+            cdelt1 = math.copysign(cdelt1_mag, tmpa)
+            cdelt2 = cdelt2_mag
+            sign = math.copysign(1, tmpa)
+            crot = math.degrees(math.atan2((sign * cd12), cd22))
+
     else:
         # Assume we have a simple CDELT[12] case with CROTA
         for irow in range(ipwcs.naxis):
             kw_str = f"CDELT{1+irow}"
-            val_str = "f{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
+            val_str = f"{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
             dothead_list.append(val_str)
             kw_str = f"CROTA{1+irow}"
-            val_str = "f{kw_str:8s} = {ipwcs.wcs.crota[irow]}"
+            val_str = f"{kw_str:8s} = {ipwcs.wcs.crota[irow]}"
             dothead_list.append(val_str)
         cdelt1 = ipwcs.wcs.cdelt[0]
         cdelt2 = ipwcs.wcs.cdelt[1]

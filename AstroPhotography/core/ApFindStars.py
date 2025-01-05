@@ -46,6 +46,7 @@ import matplotlib.pyplot as plt
 import math
 import yaml
 from datetime import datetime
+from typing import Any
 
 from astropy.io import fits
 from astropy.table import Table
@@ -68,7 +69,7 @@ from .. import __version__
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
 
 
-def yaml_float_representer(dumper, value: float):
+def yaml_float_representer(dumper: Any, value: float) -> Any:
     """
     Change default yaml float representation to .6f format
 
@@ -97,8 +98,8 @@ class ApFindStars:
     """
 
     # Class constants
-    GOOD = 0
-    INPUT_ERROR = 1
+    GOOD: int = 0
+    INPUT_ERROR: int = 1
 
     def __init__(
         self,
@@ -114,7 +115,7 @@ class ApFindStars:
         plotfile: str,
         quiet: bool,
         exclude_corner_pct: float | None = None,
-    ):
+    ) -> None:
         """
         The constructor reads an input image, and performs by default the following
         processing steps:

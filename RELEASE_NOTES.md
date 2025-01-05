@@ -20,9 +20,14 @@ The objectives of version 0.6 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
-### Version 0.6.1 TBD
+### Version 0.6.1 WIP
 
-- #28 Added option to exclude source detection at the corners of images
+- More Ruff linting and type hinting
+- Added patching_holes_from_bad_flats.ipynb
+- Split make_dothead_from... into file, keywords, wcs options
+- Fix summarize_wcs when there is a PC?_? matrix.
+- #31 Added ApFixHoles to fill in larger scale user-defined holes.
+- #28 Added option to exclude source detection at the corners of images.
 
 ### Version 0.6.0 2024-11-26
 
