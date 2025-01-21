@@ -2421,31 +2421,39 @@ class ApProcess:
             )
         )
 
-        # Refine source detection
-        self._logger.debug(
-            (
-                f"Updating source searching using initial FWHM={a_new_fwhm:.3f}"
-                f" +/- {a_madstd_fwhm:.3f} pixels using {a_npts} stars."
+        # If we could measure a FWHM then we should refine the source detection
+        if a_npts > 0:
+            # Refine source detection
+            self._logger.debug(
+                (
+                    f"Updating source searching using initial FWHM={a_new_fwhm:.3f}"
+                    f" +/- {a_madstd_fwhm:.3f} pixels using {a_npts} stars."
+                )
             )
-        )
-        find_stars.source_search(a_new_fwhm, a_search_nsigma)
+            find_stars.source_search(a_new_fwhm, a_search_nsigma)
 
-        # Re-run photometry
-        find_stars.aperture_photometry()
+            # Re-run photometry
+            find_stars.aperture_photometry()
 
-        # Measure 2-Gaussian FWHM for select stars, get average over x and y
-        (a_new_fwhm2, a_madstd_fwhm2, a_npts2) = find_stars.measure_fwhm(a_fwhm_plot, "both")
-        self._logger.debug(
-            (
-                f"Final star detection and fitting: FWHM={a_new_fwhm2:.3f}"
-                f" +/- {a_madstd_fwhm2:.3f} pixels using {a_npts2} stars."
+            # Measure 2-Gaussian FWHM for select stars, get average over x and y
+            (a_new_fwhm2, a_madstd_fwhm2, a_npts2) = find_stars.measure_fwhm(a_fwhm_plot, "both")
+            self._logger.debug(
+                (
+                    f"Final star detection and fitting: FWHM={a_new_fwhm2:.3f}"
+                    f" +/- {a_madstd_fwhm2:.3f} pixels using {a_npts2} stars."
+                )
             )
-        )
 
-        # As the source searching and photometry was redone, we should redo
-        # the plotting.
-        if a_plotfile is not None:
-            find_stars.plot_image(a_plotfile)
+            # As the source searching and photometry was redone, we should redo
+            # the plotting.
+            if a_plotfile is not None:
+                find_stars.plot_image(a_plotfile)
+        else:
+            err_msg = (
+                "Failed to find measure any source extents."
+                " Suggest reprocessing with different parameters"
+            )
+            raise RuntimeError(err_msg)
 
         # Write optional quality report
         if a_qual_rprt is not None:

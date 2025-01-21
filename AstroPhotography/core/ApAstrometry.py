@@ -475,8 +475,6 @@ class ApAstrometry:
         # This block is a modified version of the example online.
         # - Both the original example and this version seem to fail to try
         #   again.
-        # - If Astrometry.net is not responding we can different exceptions
-        #   than just the JSONDecodeError currently handled.
         wcs_header = None
         try_number: int = 1
         while try_again:

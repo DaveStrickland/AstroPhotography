@@ -23,8 +23,10 @@ The objectives of version 0.6 are:
 ### Version 0.6.1 WIP
 
 - More Ruff linting and type hinting
+- #32 Better handing of cases where no candidates can be fitted in
+  ApMeasureStars and ApFindStars, with helpful error messaging.
 - Added patching_holes_from_bad_flats.ipynb
-- Split make_dothead_from... into file, keywords, wcs options
+- Split make_dothead_from into file, keywords, wcs options
 - Fix summarize_wcs when there is a PC?_? matrix.
 - #31 Added ApFixHoles to fill in larger scale user-defined holes.
 - #28 Added option to exclude source detection at the corners of images.

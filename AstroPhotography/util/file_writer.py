@@ -14,6 +14,14 @@ from typing import Any
 # AstroPhotography includes
 from .. import __version__
 
+def read_fits():
+    """
+    Stub for general read_fits function
+
+    TODO: get logging working
+    """
+    ...
+    return
 
 def read_yaml_into_metadatadict(yamlfile: str) -> dict[str, tuple[Any, str]]:
     """

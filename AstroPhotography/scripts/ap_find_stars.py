@@ -218,15 +218,17 @@ def main(args=None):
     # Measure 2-Gaussian FWHM for select stars, get average over x and y
     (p_new_fwhm, p_madstd_fwhm, p_npts) = find_stars.measure_fwhm(p_fwhm_plot, "both")
 
-    # Refine source detection
-    find_stars.source_search(p_new_fwhm, p_search_nsigma)
+    # If we could measure a FWHM then we should refine the source detection
+    if p_npts > 0:
+        # Refine source detection
+        find_stars.source_search(p_new_fwhm, p_search_nsigma)
 
-    # Re-run photometry
-    find_stars.aperture_photometry()
+        # Re-run photometry
+        find_stars.aperture_photometry()
 
-    # As the source searching and photometry was redone, we should redo
-    # the plotting.
-    find_stars.plot_image(p_plotfile)
+        # As the source searching and photometry was redone, we should redo
+        # the plotting.
+        find_stars.plot_image(p_plotfile)
 
     # Write optional quality report
     if p_qual_rprt is not None:

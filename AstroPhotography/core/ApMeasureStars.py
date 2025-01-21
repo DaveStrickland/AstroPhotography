@@ -121,9 +121,10 @@ class ApMeasureStars:
         self._logger = self._initialize_logger(self._loglevel)
 
         # Settings related to candidate selection.
-        self._use_weights = True
-        self._num_per_reg = 5  # Number of sources per region to fit
+        self._use_weights: bool = True
+        self._num_per_reg: int = 5  # Number of sources per region to fit
         self._skip_brightest = 0  # Skip the brightest N stars in each region
+        self._have_candidates: bool = False
         self._logger.info(
             "Measuring the source extent (Gaussian FWHM)"
             f" from input list of {len(srclist)} sources."
@@ -143,7 +144,7 @@ class ApMeasureStars:
             f"Will the background level be fitted for?           : {self._fit_for_bg}"
         )
 
-        # POsitions for all possible sources in the image
+        # Positions for all possible sources in the image
         self._full_srcs = full_srclist
 
         # Slightly modify the input source list to exclude possibly
@@ -151,11 +152,11 @@ class ApMeasureStars:
         self._init_srcs = Table(
             srclist[srclist["psbl_sat"] == False]
         )  # Initial sourclist from ApFindStars
-        self._init_srcs.remove_columns(["aperture_sum", "psbl_sat", "adu_per_sec"])
-        self._full_srcs.remove_columns(["aperture_sum", "psbl_sat", "adu_per_sec"])
+        self._init_srcs.remove_columns(["aperture_sum", "psbl_sat"])
+        self._full_srcs.remove_columns(["aperture_sum", "psbl_sat"])
         if not self._quiet:
             print("Input table supplied to ApMeasureStars after saturated star filtering:")
-            print(self._init_srcs)
+            self._init_srcs.pprint_all()
             print("")
         self._logger.debug(f"Size of input trimmed source list (filtered): {len(self._init_srcs)}")
         self._logger.debug(
@@ -170,6 +171,13 @@ class ApMeasureStars:
 
         # Select candidates and determine data extraction boxes.
         self._fit_table = self._select_candidates()
+        if not self._have_candidates:
+            self._logger.error(
+                "Zero candidates for fitting found"
+                f", out of {len(self._init_srcs)} input sources."
+            )
+            self._too_few_sources_message()
+            return
         self._calculate_boxes()
         self._do_fitting()
 
@@ -217,7 +225,7 @@ class ApMeasureStars:
 
         if not self._quiet:
             print("Fit candidates with data extraction box indices:")
-            print(self._fit_table)
+            self._fit_table.pprint_all()
             print("")
         return
 
@@ -484,7 +492,7 @@ class ApMeasureStars:
         )
         if not self._quiet:
             print("Fit results:")
-            print(self._fit_table)
+            self._fit_table.pprint_all()
             print("")
         return
 
@@ -704,6 +712,12 @@ class ApMeasureStars:
         Plot all the fits.
         """
 
+        if not self._have_candidates:
+            self._logger.error(
+                "Can not generate plot because there were no candidate stars for fitting."
+            )
+            return
+
         # Make axis box stand out as viridis can be dark.
         matplotlib.rc("axes", edgecolor="r")
         title_font_size = 5
@@ -862,6 +876,16 @@ class ApMeasureStars:
                 self._fit_table[newcol].info.format = "%.2f"
         return
 
+    def _too_few_sources_message(self) -> None:
+        """
+        Generate logger diagnostic messages associated with too few remaining
+        sources.
+        """
+
+        self._logger.error("You may want to rerun ApFindStars with a larger max_sources.")
+        self._logger.error("Or your initial estimate of the FWHM may be too large.")
+        return
+
     def _select_candidates(self):
         """
         Select candidate stars in the center and four quadrants
@@ -906,7 +930,8 @@ class ApMeasureStars:
         detector. Stars with centroids within _edge_excl_pix of the
         edge are not selected as candidates.
 
-        Source Confusion:
+        Source Confusion
+        ~~~~~~~~~~~~~~~~
         It is also important that candidate stars should not have another
         star withing the image cutout used for fitting. Source confusion
         is problematic in that the input estimated magnitudes will be
@@ -915,6 +940,14 @@ class ApMeasureStars:
         list, based on the full set of sources. The trimmed list is further
         filtered to remove all stars having neighbors within a radius of
         _box_width.
+
+        Difficult Cases
+        ~~~~~~~~~~~~~~~
+        However if the field is crowded, and/or the initial estimate of the
+        source FWHM is too large, then nearest neighbor filtering will remove
+        a lot of candidates from consideration. In such cases it may be wise
+        to increase ``max_sources``  above the default value of 200 and also
+        to use a more realistic value of the initial FWHM.
         """  # noqa: W605
 
         # Algorithm:
@@ -935,6 +968,14 @@ class ApMeasureStars:
         self._trim_neighbors()
 
         num_srcs = len(self._init_srcs)
+        if num_srcs == 0:
+            self._have_candidates = False
+            self._logger.error(
+                "Zero stars from initial selected sources remaining"
+                " after trimming nearest neighbors."
+            )
+            return None
+
         self._logger.debug(
             f"Selecting candidate stars for fitting out of {num_srcs} stars"
             f" in {self._rows} row x {self._cols} column image."
@@ -1005,6 +1046,11 @@ class ApMeasureStars:
                 continue
             else:
                 self._logger.debug(f"In region {reg} found {num_cand} candidates for fitting:")
+            if num_cand < self._num_per_reg:
+                self._logger.warning(
+                    f"Less than {self._num_per_reg} candidates:"
+                    " recommend running ApFindStars with larger value of max_sources"
+                )
 
             # Select the Nth to Mth brightest candidates in each region,
             # unless there are not enough stars to do so.
@@ -1024,7 +1070,7 @@ class ApMeasureStars:
 
             cand_table = cand_table[n_start:m_end]
             if not self._quiet:
-                print(cand_table)
+                cand_table.pprint_all()
                 print("")
 
             # Now build the candidate table
@@ -1033,6 +1079,8 @@ class ApMeasureStars:
             else:
                 candidate_table = vstack([candidate_table, cand_table])
 
+        if len(candidate_table) > 0:
+            self._have_candidates = True
         return candidate_table
 
     def _trim_neighbors(self):
@@ -1043,7 +1091,7 @@ class ApMeasureStars:
         This uses a kdtree to identify the nearest neighbors.
 
         Note: This algorithm can fail to identify some close neighbors
-        if the input "full" sourclist has excluded saturated stars.
+        if the input "full" source list has excluded saturated stars.
         """
 
         rad = self._box_width_pix
@@ -1078,33 +1126,54 @@ class ApMeasureStars:
             self._init_srcs["nn_dist"][idx] = nn_dist
 
         if not self._quiet:
-            print("Initial sources with nearest neighbor distance\n", self._init_srcs)
+            print("Initial sources with nearest neighbor distance")
+            self._init_srcs.pprint_all()
 
-        # Create trutch mask for nn_dist greater than exclusion radius
+        # Compute some statistics, useful for debuging cases where ApMeasureStars
+        # fails to have sufficient candidates to use.
+        min_dist = np.min(self._init_srcs["nn_dist"])
+        max_dist = np.max(self._init_srcs["nn_dist"])
+        mean_dist = np.mean(self._init_srcs["nn_dist"])
+        medn_dist = np.median(self._init_srcs["nn_dist"])
+        self._logger.debug(
+            f"Mean inter-source distance: {mean_dist:.2f} pixels"
+            f", median: {medn_dist:.2f} pixels"
+            f", minimum: {min_dist:.2f} pixels"
+            f", maximum: {max_dist:.2f} pixels."
+        )
+
+        # Create scratch mask for nn_dist greater than exclusion radius
         mask = self._init_srcs["nn_dist"] >= rad
         self._init_srcs = self._init_srcs[mask]
 
         final_size = len(self._init_srcs)
         num_removed = init_size - final_size
         self._logger.debug(
-            f"Nearest neighbor filtering removed {num_removed} stars from consideration."
+            f"Nearest neighbor filtering with exclusion radius of {rad:.2f} pixels"
+            f" removed {num_removed} stars from consideration."
         )
         return
 
-    def median_fwhm(self, direction):
+    def median_fwhm(self, direction: str) -> tuple[float, float, float]:
         """
         Returns the sigma-clipped median fitted FWHM over both X
         and Y in pixels over all stars that fitted successfully,
         along with median absolute deviation (MAD) standard deviation.
 
-        Note that the deviation return is standard deviation based on
+        Notes
+        -----
+        The deviation return is standard deviation based on
         the MAD, not the MAD itself. See `astropy.stats.mad_std`.
 
-        Direction must be one of 'both', 'x', or  'y'
+        If there were no candidate stars available for fitting then an error
+        message is logged, but zeros are returned for the ``median_fwhm``,
+        ``madstd_fwhm``, and ``num_used``.
 
         Parameters
         ----------
         direction : {'both', 'x', 'y'}
+            Direction must be one of 'both', 'x', or  'y'
+
 
         Returns
         -------
@@ -1119,6 +1188,10 @@ class ApMeasureStars:
         num_used : int
             Number of measured sources used for the statistic.
         """
+
+        if not self._have_candidates:
+            self._too_few_sources_message()
+            return 0, 0, 0
 
         # Clip values that are more than this number of sigma from the
         # median.
