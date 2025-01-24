@@ -23,11 +23,13 @@
 
 # 2021-01-18 dks : Move ApMeasureStars into core in separate file.
 # 2024-01-25 dks : Catch up to latest astropy/photutils changes
+# 2025-01-21 dks : Re-order NN and fit box initialization.
 
 import logging
 
 ##import os.path
 import numpy as np
+import numpy.typing as npt
 import matplotlib  # for rc
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
@@ -92,16 +94,16 @@ class ApMeasureStars:
 
     def __init__(
         self,
-        img_data,
-        srclist,
-        init_fwhm,
-        init_bglevel,
-        full_srclist,
-        fwhm_plot_file,
-        fwhm_plot_title,
-        loglevel,
-        quiet,
-    ):
+        img_data: npt.NDArray,
+        srclist: npt.NDArray,
+        init_fwhm: float,
+        init_bglevel: float,
+        full_srclist: npt.NDArray,
+        fwhm_plot_file: str | None,
+        fwhm_plot_title: str | None,
+        loglevel: str,
+        quiet: bool,
+    ) -> None:
         """
         ApMeasureStars constructor
         """
@@ -167,9 +169,11 @@ class ApMeasureStars:
         self._rows = img_data.shape[0]
 
         # Set up variables related to fit box size and edge exclusion
+        self._measure_neighbors()
         self._fit_box_initialization()
 
         # Select candidates and determine data extraction boxes.
+        self._trim_neighbors()
         self._fit_table = self._select_candidates()
         if not self._have_candidates:
             self._logger.error(
@@ -595,14 +599,45 @@ class ApMeasureStars:
         """
         Sets up variables related to the size of the region used in
         fitting and the edge exclusion used in candidate selection.
+
+        This function computes a box size based on several criteria:
+
+        - Preferably several times the user-supplied estimate of the source
+          FWHM in pixels,
+        - An even number of pixels,
+        - Preferably less than the median inter-source (nearest neighbor)
+          distance.
+
+        We can also assume that the minimum inter-source distance is no
+        less than twice the true FWHM, in case the criteria above appear
+        to be in conflict.
         """
 
         # We want the fit box to be at least 2x the initial estimated
         # FWHM, and also an even number of pixels. We also pad a bit
         # in case the initial FWHM estimate is an underestimate.
-        pad_frac = 3.0
-        min_width = 12
-        self._box_width_pix = 2 * int(pad_frac * self._init_fwhm)
+        pad_frac: float = 3.0
+        min_width: int = 8
+        box_width_pix_fwhm: int = 2 * int(pad_frac * self._init_fwhm)
+        box_width_pix_mednn: int = 2 * int(0.5 * self._nn_quants[2])
+        self._logger.debug(
+            f"Initial fit box size estimate from init_fwhm: {box_width_pix_fwhm} pixels."
+        )
+        self._logger.debug(
+            f"Initial fit box size estimate from NN dist:   {box_width_pix_mednn} pixels."
+        )
+        if box_width_pix_fwhm <= box_width_pix_mednn:
+            self._box_width_pix = box_width_pix_fwhm
+        else:
+            self._box_width_pix = box_width_pix_mednn
+            # estimate FWHM from 1 percentile NN distance
+            est_fwhm_from_nn: float = 0.5 * self._nn_quants[0]
+            self._logger.warning(
+                "User-supplied initial FWHM may be too large"
+                f" at {self._init_fwhm:.2f} pixels, as NN-distance"
+                f" suggests it may be around {est_fwhm_from_nn:.2f} pixels."
+            )
+
         if self._box_width_pix < min_width:
             self._box_width_pix = min_width
 
@@ -933,7 +968,7 @@ class ApMeasureStars:
         Source Confusion
         ~~~~~~~~~~~~~~~~
         It is also important that candidate stars should not have another
-        star withing the image cutout used for fitting. Source confusion
+        star within the image cutout used for fitting. Source confusion
         is problematic in that the input estimated magnitudes will be
         incorrect and fitting will be compromized. A kdtree is used to
         find the nearest neighbor of each source in the trimmed _init_srcs
@@ -964,8 +999,6 @@ class ApMeasureStars:
         # The table forms the basis for self._fit_table
 
         candidate_table = None
-
-        self._trim_neighbors()
 
         num_srcs = len(self._init_srcs)
         if num_srcs == 0:
@@ -1083,10 +1116,10 @@ class ApMeasureStars:
             self._have_candidates = True
         return candidate_table
 
-    def _trim_neighbors(self):
+    def _measure_neighbors(self):
         """
-        Remove stars from _init_srcs that have a neighbor from
-        _full_srcs within a radius of _box_width pixels.
+        Compute the distance between each star in the source list and its nearest
+        neighbor from the full source list
 
         This uses a kdtree to identify the nearest neighbors.
 
@@ -1094,12 +1127,7 @@ class ApMeasureStars:
         if the input "full" source list has excluded saturated stars.
         """
 
-        rad = self._box_width_pix
         init_size = len(self._init_srcs)
-        self._logger.debug(
-            f"Preparing to trim the input source list of stars with neighbors within {rad} pixels."
-        )
-
         x = self._full_srcs["xcenter"]
         y = self._full_srcs["ycenter"]
         xy_pts = np.column_stack((x, y))
@@ -1131,15 +1159,38 @@ class ApMeasureStars:
 
         # Compute some statistics, useful for debuging cases where ApMeasureStars
         # fails to have sufficient candidates to use.
+        inp_quants = [0.01, 0.10, 0.5, 0.9, 0.99]
+        self._nn_quants = np.quantile(self._init_srcs["nn_dist"], inp_quants)
         min_dist = np.min(self._init_srcs["nn_dist"])
         max_dist = np.max(self._init_srcs["nn_dist"])
         mean_dist = np.mean(self._init_srcs["nn_dist"])
-        medn_dist = np.median(self._init_srcs["nn_dist"])
         self._logger.debug(
             f"Mean inter-source distance: {mean_dist:.2f} pixels"
-            f", median: {medn_dist:.2f} pixels"
+            f", median: {self._nn_quants[2]:.2f} pixels"
             f", minimum: {min_dist:.2f} pixels"
             f", maximum: {max_dist:.2f} pixels."
+        )
+        self._logger.debug(
+            f"80% of inter-source distances are between "
+            f"{self._nn_quants[1]:.2f} and {self._nn_quants[3]:.2f} pixels."
+        )
+        self._logger.debug(
+            f"98% of inter-source distances are between "
+            f"{self._nn_quants[0]:.2f} and {self._nn_quants[4]:.2f} pixels."
+        )
+
+        return
+
+    def _trim_neighbors(self):
+        """
+        Remove stars from _init_srcs that have a neighbor from
+        _full_srcs within a radius of _box_width pixels.
+        """
+
+        rad = self._box_width_pix
+        init_size = len(self._init_srcs)
+        self._logger.debug(
+            f"Preparing to trim the input source list of stars with neighbors within {rad} pixels."
         )
 
         # Create scratch mask for nn_dist greater than exclusion radius

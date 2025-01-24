@@ -25,6 +25,7 @@ The objectives of version 0.6 are:
 - More Ruff linting and type hinting
 - #32 Better handing of cases where no candidates can be fitted in
   ApMeasureStars and ApFindStars, with helpful error messaging.
+- #32 Include nearest neighbor distance estimate in fit box size calculation.
 - Added patching_holes_from_bad_flats.ipynb
 - Split make_dothead_from into file, keywords, wcs options
 - Fix summarize_wcs when there is a PC?_? matrix.
