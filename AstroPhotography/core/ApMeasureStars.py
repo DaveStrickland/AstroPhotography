@@ -108,6 +108,7 @@ class ApMeasureStars:
         ApMeasureStars constructor
         """
 
+        self.__name__ = "ApMeasureStars"
         self._img_data = img_data  # Image data 2-D array
         self._init_fwhm = init_fwhm  # Initial guess at FWHM in pixels
         self._init_bglvl = init_bglevel  # Initial guess at BG level per pixel
@@ -137,8 +138,9 @@ class ApMeasureStars:
         )
 
         # Settings related to source fitting.
-        self._use_weights = True
-        self._fit_for_bg = True
+        self._min_sources_for_fitting: int = 2
+        self._use_weights: bool = True
+        self._fit_for_bg: bool = True
         self._logger.debug(
             f"Count based weighting factors will used in fitting?: {self._use_weights}"
         )
@@ -463,7 +465,7 @@ class ApMeasureStars:
             self._fit_table["axrat"][idx] = axrat
             self._fit_table["axrat_err"][idx] = axrat_err
 
-        # Calculate the globale FWHM MAD standard deviations, and use those
+        # Calculate the global FWHM MAD standard deviations, and use those
         # to reevaluate the circularity.
         (median_fwhm_x, madstd_fwhm_x, npts) = self.median_fwhm("x")
         (median_fwhm_y, madstd_fwhm_y, npts) = self.median_fwhm("y")
@@ -1001,11 +1003,14 @@ class ApMeasureStars:
         candidate_table = None
 
         num_srcs = len(self._init_srcs)
-        if num_srcs == 0:
+        if num_srcs < self._min_sources_for_fitting:
             self._have_candidates = False
             self._logger.error(
-                "Zero stars from initial selected sources remaining"
+                f"{num_srcs} stars from initial selected sources remaining"
                 " after trimming nearest neighbors."
+            )
+            self._logger.error(
+                f"{self.__name__} requires a minimum of {self._min_sources_for_fitting} sources."
             )
             return None
 

@@ -68,7 +68,7 @@ from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 # AstroPhotography includes
 from .. import __version__
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
-from ..util import read_fits
+#from ..util import read_fits
 
 
 def yaml_float_representer(dumper: Any, value: float) -> Any:
@@ -110,7 +110,7 @@ class ApFindStars:
         search_fwhm: float,
         search_nsigma: float,
         detector_bitdepth: int,
-        max_sources: int,
+        max_sources: int | None,
         nosatmask: bool,
         sat_frac: float,
         loglevel: str,
@@ -185,7 +185,10 @@ class ApFindStars:
         self._search_fwhm: float = search_fwhm
         self._search_nsigma: float = search_nsigma
         self._bitdepth: int = detector_bitdepth
-        self._max_sources: int = max_sources
+        if max_sources is not None:
+            self._max_sources: int = int(max_sources)
+        else:
+            self._max_sources: int = 200
         self._nosatmask: bool = nosatmask
         self._sat_frac: float = sat_frac
         self._plotfile: str = plotfile

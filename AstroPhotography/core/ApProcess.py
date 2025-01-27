@@ -2480,7 +2480,7 @@ class ApProcess:
         filter_list: list[str] | None = None,
         resampled_summary_plot: str | None = None,
         composite_summary_plot: str | None = None,
-    ):
+    ) -> tuple[Any, Any]:
         """
         Resample and combine all navigated images to match the WCS defined
         in the specified file, separating outputs by FILTER.
@@ -2883,7 +2883,39 @@ class ApProcess:
             self._logger.debug(f"Setting swap_axis True because crot={crot:.2f} degrees.")
             swap_axis = True
 
-        angle_tick_spacing = 10  # arcmin, reasonable for iTelescope
+        # determine reasonable angle tick spaceing based on image size
+        angle_tick_spacing: float = 10  # arcmin, reasonable for iTelescope
+        tick_scale_factor: float = 4.0
+        imsizam: float = max(xsiz1am, ysiz2am)
+        for tick_spacing in [
+            0.083333333,
+            0.25,
+            1.0,
+            2.0,
+            3.0,
+            5.0,
+            10.0,
+            15.0,
+            30.0,
+            60.0,
+            90.0,
+            120.0,
+            180.0,
+            240.0,
+            300.0,
+            360.0,
+            450.0,
+            600.0,
+            900.0,
+        ]:
+            angle_tick_spacing = tick_spacing
+            if imsizam < (tick_scale_factor * tick_spacing):
+                break
+        self._logger.info(
+            f"Tick spacing chosen for image size of {imsizam:.2f} arcmin"
+            f" is {tick_spacing:.2f} arcmin."
+        )
+
         qval = 8
         stretch = 0.5
         if resampled_summary_plot is not None:

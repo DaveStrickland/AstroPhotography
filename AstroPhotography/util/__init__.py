@@ -5,8 +5,8 @@ AstroPhotography Utilities
 # This seems overly verbose, but it works.
 from .ApUtil import (
     regionprops_to_astropy_table,
-    img_stats,
     does_file_exist,
+    img_stats,
     load_image_and_plot,
     load_imlist_and_plot,
     plot_lupton_threecolor,
