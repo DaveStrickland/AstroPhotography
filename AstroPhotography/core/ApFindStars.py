@@ -42,6 +42,7 @@ import sys
 import logging
 import os.path
 import numpy as np
+import numpy.typing as npt
 import matplotlib.pyplot as plt
 import math
 import yaml
@@ -67,6 +68,7 @@ from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 # AstroPhotography includes
 from .. import __version__
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
+#from ..util import read_fits
 
 
 def yaml_float_representer(dumper: Any, value: float) -> Any:
@@ -108,7 +110,7 @@ class ApFindStars:
         search_fwhm: float,
         search_nsigma: float,
         detector_bitdepth: int,
-        max_sources: int,
+        max_sources: int | None,
         nosatmask: bool,
         sat_frac: float,
         loglevel: str,
@@ -134,7 +136,7 @@ class ApFindStars:
         by calling the public member functions of this class. Output,
         whether FITS table source list or optional quality report
         and ds9-format region file, must be initiated by the user using
-        the public write_ member functions.
+        the public ``write_`` member functions.
 
         Parameters
         ----------
@@ -183,7 +185,10 @@ class ApFindStars:
         self._search_fwhm: float = search_fwhm
         self._search_nsigma: float = search_nsigma
         self._bitdepth: int = detector_bitdepth
-        self._max_sources: int = max_sources
+        if max_sources is not None:
+            self._max_sources: int = int(max_sources)
+        else:
+            self._max_sources: int = 200
         self._nosatmask: bool = nosatmask
         self._sat_frac: float = sat_frac
         self._plotfile: str = plotfile
@@ -214,7 +219,8 @@ class ApFindStars:
         self._logger = self._initialize_logger(self._loglevel)
 
         # Read the image
-        self._data, self._hdr = self._read_fits(fitsimg, extnum)
+        remove_pedestal: str = "positive"  # can be "positive_only", "never", "always"
+        self._data, self._hdr = self._read_fits(fitsimg, extnum, remove_pedestal=remove_pedestal)
 
         # Get initial background estimates using hard-wired constants.
         self._bg_mean: float = 0
@@ -322,7 +328,7 @@ class ApFindStars:
             corner_pix_rad: float = (exclude_corner_pct / 100.0) * max(nrows, ncols)
             self._logger.debug(
                 f"Excluding corners to {exclude_corner_pct:.1f}% of image size"
-                f", {corner_pix_rad} pixels."
+                f", {corner_pix_rad:.1f} pixels."
             )
 
             corners_xy = [(0, 0), (nrows - 1, 0), (nrows - 1, ncols - 1), (0, ncols - 1)]
@@ -697,10 +703,13 @@ class ApFindStars:
             logger.addHandler(ch)
         return logger
 
-    def measure_fwhm(self, fwhm_plot_file, direction=None):
-        """Fit gaussians to a sub-selection of identified stars in the
-           center of the image and four outer quadrants, returning the
-           median 1-D full width half maximum in pixels.
+    def measure_fwhm(
+        self, fwhm_plot_file: str | None, direction: str | None = None
+    ) -> tuple[float, float, float]:
+        """
+        Fit gaussians to a sub-selection of identified stars in the
+        center of the image and four outer quadrants, returning the
+        median 1-D full width half maximum in pixels.
 
         This function in intended to measure the true FWHM of the stars
         within the image, returning a value that can be used to perform
@@ -714,12 +723,14 @@ class ApFindStars:
         partitioning is used to quantify variations in the size and
         symmetry of the stellar PSF across the image.
 
-        The function delegates work to an instance of ApMeasureStars.
+        The function delegates work to an instance of :class:`ApMeasureStars`.
 
-        If fwhm_plot_file is not None then a plot of image cut-outs
+        If ``fwhm_plot_file`` is not ``None`` then a plot of image cut-outs
         around each selected star, along with the 2-D and 1-D best fit
         Gaussians, is created.
 
+        Notes
+        -----
         Although the fitting always performs fitting along X and Y
         rotated by an angle of theta, the direction
         parameter can be used to control the returned values.
@@ -732,12 +743,36 @@ class ApFindStars:
         Note that theta is not controlled, so 'x' and 'y' do not mean the same
         thing as the row/column axis of the image, rendering the returned
         values somewhat ambiguous.
+
+        Parameters
+        ----------
+        fwhm_plot_file: str or None
+            The name/path of a PNG plot of the fitted stars. If ``None`` then
+            not plot will be generated. Likewise, if there were no suitable
+            candidate stars for fitting then no output will be generated even
+            if requested.
+        direction: str or None, optional, default=None
+            The direction over which the median FWHM has been computed. Note
+            that ``x`` and ``y`` are the fitted major and minor axes, not the
+            image columns and rows.
+
+        Returns
+        -------
+        result : float
+            Output FWHM in pixels if stars could be fitted, zero otherwise.
+
+        See Also
+        --------
+        :class:`ApMeasureStars` : Class used to measure and plot source extent
         """
 
         # Construct a meaningful title for the plot file based on the
         # name of the original image file
         fname = os.path.basename(self._fitsimg)
         plot_title = f"Star FWHM measurements for:\n{fname}"
+        self._fwhm_both: tuple[float, float, float] = (0, 0, 0)
+        self._fwhm_x: tuple[float, float, float] = (0, 0, 0)
+        self._fwhm_y: tuple[float, float, float] = (0, 0, 0)
 
         # Note: Cannot use the initial sources table as it lacks
         #   accurate brightness estimates.
@@ -753,20 +788,23 @@ class ApFindStars:
             self._quiet,
         )
         self._psf_table = measure_stars.results_table()
-        self._nsrcs_fitted = len(self._psf_table)
+        if self._psf_table is not None:
+            self._nsrcs_fitted = len(self._psf_table)
 
-        # Get global FWHM (median over both X and Y)
-        self._fwhm_both = measure_stars.median_fwhm("both")
-        self._fwhm_x = measure_stars.median_fwhm("x")
-        self._fwhm_y = measure_stars.median_fwhm("y")
+            # Get global FWHM (median over both X and Y)
+            self._fwhm_both = measure_stars.median_fwhm("both")
+            self._fwhm_x = measure_stars.median_fwhm("x")
+            self._fwhm_y = measure_stars.median_fwhm("y")
 
-        self._logger.info(
-            (
-                f"Median FWHM (over x and y) is {self._fwhm_both[0]:.2f}"
-                f" +/- {self._fwhm_both[1]:.2f} pixels "
-                f"using {self._fwhm_both[2]} data points"
+            self._logger.info(
+                (
+                    f"Median FWHM (over x and y) is {self._fwhm_both[0]:.2f}"
+                    f" +/- {self._fwhm_both[1]:.2f} pixels "
+                    f"using {self._fwhm_both[2]} data points"
+                )
             )
-        )
+        else:
+            self._logger.warning("No sources met fitting criteria.")
 
         if direction is not None:
             if direction == "both":
@@ -794,8 +832,37 @@ class ApFindStars:
             raise RuntimeError(err_msg)
         return
 
-    def _read_fits(self, image_filename, image_extension):
-        """Read a single extension's data and header from a FITS file"""
+    def _read_fits(
+        self, image_filename: str, image_extension: str | int, remove_pedestal: str = "always"
+    ) -> tuple[npt.NDArray, Any]:
+        """
+        Read a single extension's data and header from a FITS file
+
+        Parameters
+        ----------
+        image_filename : str
+            Name/path of the FITS file to be opended.
+        image_extension : str or int
+            FITS extension number or name from which to read the header
+            and data.
+        remove_pedestal : {'always', 'positive', 'never'}
+            FITS ``PEDESTAL`` keyword handling. If the specified file/extension
+            has the ``PEDESTAL`` keyword then ``always`` will remove the pedestal
+            from the data using the value of the keyword, ``never`` will not
+            modify the raw data array values irrespective of the value of the
+            pedestal keyword, and ``positive`` will only remove the pedestal
+            if doing so would leave a positive median pixel value. The latter
+            option can be necessary in cases where other tools have modified
+            the data but **not** removed the ``PEDSTAL`` keyword or set its
+            value to zero.
+
+        Returns
+        -------
+        ext_data : ndarray
+            The data array associated with the specified file/extension
+        ext_hdr : astropy.io.fits.Header
+            The FITS header associated with the specified file/extension
+        """
 
         self._check_file_exists(image_filename)
         self._logger.info(
@@ -850,19 +917,28 @@ class ApFindStars:
         # the PEDESTAL value is the value to ADD to the data to remove the
         # pedestal.
         if "PEDESTAL" in ext_hdr:
-            pedestal = float(ext_hdr["PEDESTAL"])
-            if pedestal != 0:
-                self._logger.debug(f"Removing a PEDESTAL value of {pedestal} ADU.")
-                ext_data += pedestal
-                minval = np.amin(ext_data)
-                maxval = np.amax(ext_data)
-                medval = np.median(ext_data)
-                self._logger.debug(
-                    (
-                        "After PEDESTAL removal, "
-                        f"min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+            if remove_pedestal in ["always", "positive"]:
+                pedestal = float(ext_hdr["PEDESTAL"])
+                condition_met = True
+                if pedestal == 0:
+                    condition_met = False
+                elif "positive" in remove_pedestal:
+                    # values would be on average negative if pedestal corrected for
+                    bg_negative = medval < pedestal
+                    if bg_negative:
+                        condition_met = False
+                if condition_met:
+                    self._logger.debug(f"Removing a PEDESTAL value of {pedestal} ADU.")
+                    ext_data += pedestal
+                    minval = np.amin(ext_data)
+                    maxval = np.amax(ext_data)
+                    medval = np.median(ext_data)
+                    self._logger.debug(
+                        (
+                            "After PEDESTAL removal, "
+                            f"min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+                        )
                     )
-                )
 
         return ext_data, ext_hdr
 
@@ -909,6 +985,14 @@ class ApFindStars:
         x = src_table["xcenter"] + 1.0 * u.Unit("pix")
         y = src_table["ycenter"] + 1.0 * u.Unit("pix")
         xy_table = Table([x, y], names=("X", "Y"))
+
+        # Get rid of metadata as it can't be written to the FITS file
+        if src_table is not None:
+            src_table.meta.clear()
+        if xy_table is not None:
+            xy_table.meta.clear()
+        if psf_table is not None:
+            psf_table.meta.clear()
 
         # Currently just write trimmed FITS-format XY pos and merged position/photomtry
         self._logger.info("Writing source list to FITS binary table {}".format(p_sourcelist))

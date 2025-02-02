@@ -62,6 +62,30 @@ from astropy.visualization import make_lupton_rgb
 # AstroPhotography includes
 ##from .. import __version__
 
+def does_file_exist(filename: str, verbose: bool = False) -> bool:
+    """
+    Returns True if the file name or path exists, false otherwise
+
+    Parameters
+    ----------
+    filename : str
+        Name (optionally including path) of the file we want to check
+        the existence of.
+    verbose : bool, optional, default=False
+        If True then writes to stdout.
+
+    Returns
+    -------
+    exists : bool
+        Returns True if the file path exists, False otherwise.
+    """
+    if verbose and not Path(filename).exists():
+        print(f"Cannot find {filename}. Not a valid path or file.")
+        return False
+    else:
+        print(f"Found {filename}.")
+    return True
+
 
 def regionprops_to_astropy_table(
     label_image,
@@ -264,31 +288,6 @@ def img_stats(data, label, verbose=False):
         print(msg2)
         print(msg3)
     return [minval, maxval, meanval, stdval, medval]
-
-
-def does_file_exist(filename: str, verbose: bool = False) -> bool:
-    """
-    Returns True if the file name or path exists, false otherwise
-
-    Parameters
-    ----------
-    filename : str
-        Name (optionally including path) of the file we want to check
-        the existence of.
-    verbose : bool, optional, default=False
-        If True then writes to stdout.
-
-    Returns
-    -------
-    exists : bool
-        Returns True if the file path exists, False otherwise.
-    """
-    if verbose and not Path(filename).exists():
-        print(f"Cannot find {filename}. Not a valid path or file.")
-        return False
-    else:
-        print(f"Found {filename}.")
-    return True
 
 
 def load_image_and_plot(
@@ -735,6 +734,7 @@ def plot_lupton_threecolor(
     verbose: bool = True,
     angle_tick_spacing_am: float = 2.0,
     swap_radec_axis: bool = False,
+    add_cbar: bool = False,
 ):
     """
     Quick and dirty 3-color composite using make_lupton_rgb
@@ -818,6 +818,10 @@ def plot_lupton_threecolor(
         If True then plot RA tickmarks and values along the Y
         axes and Declination tickmarks and values along the X axis (contrary to the normal
         convention). This does not alter how the image data itself is plotted.
+    add_cbar : bool, optional, default=False
+        Add a scale bar to the plot. For the astropy lupton plot all inputs
+        values are scaled to the range ``[0, 255]`` so the scale bar is
+        superfluous.
 
     Returns
     -------
@@ -886,11 +890,17 @@ def plot_lupton_threecolor(
 
     ax.tick_params(labelsize=default_font_size)
     im = ax.imshow(rgb_array, origin="lower")
-    cbar = fig.colorbar(
-        im, ax=ax, extend="neither", spacing="proportional", orientation="vertical", shrink=0.85
-    )
-    cbar.set_label(r"Units TBA", fontsize=cbar_font_size)  # TODO get real data units
-    cbar.ax.tick_params(labelsize=cbar_font_size)
+    if add_cbar:
+        cbar = fig.colorbar(
+            im,
+            ax=ax,
+            extend="neither",
+            spacing="proportional",
+            orientation="vertical",
+            shrink=0.85,
+        )
+        cbar.set_label(r"Units TBA", fontsize=cbar_font_size)  # TODO get real data units
+        cbar.ax.tick_params(labelsize=cbar_font_size)
 
     # Display default axis limits
     xlim_used = ax.get_xbound()
@@ -981,6 +991,7 @@ def make_lupton_threecolor_plots(
     verbose: bool = True,
     angle_tick_spacing_am: float = 2.0,
     swap_radec_axis: bool = False,
+    add_cbar: bool = False,
 ):
     """
     Create a single summary plot containing any RGB and/or SHO composite plots
@@ -1041,6 +1052,10 @@ def make_lupton_threecolor_plots(
         If True then plot RA tickmarks and values along the Y
         axes and Declination tickmarks and values along the X axis (contrary to the normal
         convention). This does not alter how the image data itself is plotted.
+    add_cbar : bool, optional, default=False
+        Add a scale bar to the plot. For the astropy lupton plot all inputs
+        values are scaled to the range ``[0, 255]`` so the scale bar is
+        superfluous.
     """
 
     panel_cols: int = 1
@@ -1108,6 +1123,7 @@ def make_lupton_threecolor_plots(
             verbose=verbose,
             angle_tick_spacing_am=angle_tick_spacing_am,
             swap_radec_axis=swap_radec_axis,
+            add_cbar=add_cbar,
         )
         hdulist.close()
 

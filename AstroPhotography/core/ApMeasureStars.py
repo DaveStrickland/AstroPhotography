@@ -23,11 +23,13 @@
 
 # 2021-01-18 dks : Move ApMeasureStars into core in separate file.
 # 2024-01-25 dks : Catch up to latest astropy/photutils changes
+# 2025-01-21 dks : Re-order NN and fit box initialization.
 
 import logging
 
 ##import os.path
 import numpy as np
+import numpy.typing as npt
 import matplotlib  # for rc
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
@@ -92,20 +94,21 @@ class ApMeasureStars:
 
     def __init__(
         self,
-        img_data,
-        srclist,
-        init_fwhm,
-        init_bglevel,
-        full_srclist,
-        fwhm_plot_file,
-        fwhm_plot_title,
-        loglevel,
-        quiet,
-    ):
+        img_data: npt.NDArray,
+        srclist: npt.NDArray,
+        init_fwhm: float,
+        init_bglevel: float,
+        full_srclist: npt.NDArray,
+        fwhm_plot_file: str | None,
+        fwhm_plot_title: str | None,
+        loglevel: str,
+        quiet: bool,
+    ) -> None:
         """
         ApMeasureStars constructor
         """
 
+        self.__name__ = "ApMeasureStars"
         self._img_data = img_data  # Image data 2-D array
         self._init_fwhm = init_fwhm  # Initial guess at FWHM in pixels
         self._init_bglvl = init_bglevel  # Initial guess at BG level per pixel
@@ -121,9 +124,10 @@ class ApMeasureStars:
         self._logger = self._initialize_logger(self._loglevel)
 
         # Settings related to candidate selection.
-        self._use_weights = True
-        self._num_per_reg = 5  # Number of sources per region to fit
+        self._use_weights: bool = True
+        self._num_per_reg: int = 5  # Number of sources per region to fit
         self._skip_brightest = 0  # Skip the brightest N stars in each region
+        self._have_candidates: bool = False
         self._logger.info(
             "Measuring the source extent (Gaussian FWHM)"
             f" from input list of {len(srclist)} sources."
@@ -134,8 +138,9 @@ class ApMeasureStars:
         )
 
         # Settings related to source fitting.
-        self._use_weights = True
-        self._fit_for_bg = True
+        self._min_sources_for_fitting: int = 2
+        self._use_weights: bool = True
+        self._fit_for_bg: bool = True
         self._logger.debug(
             f"Count based weighting factors will used in fitting?: {self._use_weights}"
         )
@@ -143,7 +148,7 @@ class ApMeasureStars:
             f"Will the background level be fitted for?           : {self._fit_for_bg}"
         )
 
-        # POsitions for all possible sources in the image
+        # Positions for all possible sources in the image
         self._full_srcs = full_srclist
 
         # Slightly modify the input source list to exclude possibly
@@ -151,11 +156,11 @@ class ApMeasureStars:
         self._init_srcs = Table(
             srclist[srclist["psbl_sat"] == False]
         )  # Initial sourclist from ApFindStars
-        self._init_srcs.remove_columns(["aperture_sum", "psbl_sat", "adu_per_sec"])
-        self._full_srcs.remove_columns(["aperture_sum", "psbl_sat", "adu_per_sec"])
+        self._init_srcs.remove_columns(["aperture_sum", "psbl_sat"])
+        self._full_srcs.remove_columns(["aperture_sum", "psbl_sat"])
         if not self._quiet:
             print("Input table supplied to ApMeasureStars after saturated star filtering:")
-            print(self._init_srcs)
+            self._init_srcs.pprint_all()
             print("")
         self._logger.debug(f"Size of input trimmed source list (filtered): {len(self._init_srcs)}")
         self._logger.debug(
@@ -166,10 +171,19 @@ class ApMeasureStars:
         self._rows = img_data.shape[0]
 
         # Set up variables related to fit box size and edge exclusion
+        self._measure_neighbors()
         self._fit_box_initialization()
 
         # Select candidates and determine data extraction boxes.
+        self._trim_neighbors()
         self._fit_table = self._select_candidates()
+        if not self._have_candidates:
+            self._logger.error(
+                "Zero candidates for fitting found"
+                f", out of {len(self._init_srcs)} input sources."
+            )
+            self._too_few_sources_message()
+            return
         self._calculate_boxes()
         self._do_fitting()
 
@@ -217,7 +231,7 @@ class ApMeasureStars:
 
         if not self._quiet:
             print("Fit candidates with data extraction box indices:")
-            print(self._fit_table)
+            self._fit_table.pprint_all()
             print("")
         return
 
@@ -451,7 +465,7 @@ class ApMeasureStars:
             self._fit_table["axrat"][idx] = axrat
             self._fit_table["axrat_err"][idx] = axrat_err
 
-        # Calculate the globale FWHM MAD standard deviations, and use those
+        # Calculate the global FWHM MAD standard deviations, and use those
         # to reevaluate the circularity.
         (median_fwhm_x, madstd_fwhm_x, npts) = self.median_fwhm("x")
         (median_fwhm_y, madstd_fwhm_y, npts) = self.median_fwhm("y")
@@ -484,7 +498,7 @@ class ApMeasureStars:
         )
         if not self._quiet:
             print("Fit results:")
-            print(self._fit_table)
+            self._fit_table.pprint_all()
             print("")
         return
 
@@ -587,14 +601,45 @@ class ApMeasureStars:
         """
         Sets up variables related to the size of the region used in
         fitting and the edge exclusion used in candidate selection.
+
+        This function computes a box size based on several criteria:
+
+        - Preferably several times the user-supplied estimate of the source
+          FWHM in pixels,
+        - An even number of pixels,
+        - Preferably less than the median inter-source (nearest neighbor)
+          distance.
+
+        We can also assume that the minimum inter-source distance is no
+        less than twice the true FWHM, in case the criteria above appear
+        to be in conflict.
         """
 
         # We want the fit box to be at least 2x the initial estimated
         # FWHM, and also an even number of pixels. We also pad a bit
         # in case the initial FWHM estimate is an underestimate.
-        pad_frac = 3.0
-        min_width = 12
-        self._box_width_pix = 2 * int(pad_frac * self._init_fwhm)
+        pad_frac: float = 3.0
+        min_width: int = 8
+        box_width_pix_fwhm: int = 2 * int(pad_frac * self._init_fwhm)
+        box_width_pix_mednn: int = 2 * int(0.5 * self._nn_quants[2])
+        self._logger.debug(
+            f"Initial fit box size estimate from init_fwhm: {box_width_pix_fwhm} pixels."
+        )
+        self._logger.debug(
+            f"Initial fit box size estimate from NN dist:   {box_width_pix_mednn} pixels."
+        )
+        if box_width_pix_fwhm <= box_width_pix_mednn:
+            self._box_width_pix = box_width_pix_fwhm
+        else:
+            self._box_width_pix = box_width_pix_mednn
+            # estimate FWHM from 1 percentile NN distance
+            est_fwhm_from_nn: float = 0.5 * self._nn_quants[0]
+            self._logger.warning(
+                "User-supplied initial FWHM may be too large"
+                f" at {self._init_fwhm:.2f} pixels, as NN-distance"
+                f" suggests it may be around {est_fwhm_from_nn:.2f} pixels."
+            )
+
         if self._box_width_pix < min_width:
             self._box_width_pix = min_width
 
@@ -703,6 +748,12 @@ class ApMeasureStars:
         """
         Plot all the fits.
         """
+
+        if not self._have_candidates:
+            self._logger.error(
+                "Can not generate plot because there were no candidate stars for fitting."
+            )
+            return
 
         # Make axis box stand out as viridis can be dark.
         matplotlib.rc("axes", edgecolor="r")
@@ -862,6 +913,16 @@ class ApMeasureStars:
                 self._fit_table[newcol].info.format = "%.2f"
         return
 
+    def _too_few_sources_message(self) -> None:
+        """
+        Generate logger diagnostic messages associated with too few remaining
+        sources.
+        """
+
+        self._logger.error("You may want to rerun ApFindStars with a larger max_sources.")
+        self._logger.error("Or your initial estimate of the FWHM may be too large.")
+        return
+
     def _select_candidates(self):
         """
         Select candidate stars in the center and four quadrants
@@ -906,15 +967,24 @@ class ApMeasureStars:
         detector. Stars with centroids within _edge_excl_pix of the
         edge are not selected as candidates.
 
-        Source Confusion:
+        Source Confusion
+        ~~~~~~~~~~~~~~~~
         It is also important that candidate stars should not have another
-        star withing the image cutout used for fitting. Source confusion
+        star within the image cutout used for fitting. Source confusion
         is problematic in that the input estimated magnitudes will be
         incorrect and fitting will be compromized. A kdtree is used to
         find the nearest neighbor of each source in the trimmed _init_srcs
         list, based on the full set of sources. The trimmed list is further
         filtered to remove all stars having neighbors within a radius of
         _box_width.
+
+        Difficult Cases
+        ~~~~~~~~~~~~~~~
+        However if the field is crowded, and/or the initial estimate of the
+        source FWHM is too large, then nearest neighbor filtering will remove
+        a lot of candidates from consideration. In such cases it may be wise
+        to increase ``max_sources``  above the default value of 200 and also
+        to use a more realistic value of the initial FWHM.
         """  # noqa: W605
 
         # Algorithm:
@@ -932,9 +1002,18 @@ class ApMeasureStars:
 
         candidate_table = None
 
-        self._trim_neighbors()
-
         num_srcs = len(self._init_srcs)
+        if num_srcs < self._min_sources_for_fitting:
+            self._have_candidates = False
+            self._logger.error(
+                f"{num_srcs} stars from initial selected sources remaining"
+                " after trimming nearest neighbors."
+            )
+            self._logger.error(
+                f"{self.__name__} requires a minimum of {self._min_sources_for_fitting} sources."
+            )
+            return None
+
         self._logger.debug(
             f"Selecting candidate stars for fitting out of {num_srcs} stars"
             f" in {self._rows} row x {self._cols} column image."
@@ -1005,6 +1084,11 @@ class ApMeasureStars:
                 continue
             else:
                 self._logger.debug(f"In region {reg} found {num_cand} candidates for fitting:")
+            if num_cand < self._num_per_reg:
+                self._logger.warning(
+                    f"Less than {self._num_per_reg} candidates:"
+                    " recommend running ApFindStars with larger value of max_sources"
+                )
 
             # Select the Nth to Mth brightest candidates in each region,
             # unless there are not enough stars to do so.
@@ -1024,7 +1108,7 @@ class ApMeasureStars:
 
             cand_table = cand_table[n_start:m_end]
             if not self._quiet:
-                print(cand_table)
+                cand_table.pprint_all()
                 print("")
 
             # Now build the candidate table
@@ -1033,25 +1117,22 @@ class ApMeasureStars:
             else:
                 candidate_table = vstack([candidate_table, cand_table])
 
+        if len(candidate_table) > 0:
+            self._have_candidates = True
         return candidate_table
 
-    def _trim_neighbors(self):
+    def _measure_neighbors(self):
         """
-        Remove stars from _init_srcs that have a neighbor from
-        _full_srcs within a radius of _box_width pixels.
+        Compute the distance between each star in the source list and its nearest
+        neighbor from the full source list
 
         This uses a kdtree to identify the nearest neighbors.
 
         Note: This algorithm can fail to identify some close neighbors
-        if the input "full" sourclist has excluded saturated stars.
+        if the input "full" source list has excluded saturated stars.
         """
 
-        rad = self._box_width_pix
         init_size = len(self._init_srcs)
-        self._logger.debug(
-            f"Preparing to trim the input source list of stars with neighbors within {rad} pixels."
-        )
-
         x = self._full_srcs["xcenter"]
         y = self._full_srcs["ycenter"]
         xy_pts = np.column_stack((x, y))
@@ -1078,33 +1159,77 @@ class ApMeasureStars:
             self._init_srcs["nn_dist"][idx] = nn_dist
 
         if not self._quiet:
-            print("Initial sources with nearest neighbor distance\n", self._init_srcs)
+            print("Initial sources with nearest neighbor distance")
+            self._init_srcs.pprint_all()
 
-        # Create trutch mask for nn_dist greater than exclusion radius
+        # Compute some statistics, useful for debuging cases where ApMeasureStars
+        # fails to have sufficient candidates to use.
+        inp_quants = [0.01, 0.10, 0.5, 0.9, 0.99]
+        self._nn_quants = np.quantile(self._init_srcs["nn_dist"], inp_quants)
+        min_dist = np.min(self._init_srcs["nn_dist"])
+        max_dist = np.max(self._init_srcs["nn_dist"])
+        mean_dist = np.mean(self._init_srcs["nn_dist"])
+        self._logger.debug(
+            f"Mean inter-source distance: {mean_dist:.2f} pixels"
+            f", median: {self._nn_quants[2]:.2f} pixels"
+            f", minimum: {min_dist:.2f} pixels"
+            f", maximum: {max_dist:.2f} pixels."
+        )
+        self._logger.debug(
+            f"80% of inter-source distances are between "
+            f"{self._nn_quants[1]:.2f} and {self._nn_quants[3]:.2f} pixels."
+        )
+        self._logger.debug(
+            f"98% of inter-source distances are between "
+            f"{self._nn_quants[0]:.2f} and {self._nn_quants[4]:.2f} pixels."
+        )
+
+        return
+
+    def _trim_neighbors(self):
+        """
+        Remove stars from _init_srcs that have a neighbor from
+        _full_srcs within a radius of _box_width pixels.
+        """
+
+        rad = self._box_width_pix
+        init_size = len(self._init_srcs)
+        self._logger.debug(
+            f"Preparing to trim the input source list of stars with neighbors within {rad} pixels."
+        )
+
+        # Create scratch mask for nn_dist greater than exclusion radius
         mask = self._init_srcs["nn_dist"] >= rad
         self._init_srcs = self._init_srcs[mask]
 
         final_size = len(self._init_srcs)
         num_removed = init_size - final_size
         self._logger.debug(
-            f"Nearest neighbor filtering removed {num_removed} stars from consideration."
+            f"Nearest neighbor filtering with exclusion radius of {rad:.2f} pixels"
+            f" removed {num_removed} stars from consideration."
         )
         return
 
-    def median_fwhm(self, direction):
+    def median_fwhm(self, direction: str) -> tuple[float, float, float]:
         """
         Returns the sigma-clipped median fitted FWHM over both X
         and Y in pixels over all stars that fitted successfully,
         along with median absolute deviation (MAD) standard deviation.
 
-        Note that the deviation return is standard deviation based on
+        Notes
+        -----
+        The deviation return is standard deviation based on
         the MAD, not the MAD itself. See `astropy.stats.mad_std`.
 
-        Direction must be one of 'both', 'x', or  'y'
+        If there were no candidate stars available for fitting then an error
+        message is logged, but zeros are returned for the ``median_fwhm``,
+        ``madstd_fwhm``, and ``num_used``.
 
         Parameters
         ----------
         direction : {'both', 'x', 'y'}
+            Direction must be one of 'both', 'x', or  'y'
+
 
         Returns
         -------
@@ -1119,6 +1244,10 @@ class ApMeasureStars:
         num_used : int
             Number of measured sources used for the statistic.
         """
+
+        if not self._have_candidates:
+            self._too_few_sources_message()
+            return 0, 0, 0
 
         # Clip values that are more than this number of sigma from the
         # median.

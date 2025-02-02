@@ -2421,31 +2421,39 @@ class ApProcess:
             )
         )
 
-        # Refine source detection
-        self._logger.debug(
-            (
-                f"Updating source searching using initial FWHM={a_new_fwhm:.3f}"
-                f" +/- {a_madstd_fwhm:.3f} pixels using {a_npts} stars."
+        # If we could measure a FWHM then we should refine the source detection
+        if a_npts > 0:
+            # Refine source detection
+            self._logger.debug(
+                (
+                    f"Updating source searching using initial FWHM={a_new_fwhm:.3f}"
+                    f" +/- {a_madstd_fwhm:.3f} pixels using {a_npts} stars."
+                )
             )
-        )
-        find_stars.source_search(a_new_fwhm, a_search_nsigma)
+            find_stars.source_search(a_new_fwhm, a_search_nsigma)
 
-        # Re-run photometry
-        find_stars.aperture_photometry()
+            # Re-run photometry
+            find_stars.aperture_photometry()
 
-        # Measure 2-Gaussian FWHM for select stars, get average over x and y
-        (a_new_fwhm2, a_madstd_fwhm2, a_npts2) = find_stars.measure_fwhm(a_fwhm_plot, "both")
-        self._logger.debug(
-            (
-                f"Final star detection and fitting: FWHM={a_new_fwhm2:.3f}"
-                f" +/- {a_madstd_fwhm2:.3f} pixels using {a_npts2} stars."
+            # Measure 2-Gaussian FWHM for select stars, get average over x and y
+            (a_new_fwhm2, a_madstd_fwhm2, a_npts2) = find_stars.measure_fwhm(a_fwhm_plot, "both")
+            self._logger.debug(
+                (
+                    f"Final star detection and fitting: FWHM={a_new_fwhm2:.3f}"
+                    f" +/- {a_madstd_fwhm2:.3f} pixels using {a_npts2} stars."
+                )
             )
-        )
 
-        # As the source searching and photometry was redone, we should redo
-        # the plotting.
-        if a_plotfile is not None:
-            find_stars.plot_image(a_plotfile)
+            # As the source searching and photometry was redone, we should redo
+            # the plotting.
+            if a_plotfile is not None:
+                find_stars.plot_image(a_plotfile)
+        else:
+            err_msg = (
+                "Failed to find measure any source extents."
+                " Suggest reprocessing with different parameters"
+            )
+            raise RuntimeError(err_msg)
 
         # Write optional quality report
         if a_qual_rprt is not None:
@@ -2472,7 +2480,7 @@ class ApProcess:
         filter_list: list[str] | None = None,
         resampled_summary_plot: str | None = None,
         composite_summary_plot: str | None = None,
-    ):
+    ) -> tuple[Any, Any]:
         """
         Resample and combine all navigated images to match the WCS defined
         in the specified file, separating outputs by FILTER.
@@ -2875,7 +2883,39 @@ class ApProcess:
             self._logger.debug(f"Setting swap_axis True because crot={crot:.2f} degrees.")
             swap_axis = True
 
-        angle_tick_spacing = 10  # arcmin, reasonable for iTelescope
+        # determine reasonable angle tick spaceing based on image size
+        angle_tick_spacing: float = 10  # arcmin, reasonable for iTelescope
+        tick_scale_factor: float = 4.0
+        imsizam: float = max(xsiz1am, ysiz2am)
+        for tick_spacing in [
+            0.083333333,
+            0.25,
+            1.0,
+            2.0,
+            3.0,
+            5.0,
+            10.0,
+            15.0,
+            30.0,
+            60.0,
+            90.0,
+            120.0,
+            180.0,
+            240.0,
+            300.0,
+            360.0,
+            450.0,
+            600.0,
+            900.0,
+        ]:
+            angle_tick_spacing = tick_spacing
+            if imsizam < (tick_scale_factor * tick_spacing):
+                break
+        self._logger.info(
+            f"Tick spacing chosen for image size of {imsizam:.2f} arcmin"
+            f" is {tick_spacing:.2f} arcmin."
+        )
+
         qval = 8
         stretch = 0.5
         if resampled_summary_plot is not None:
