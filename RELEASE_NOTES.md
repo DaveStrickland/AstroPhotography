@@ -23,6 +23,7 @@ The objectives of version 0.6 are:
 ### Version 0.6.1 WIP
 
 - More Ruff linting and type hinting
+- #27 Added ap_fits_rasterizer.
 - #32 Improve summary plot generation for multi-degree wide images.
 - #32 Better handing of cases where no candidates can be fitted in
   ApMeasureStars and ApFindStars, with helpful error messaging.
