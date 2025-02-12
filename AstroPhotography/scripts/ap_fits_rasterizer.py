@@ -89,6 +89,57 @@ def command_line_opts(argv):
         ),
     )
 
+    def_backend = "stiff"
+    grey_parser.add_argument(
+        "--backend",
+        default=def_backend,
+        type=str,
+        help=(
+            "Specify the backend framework used to generate the bitmap output. "
+            f"(Default is {def_backend})."
+        ),
+    )
+    grey_parser.add_argument(
+        "--extnum",
+        default=0,
+        help="Specify the HDU extension number or name (Default is 0).",
+    )
+    grey_min_group = grey_parser.add_mutually_exclusive_group()
+    grey_min_group.add_argument(
+        "--min_cut",
+        type=float,
+        default=None,
+        help="The pixel value of the minimum cut level (Default is the image minimum).",
+    )
+    grey_max_group = grey_parser.add_mutually_exclusive_group()
+    grey_max_group.add_argument(
+        "--max_cut",
+        type=float,
+        default=None,
+        help="The pixel value of the maximum cut level (Default is the image maximum).",
+    )
+    grey_min_group.add_argument(
+        "--min_percent",
+        type=float,
+        default=None,
+        help=("The percentile value used to determine the " "minimum cut level (Default is 0)."),
+    )
+    grey_max_group.add_argument(
+        "--max_percent",
+        type=float,
+        default=None,
+        help=("The percentile value used to determine the " "maximum cut level (Default is 100)."),
+    )
+    grey_parser.add_argument(
+        "--negative",
+        action="store_true",
+        default=False,
+        help=(
+            "Invert the color table so that bright pixels are black and"
+            " faint pixels are white, similar to photographic negatives."
+        ),
+    )
+
     # --------------------------------------------------------------------------
     # rgb command
     # Required
@@ -118,8 +169,20 @@ def command_line_opts(argv):
 
 def main(args=None):
     p_args = command_line_opts(args)
+    rasterizer = ap.ApFitsRasterizer(p_args.loglevel)
     if "grey" in p_args.command:
         print("grey")
+        rasterizer.fits_to_greyscale(
+            p_args.input_fits,
+            p_args.output_image,
+            p_args.backend,
+            p_args.extnum,
+            p_args.min_cut,
+            p_args.max_cut,
+            p_args.min_percent,
+            p_args.max_percent,
+            p_args.negative,
+        )
     elif "rgb" in p_args.command:
         print("rgb")
 
