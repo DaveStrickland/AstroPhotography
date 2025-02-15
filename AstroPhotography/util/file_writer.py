@@ -18,7 +18,7 @@ import numpy.typing as npt
 from .. import __version__
 
 
-def _does_file_exist(filename: str, verbose: bool = False) -> bool:
+def _does_file_exist(filename: str, verbose: bool = False, a_logger: Any = None) -> bool:
     """
     Returns True if the file name or path exists, false otherwise
 
@@ -29,6 +29,8 @@ def _does_file_exist(filename: str, verbose: bool = False) -> bool:
         the existence of.
     verbose : bool, optional, default=False
         If True then writes to stdout.
+    a_logger : Logging instance or None, optional, default=None
+        Logger
 
     Returns
     -------
@@ -36,10 +38,12 @@ def _does_file_exist(filename: str, verbose: bool = False) -> bool:
         Returns True if the file path exists, False otherwise.
     """
     if verbose and not Path(filename).exists():
-        print(f"Cannot find {filename}. Not a valid path or file.")
+        if a_logger is not None:
+            a_logger.error(f"Cannot find {filename}. Not a valid path or file.")
         return False
     else:
-        print(f"Found {filename}.")
+        if a_logger is not None:
+            a_logger.debug(f"Found {filename}.")
     return True
 
 

@@ -218,5 +218,118 @@ class ApFitsRasterizer:
             where no light is white and intense light is black.
         """
 
+        self._check_file_exists(input_fits)
+        imdata, imhdr = read_fits(
+            image_filename=input_fits,
+            image_extension=extnum,
+            a_logger=self._logger,
+            remove_pedestal="never",
+        )
+
+        # determine minimum and maximum values to use.
+        stat_list, percentiles = self._img_stats(
+            imdata, "Input image", verbose=True, input_percentiles=(min_percent, max_percent)
+        )
+        min_val = stat_list[0]
+        max_val = stat_list[1]
+        if min_cut is not None:
+            min_val = min_cut
+        elif min_percent is not None:
+            min_val = percentiles[0]
+        if max_cut is not None:
+            max_val = max_cut
+        elif max_percent is not None:
+            max_val = percentiles[1]
+        self._logger.info(
+            f"Output raster data value limits are {min_val:.3f}" f" to {max_val:.3f} ADU per pixel"
+        )
+        if max_val <= min_val:
+            self._logger.warning("Maximum output data value limits is less than minimum value.")
+
         self._logger.debug("File processing completed.")
         return
+
+    def _img_stats(
+        self,
+        data: npt.NDArray,
+        label: str,
+        verbose: bool = False,
+        input_percentiles: tuple[Any, Any] = (None, None),
+    ) -> tuple[list[float], tuple[Any, Any]]:
+        """
+        Calculate and optionally display some image statistics that may
+        include two user-specified percentiles, returning both (a) a
+        a list of the minimum, maximum, mean, standard deviation,
+        and median values; and (b) a tuple of the values corresponding
+        to the user-specified percentiles.
+
+        If verbose=True then the computed statistics are also written
+        to the log at INFO level along with the specified informative
+        label.
+
+        Parameters
+        ----------
+        data: ndarray
+            Data array to compute statistics of
+        label : str
+            Descriptive label, only used if verbose=True
+        verbose : bool, optional, default=False
+            If true the the computed statistics are also written
+            to the log at INFO level
+        input_percentiles: two element tuple of float or None, optional, default = (None, None)
+            The percentiles corresponding to any of the non-None elements of
+            the input tuple will be computed. Note that these are percentiles
+            levels in the range ``[0,100]``, not quantiles in the range ``[0, 1]``.
+
+        Returns
+        -------
+        minval :float
+            Minimum value in NaN-filtered input data
+        maxval : float
+            Maximum value in NaN-filtered input data
+        meanval : float
+            Mean value in NaN-filtered input data
+        stdval : float
+            Standard deviation in NaN-filtered input data
+        medval : float
+            Median value in NaN-filtered input data
+        percentile_values : two element tuple of float or None
+            Data values corresponding the percentile of any of the
+            non-None elements of the input tuple.
+        """
+
+        minval = np.nanmin(data)
+        maxval = np.nanmax(data)
+        meanval = np.nanmean(data)
+        stdval = np.nanstd(data)
+
+        # percentiles, 50th percentile is the median
+        #         0    1    2    3   4   5   6   7   8   9   10
+        ipctls = [0.1, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.9]
+        opctls = np.nanpercentile(data, ipctls)
+        medval = opctls[5]
+
+        # User-specified percentiles
+        first_val = None
+        if input_percentiles[0] is not None:
+            first_val = np.nanpercentile(data, input_percentiles[0])
+        second_val = None
+        if input_percentiles[1] is not None:
+            second_val = np.nanpercentile(data, input_percentiles[1])
+        percentile_values = (first_val, second_val)
+
+        if verbose:
+            msg1: str = (
+                f"{label} data min={minval:.2f}, max={maxval:.2f},"
+                f" mean={meanval:.2f} +/- {stdval:.2f}, median={medval:.2f} ADU."
+            )
+            msg2: str = (
+                f"  90% of data between {opctls[2]:.2f} and {opctls[8]:.2f} ADU (5-95 precentiles)"
+            )
+            msg3: str = (
+                f"  98% of data between {opctls[1]:.2f} and {opctls[9]:.2f} ADU (1-99 precentiles)"
+            )
+            print(msg1)
+            print(msg2)
+            print(msg3)
+        return [minval, maxval, meanval, stdval, medval], percentile_values

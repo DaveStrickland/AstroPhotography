@@ -62,6 +62,7 @@ from astropy.visualization import make_lupton_rgb
 # AstroPhotography includes
 ##from .. import __version__
 
+
 def does_file_exist(filename: str, verbose: bool = False) -> bool:
     """
     Returns True if the file name or path exists, false otherwise
@@ -232,7 +233,8 @@ def regionprops_to_astropy_table(
 def img_stats(data, label, verbose=False):
     """
     Calculate and optionally display some image statistics, returning
-    a list of the minimum, maximum, mean and median values
+    a list of the minimum, maximum, mean, standard deviation, and
+    median values.
 
     If verbose=True then the computed statistics are also written
     to the log at INFO level along with the specified informative
