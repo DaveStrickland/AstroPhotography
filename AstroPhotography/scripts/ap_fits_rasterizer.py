@@ -46,12 +46,9 @@ def command_line_opts(argv):
         ),
     )
 
-    parser.add_argument(
-        "-l", "--loglevel", default="INFO", help="Logging message level. Default: INFO"
-    )
-
     # --------------------------------------------------------------------------
     # Commands
+    def_backend = "stiff"
     subparsers = parser.add_subparsers(
         title="Commands", dest="command", required=True, help="Available subcommands. Choose one."
     )
@@ -89,14 +86,14 @@ def command_line_opts(argv):
         ),
     )
 
-    def_backend = "stiff"
     grey_parser.add_argument(
         "--backend",
         default=def_backend,
         type=str,
         help=(
             "Specify the backend framework used to generate the bitmap output. "
-            f"(Default is {def_backend})."
+            f"(Default is {def_backend}). Note that the stiff backend can only produce"
+            " TIFF files."
         ),
     )
     grey_parser.add_argument(
@@ -122,22 +119,46 @@ def command_line_opts(argv):
         "--min_percent",
         type=float,
         default=None,
-        help=("The percentile value used to determine the " "minimum cut level (Default is 0)."),
+        help=(
+            "The percentile value used to determine the minimum cut"
+            " level (Default is None). For most astronomical images"
+            " the sky background is around the 50th percentile."
+        ),
     )
     grey_max_group.add_argument(
         "--max_percent",
         type=float,
         default=None,
-        help=("The percentile value used to determine the " "maximum cut level (Default is 100)."),
+        help=(
+            "The percentile value used to determine the maximum cut"
+            "  level (Default is None). For most astronomical images"
+            "  a percentile level of 99.9%% or slightly lower is a good choice."
+        ),
+    )
+    (
+        grey_parser.add_argument(
+            "--negative",
+            action="store_true",
+            default=False,
+            help=(
+                "Invert the color table so that bright pixels are black and"
+                " faint pixels are white, similar to photographic negatives."
+            ),
+        ),
     )
     grey_parser.add_argument(
-        "--negative",
-        action="store_true",
-        default=False,
+        "--binning",
+        type=int,
+        default=1,
         help=(
-            "Invert the color table so that bright pixels are black and"
-            " faint pixels are white, similar to photographic negatives."
+            "Bin input pixels by this factor on each dimension before"
+            " generating the output image. For example, with binning=2"
+            " the output image will have half the number of rows and half"
+            " the number of columns than the input image, and only a quarter as many pixels."
         ),
+    )
+    grey_parser.add_argument(
+        "-l", "--loglevel", default="INFO", help="Logging message level. Default: INFO"
     )
 
     # --------------------------------------------------------------------------
@@ -146,6 +167,7 @@ def command_line_opts(argv):
     rgb_parser.add_argument(
         "input_fits",
         metavar="INPUT_FITS",
+        nargs=3,
         help=(
             "Path/names of the input FITS images."
             " The three input files must be specified with the FITS image to become"
@@ -163,6 +185,112 @@ def command_line_opts(argv):
         ),
     )
 
+    rgb_parser.add_argument(
+        "--backend",
+        default=def_backend,
+        type=str,
+        help=(
+            "Specify the backend framework used to generate the bitmap output. "
+            f"(Default is {def_backend}). Note that the stiff backend can only produce"
+            " TIFF files."
+        ),
+    )
+    rgb_parser.add_argument(
+        "--extnum",
+        default=0,
+        help=(
+            "Specify the HDU extension number or name (Default is 0)."
+            " This should be the same for all the input files."
+        ),
+    )
+    rgb_min_group = rgb_parser.add_mutually_exclusive_group()
+    rgb_min_group.add_argument(
+        "--min_cut",
+        type=float,
+        nargs="?",
+        const=None,
+        default=None,
+        help=(
+            "The pixel value (or three values) of the minimum cut level"
+            " (Default is the image minimum)."
+            " If one value is specified it is applied to all channels."
+            " Alternatively three values may be specified in order of the"
+            " red, green, and blue channels."
+        ),
+    )
+    rgb_max_group = rgb_parser.add_mutually_exclusive_group()
+    rgb_max_group.add_argument(
+        "--max_cut",
+        type=float,
+        nargs="?",
+        const=None,
+        default=None,
+        help=(
+            "The pixel value (or three values) of the maximum cut level"
+            " (Default is the image maximum)."
+            " If one value is specified it is applied to all channels."
+            " Alternatively three values may be specified in order of the"
+            " red, green, and blue channels."
+        ),
+    )
+    rgb_min_group.add_argument(
+        "--min_percent",
+        type=float,
+        nargs="?",
+        const=None,
+        default=None,
+        help=(
+            "The percentile value (or three values) used to determine the minimum cut"
+            " level (Default is None). For most astronomical images"
+            " the sky background is around the 50th percentile."
+            " If one value is specified it is applied to all channels."
+            " Alternatively three values may be specified in order of the"
+            " red, green, and blue channels.",
+        ),
+    )
+    rgb_max_group.add_argument(
+        "--max_percent",
+        type=float,
+        nargs="?",
+        const=None,
+        default=None,
+        help=(
+            "The percentile value (or three values) used to determine the maximum cut"
+            "  level (Default is None). For most astronomical images"
+            "  a percentile level of 99.9%% or slightly lower is a good choice."
+            " If one value is specified it is applied to all channels."
+            " Alternatively three values may be specified in order of the"
+            " red, green, and blue channels.",
+        ),
+    )
+    (
+        rgb_parser.add_argument(
+            "--negative",
+            action="store_true",
+            default=False,
+            help=(
+                "Invert the color table so that bright pixels are dark and"
+                " faint pixels are bright, similar to photographic negatives."
+            ),
+        ),
+    )
+    rgb_parser.add_argument(
+        "--binning",
+        type=int,
+        default=1,
+        help=(
+            "Bin input pixels by this factor on each dimension before"
+            " generating the output image. For example, with binning=2"
+            " the output image will have half the number of rows and half"
+            " the number of columns than the input image, and only a quarter as many pixels."
+        ),
+    )
+    rgb_parser.add_argument(
+        "-l", "--loglevel", default="INFO", help="Logging message level. Default: INFO"
+    )
+
+    # --------------------------------------------------------------------------
+    # any other commmands
     args = parser.parse_args(argv)
     return args
 
@@ -171,7 +299,6 @@ def main(args=None):
     p_args = command_line_opts(args)
     rasterizer = ap.ApFitsRasterizer(p_args.loglevel)
     if "grey" in p_args.command:
-        print("grey")
         rasterizer.fits_to_greyscale(
             p_args.input_fits,
             p_args.output_image,
@@ -182,10 +309,21 @@ def main(args=None):
             p_args.min_percent,
             p_args.max_percent,
             p_args.negative,
+            p_args.binning,
         )
     elif "rgb" in p_args.command:
-        print("rgb")
-
+        rasterizer.fits_to_rgb(
+            p_args.input_fits,
+            p_args.output_image,
+            p_args.backend,
+            p_args.extnum,
+            p_args.min_cut,
+            p_args.max_cut,
+            p_args.min_percent,
+            p_args.max_percent,
+            p_args.negative,
+            p_args.binning,
+        )
     return 0
 
 

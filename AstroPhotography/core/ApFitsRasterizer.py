@@ -8,6 +8,9 @@ Contains the implementation of the ApFitsRasterizer class.
 import logging
 from pathlib import Path
 from datetime import datetime  # , timezone
+import subprocess
+import shlex
+import time
 from typing import Any
 
 import numpy as np
@@ -171,13 +174,14 @@ class ApFitsRasterizer:
         self,
         input_fits: str,
         output_image: str,
-        backend: str,
-        extnum: str | int,
-        min_cut: float | None,
-        max_cut: float | None,
-        min_percent: float | None,
-        max_percent: float | None,
-        negative: bool,
+        backend: str = "stiff",
+        extnum: str | int = 0,
+        min_cut: float | None = None,
+        max_cut: float | None = None,
+        min_percent: float | None = None,
+        max_percent: float | None = None,
+        negative: bool = False,
+        binning: int = 1,
     ) -> None:
         """
         Given an input FITS file with image data in a given extension, generate
@@ -216,6 +220,11 @@ class ApFitsRasterizer:
         negative : bool, optional, default=False
             If ``True``, then display the image similarly to a photographic negative
             where no light is white and intense light is black.
+        binning : int, optional, default=1
+            Bin input pixels by this factor on each dimension before generating
+            the output image. For example, with ``binning=2`` the output image
+            will have half the number of rows and half the number of columns
+            than the input image, and only a quarter as many pixels.
         """
 
         self._check_file_exists(input_fits)
@@ -240,14 +249,155 @@ class ApFitsRasterizer:
             max_val = max_cut
         elif max_percent is not None:
             max_val = percentiles[1]
-        self._logger.info(
-            f"Output raster data value limits are {min_val:.3f}" f" to {max_val:.3f} ADU per pixel"
-        )
-        if max_val <= min_val:
-            self._logger.warning("Maximum output data value limits is less than minimum value.")
+
+        # run the selected backend
+        allowed_backends = ["stiff"]
+        if "stiff" in backend:
+            # Stiff does the binning somewhat differently... it must average
+            # if binning > 1:
+            #     min_val *= float(binning * binning)
+            #     max_val *= float(binning * binning)
+            user = __name__
+            description = input_fits
+            verbose = True
+            self._logger.info(
+                f"Output raster data value limits are {min_val:.3f}"
+                f" to {max_val:.3f} ADU per binned pixel"
+            )
+            if max_val <= min_val:
+                self._logger.warning(
+                    "Maximum output data value limits is less than minimum value."
+                )
+
+            self._stiff_greyscale_handler(
+                input_fits,
+                output_image,
+                min_val,
+                max_val,
+                negative=negative,
+                binning=binning,
+                copyright=user,
+                description=description,
+                verbose=verbose,
+            )
+        else:
+            err_msg = (
+                f"Unsupported backend {backend} specified."
+                f" Allowable backends are: {allowed_backends}"
+            )
+            raise RuntimeError(err_msg)
 
         self._logger.debug("File processing completed.")
         return
+
+    def _stiff_greyscale_handler(
+        self,
+        input_fits: str,
+        output_tiff: str,
+        min_level: float,
+        max_level: float,
+        gamma_type: str = "POWER-LAW",
+        gamma: float = 2.2,
+        gamma_fac: float = 1.0,
+        color_sat: float = 1.2,
+        negative: bool = False,
+        binning: int = 1,
+        bits_per_channel: int = 8,
+        copyright: str = __name__,
+        description: str = "Astronominal image",
+        copy_header: bool = True,
+        verbose: bool = True,
+    ) -> None:
+        """
+        Convert the input
+        """
+
+        verb_type = "QUIET"
+        neg_type = "N"
+        copy_type = "N"
+        if verbose:
+            verb_type = "FULL"
+        if negative:
+            neg_type = "Y"
+        if copy_header:
+            copy_type = "Y"
+
+        test_cmd = (
+            f"stiff {input_fits}"
+            f" -OUTFILE_NAME {output_tiff}"
+            f" -GAMMA_TYPE {gamma_type} -GAMMA {gamma} -GAMMA_FAC {gamma_fac}"
+            f" -BINNING {binning} -NEGATIVE {neg_type} -COPY_HEADER {copy_type}"
+            f" -COLOUR_SAT {color_sat} -MAX_TYPE MANUAL -MAX_LEVEL {max_level}"
+            f" -MIN_TYPE MANUAL -MIN_LEVEL {min_level}"
+            f" -BITS_PER_CHANNEL {bits_per_channel} -VERBOSE_TYPE {verb_type}"
+            f" -DESCRIPTION {description} -COPYRIGHT {copyright} -WRITE_XML N"
+        )
+
+        test_cmd_list = shlex.split(test_cmd)
+        success: bool = self._run_stiff(test_cmd_list, verbose=verbose)
+        if success:
+            self._logger.info(f"Successfully generated rasterized image {output_tiff}")
+        else:
+            self._logger.error(f"Failed to generate rasterized image {output_tiff}")
+
+        return
+
+    def _run_stiff(self, cmd_list: list[str], verbose: bool = False) -> bool:
+        """
+        Run stiff as a subprocess with a command list
+
+        Parameters
+        ----------
+        cmd_list : list of str
+            The command line arguments to be supplied to the subprocess instance.
+            This should be a ``shlex`` processed list.
+        verbose : bool, optional, default=False
+            If True the full command list will be echo to INFO level logging
+
+        Returns
+        -------
+        success : bool
+            Returns true if the subprocess command succeeded.
+        """
+
+        success = False
+        if verbose:
+            self._logger.info(f"Command string to be passed to subprocess.run is {cmd_list}")
+
+        # Run swarp
+        fs_tstart = time.perf_counter()
+        try:
+            result = subprocess.run(
+                cmd_list,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            fs_tend = time.perf_counter()
+            fs_telapsed = fs_tend - fs_tstart  # seconds
+            self._logger.debug(
+                (
+                    f"Success: stiff process took {fs_telapsed:.3f} seconds"
+                    f", return code {result.returncode}"
+                )
+            )
+            success = True
+
+        except subprocess.CalledProcessError as err:
+            fs_tend = time.perf_counter()
+            fs_telapsed = fs_tend - fs_tstart  # seconds
+            self._logger.error(
+                (
+                    f"  Error, process took {fs_telapsed:.3f} seconds"
+                    f", return code {err.returncode}"
+                )
+            )
+            self._logger.error(f"  Input args: {err.cmd}\n")
+            self._logger.error(f"  Stdout: {err.output}\n")
+            self._logger.error(f"  Stderr: {err.stderr}\n")
+            self._logger.error(f'  Command line equivalent command: {" ".join(err.cmd)}')
+
+        return success
 
     def _img_stats(
         self,
@@ -329,7 +479,12 @@ class ApFitsRasterizer:
             msg3: str = (
                 f"  98% of data between {opctls[1]:.2f} and {opctls[9]:.2f} ADU (1-99 precentiles)"
             )
-            print(msg1)
-            print(msg2)
-            print(msg3)
+            self._logger.debug(msg1)
+            self._logger.debug(msg2)
+            self._logger.debug(msg3)
+            msg4 = (
+                f"Requested percentile values are {first_val} ({input_percentiles[0]})"
+                f" and {second_val} ({input_percentiles[1]})"
+            )
+            self._logger.debug(msg4)
         return [minval, maxval, meanval, stdval, medval], percentile_values
