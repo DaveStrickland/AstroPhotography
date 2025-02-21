@@ -290,6 +290,158 @@ class ApFitsRasterizer:
         self._logger.debug("File processing completed.")
         return
 
+    def fits_to_rgb(
+        self,
+        input_fits_files: list[str],
+        output_image: str,
+        backend: str = "stiff",
+        extnum: str | int = 0,
+        min_cut: list[float] | None = None,
+        max_cut: list[float] | None = None,
+        min_percent: list[float] | None = None,
+        max_percent: list[float] | None = None,
+        negative: bool = False,
+        binning: int = 1,
+    ) -> None:
+        """
+        Given three input FITS files with image data in a given extension, generate
+        a rasterized RGB image (e.g. PNG or TIFF file) using the specified backend,
+        optionally limiting the range to certain values or percentiles and/or
+        using an inverted (negative) color table.
+
+        Parameters
+        ----------
+        input_fits_files : list of str
+            List of three input FITS images, in red, green, blue channel order.
+        output_image : str
+            Output raster file name. Will be overwritten if already present.
+        backend : str, optional, default='stiff'
+            Backend used to generate a rasterized plot.
+        extnum : str or int, optional, default=0
+            Extension number or name containing the data in the ``input_fits``
+        min_cut : list of float or None, optional, default=None
+            If specified, the minimum pixel value for a given channel will be ``min_cut`` and
+            not the actual data minimum. Specify only one of ``min_cut`` and
+            ``min_percentile``, not both.
+            If not None this must be a three element list of float values
+            in red, green, and blue channel order.
+        max_cut : list of float or None, optional, default=None
+            If specified, the maximum pixel value for a given channel will be ``min_cut`` and
+            not the actual data minimum. Specify only one of ``max_cut`` and
+            ``max_percentile``, not both.
+            If not None this must be a three element list of float values
+            in red, green, and blue channel order.
+        min_percent : list of float or None, optional, default=None
+            If specified, the minimum pixel value for a given channel will correspond to
+            the ``min_percent`` percentile of all the data in the image,
+            not the actual data minimum. Specify only one of ``min_cut`` and
+            ``min_percentile``, not both.
+            If not None this must be a three element list of float values
+            in red, green, and blue channel order.
+        max_percent : list of float or None, optional, default=None
+            If specified, the maximum pixel value for a given channel will correspond to
+            the ``mX_percent`` percentile of all the data in the image,
+            not the actual data minimum. Specify only one of ``max_cut`` and
+            ``max_percentile``, not both.
+            If not None this must be a three element list of float values
+            in red, green, and blue channel order.
+        negative : bool, optional, default=False
+            If ``True``, then display the image similarly to a photographic negative
+            where no light is white and intense light is black.
+        binning : int, optional, default=1
+            Bin input pixels by this factor on each dimension before generating
+            the output image. For example, with ``binning=2`` the output image
+            will have half the number of rows and half the number of columns
+            than the input image, and only a quarter as many pixels.
+        """
+
+        if len(input_fits_files) != 3:
+            err_msg = (
+                "Expecting a list of 3 files names"
+                f", got a list with {len(input_fits_files)} elements."
+            )
+            raise RuntimeError(err_msg)
+
+        # Check all files are present before proceeding
+
+        for input_fits in input_fits_files:
+            self._check_file_exists(input_fits)
+
+        # compute stats for all files
+        min_val_list = []
+        max_val_list = []
+        for idx, input_fits in enumerate(input_fits_files):
+            imdata, imhdr = read_fits(
+                image_filename=input_fits,
+                image_extension=extnum,
+                a_logger=self._logger,
+                remove_pedestal="never",
+            )
+
+            # determine minimum and maximum values to use.
+            pct_min = None
+            pct_max = None
+            if min_percent is not None:
+                pct_min = min_percent[idx]
+            if max_percent is not None:
+                pct_max = max_percent[idx]
+            stat_list, percentiles = self._img_stats(
+                imdata, "Input image", verbose=True, input_percentiles=(pct_min, pct_max)
+            )
+            min_val = stat_list[0]
+            max_val = stat_list[1]
+            if min_cut is not None:
+                min_val = min_cut[idx]
+            elif min_percent is not None:
+                min_val = percentiles[0]
+            if max_cut is not None:
+                max_val = max_cut[idx]
+            elif max_percent is not None:
+                max_val = percentiles[1]
+
+            self._logger.info(
+                f"Output raster data value limits are {min_val:.3f}"
+                f" to {max_val:.3f} ADU per binned pixel"
+            )
+            if max_val <= min_val:
+                self._logger.warning(
+                    "Maximum output data value limits is less than minimum value."
+                )
+            min_val_list.append(min_val)
+            max_val_list.append(max_val)
+
+        # run the selected backend
+        allowed_backends = ["stiff"]
+        if "stiff" in backend:
+            # Stiff does the binning somewhat differently... it must average
+            # if binning > 1:
+            #     min_val *= float(binning * binning)
+            #     max_val *= float(binning * binning)
+            user = __name__
+            description = input_fits
+            verbose = True
+
+            self._stiff_rgb_handler(
+                input_fits_files,
+                output_image,
+                min_val_list,
+                max_val_list,
+                negative=negative,
+                binning=binning,
+                copyright=user,
+                description=description,
+                verbose=verbose,
+            )
+        else:
+            err_msg = (
+                f"Unsupported backend {backend} specified."
+                f" Allowable backends are: {allowed_backends}"
+            )
+            raise RuntimeError(err_msg)
+
+        self._logger.debug("File processing completed.")
+        return
+
     def _stiff_greyscale_handler(
         self,
         input_fits: str,
@@ -309,7 +461,51 @@ class ApFitsRasterizer:
         verbose: bool = True,
     ) -> None:
         """
-        Convert the input
+        Convert the input parameters into a stiff command line string
+
+        Notes
+        -----
+        See the
+        `stiff manual <https://raw.githubusercontent.com/astromatic/stiff/master/doc/stiff.pdf>`_
+
+        Parameters
+        ----------
+        input_fits : str
+            Input FITS image
+        output_tiff : str
+            Name for the output TIFF file. Will be overwritten if already present.
+        min_level : float
+            The minimum pixel value to be displayed.
+        max_level : float
+            The maximum pixel value to be displayed.
+        gamma_type : str, optional, default="POWER-LAW"
+            Gamma correction type
+        gamma : float, optional, default=2.2
+            Power law slope for the gamma correction if the type is "POWER-LAW".
+        gamma_fac : float, optional, default=1.0
+            Additional gamma correction factor. See the ``stiff`` manual.
+        color_sat : float, optional, default = 1.2
+            Color saturation factor. See the ``stiff`` manual.
+        negative : bool, optional, default=False
+            If ``True``, then display the image similarly to a photographic negative
+            where no light is white and intense light is black.
+        binning : int, optional, default=1
+            Bin input pixels by this factor on each dimension before generating
+            the output image. For example, with ``binning=2`` the output image
+            will have half the number of rows and half the number of columns
+            than the input image, and only a quarter as many pixels.
+            bits_per_channel: int = 8,
+        copyright: str, optional, default=__name__
+            The copyright field of the EXIF header.
+        description: str, optional, default = "Astronominal image"
+            EXIF description of the image
+        copy_header: bool, optional, default = True
+            If True then the FITS header of the input FITS file will be
+            written into the TIFF file EXIF header. This is primary for
+            interoperability with astromatic software. See the ``stiff`` manual.
+        verbose: bool, optional, default = True
+            If True then addition diagnostic logging of the stiff subprocess
+            will be generated.
         """
 
         verb_type = "QUIET"
@@ -328,7 +524,106 @@ class ApFitsRasterizer:
             f" -GAMMA_TYPE {gamma_type} -GAMMA {gamma} -GAMMA_FAC {gamma_fac}"
             f" -BINNING {binning} -NEGATIVE {neg_type} -COPY_HEADER {copy_type}"
             f" -COLOUR_SAT {color_sat} -MAX_TYPE MANUAL -MAX_LEVEL {max_level}"
-            f" -MIN_TYPE MANUAL -MIN_LEVEL {min_level}"
+            f" -MIN_TYPE MANUAL -MIN_LEVEL {min_level} -SATUR_LEVEL 1e6"
+            f" -BITS_PER_CHANNEL {bits_per_channel} -VERBOSE_TYPE {verb_type}"
+            f" -DESCRIPTION {description} -COPYRIGHT {copyright} -WRITE_XML N"
+        )
+
+        test_cmd_list = shlex.split(test_cmd)
+        success: bool = self._run_stiff(test_cmd_list, verbose=verbose)
+        if success:
+            self._logger.info(f"Successfully generated rasterized image {output_tiff}")
+        else:
+            self._logger.error(f"Failed to generate rasterized image {output_tiff}")
+
+        return
+
+    def _stiff_rgb_handler(
+        self,
+        input_fits_list: list[str],
+        output_tiff: str,
+        min_level_list: list[float],
+        max_level_list: list[float],
+        gamma_type: str = "POWER-LAW",
+        gamma: float = 2.2,
+        gamma_fac: float = 1.0,
+        color_sat: float = 1.2,
+        negative: bool = False,
+        binning: int = 1,
+        bits_per_channel: int = 8,
+        copyright: str = __name__,
+        description: str = "Astronominal image",
+        copy_header: bool = True,
+        verbose: bool = True,
+    ) -> None:
+        """
+        Convert the input parameters into a stiff command line string
+
+        Notes
+        -----
+        See the
+        `stiff manual <https://raw.githubusercontent.com/astromatic/stiff/master/doc/stiff.pdf>`_
+
+        Parameters
+        ----------
+        input_fits_list : str
+            Input FITS image
+        output_tiff : str
+            Name for the output TIFF file. Will be overwritten if already present.
+        min_level_list : float
+            The minimum pixel value to be displayed.
+        max_level_list : float
+            The maximum pixel value to be displayed.
+        gamma_type : str, optional, default="POWER-LAW"
+            Gamma correction type
+        gamma : float, optional, default=2.2
+            Power law slope for the gamma correction if the type is "POWER-LAW".
+        gamma_fac : float, optional, default=1.0
+            Additional gamma correction factor. See the ``stiff`` manual.
+        color_sat : float, optional, default = 1.2
+            Color saturation factor. See the ``stiff`` manual.
+        negative : bool, optional, default=False
+            If ``True``, then display the image similarly to a photographic negative
+            where no light is white and intense light is black.
+        binning : int, optional, default=1
+            Bin input pixels by this factor on each dimension before generating
+            the output image. For example, with ``binning=2`` the output image
+            will have half the number of rows and half the number of columns
+            than the input image, and only a quarter as many pixels.
+            bits_per_channel: int = 8,
+        copyright: str, optional, default=__name__
+            The copyright field of the EXIF header.
+        description: str, optional, default = "Astronominal image"
+            EXIF description of the image
+        copy_header: bool, optional, default = True
+            If True then the FITS header of the input FITS file will be
+            written into the TIFF file EXIF header. This is primary for
+            interoperability with astromatic software. See the ``stiff`` manual.
+        verbose: bool, optional, default = True
+            If True then addition diagnostic logging of the stiff subprocess
+            will be generated.
+        """
+
+        verb_type = "QUIET"
+        neg_type = "N"
+        copy_type = "N"
+        if verbose:
+            verb_type = "FULL"
+        if negative:
+            neg_type = "Y"
+        if copy_header:
+            copy_type = "Y"
+
+        input_file_str = " ".join(input_fits_list)
+        min_level_str = ",".join([f"{x}" for x in min_level_list])
+        max_level_str = ",".join([f"{x}" for x in max_level_list])
+        test_cmd = (
+            f"stiff {input_file_str}"
+            f" -OUTFILE_NAME {output_tiff}"
+            f" -GAMMA_TYPE {gamma_type} -GAMMA {gamma} -GAMMA_FAC {gamma_fac}"
+            f" -BINNING {binning} -NEGATIVE {neg_type} -COPY_HEADER {copy_type}"
+            f" -COLOUR_SAT {color_sat} -MAX_TYPE MANUAL -MAX_LEVEL {max_level_str}"
+            f" -MIN_TYPE MANUAL -MIN_LEVEL {min_level_str} -SATUR_LEVEL 1e6"
             f" -BITS_PER_CHANNEL {bits_per_channel} -VERBOSE_TYPE {verb_type}"
             f" -DESCRIPTION {description} -COPYRIGHT {copyright} -WRITE_XML N"
         )

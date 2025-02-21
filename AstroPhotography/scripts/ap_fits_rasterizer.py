@@ -28,9 +28,11 @@
 #  2021-05-02 dks : Initial skeleton.
 
 import argparse
-import sys
+
+##import sys
 import logging
 import AstroPhotography as ap
+from typing import Any
 
 
 def command_line_opts(argv):
@@ -206,8 +208,7 @@ def command_line_opts(argv):
     rgb_min_group = rgb_parser.add_mutually_exclusive_group()
     rgb_min_group.add_argument(
         "--min_cut",
-        type=float,
-        nargs="?",
+        nargs="*",
         const=None,
         default=None,
         help=(
@@ -221,8 +222,7 @@ def command_line_opts(argv):
     rgb_max_group = rgb_parser.add_mutually_exclusive_group()
     rgb_max_group.add_argument(
         "--max_cut",
-        type=float,
-        nargs="?",
+        nargs="*",
         const=None,
         default=None,
         help=(
@@ -235,8 +235,7 @@ def command_line_opts(argv):
     )
     rgb_min_group.add_argument(
         "--min_percent",
-        type=float,
-        nargs="?",
+        nargs="*",
         const=None,
         default=None,
         help=(
@@ -250,8 +249,7 @@ def command_line_opts(argv):
     )
     rgb_max_group.add_argument(
         "--max_percent",
-        type=float,
-        nargs="?",
+        nargs="*",
         const=None,
         default=None,
         help=(
@@ -292,7 +290,56 @@ def command_line_opts(argv):
     # --------------------------------------------------------------------------
     # any other commmands
     args = parser.parse_args(argv)
+    if "rgb" in args.command:
+        args.min_cut = parse_arg_list(args.min_cut)
+        args.max_cut = parse_arg_list(args.max_cut)
+        args.min_percent = parse_arg_list(args.min_percent)
+        args.max_percent = parse_arg_list(args.max_percent)
     return args
+
+
+def parse_arg_list(possible_arg_list: list[Any] | None):
+    """
+    Rationalize arguments that may be a single value, a list, or
+    optionally a comma-separted string
+    """
+
+    # Need to rationalize min_cut, max_cut, min_percent and max_percent
+    # because fits_to_rbg expects 3-element lists
+    if possible_arg_list is None:
+        clean_list = None
+    else:
+        clean_list = []
+        numel = len(possible_arg_list)
+        if numel == 1:
+            if "," in possible_arg_list[0]:
+                split_list = possible_arg_list[0].split(",")
+                split_numel = len(split_list)
+                if split_numel == 3:
+                    for el in split_list:
+                        clean_list.append(float(el))
+                else:
+                    err_msg = (
+                        "Expecting a list with either 1 or 3 elements, or None."
+                        f"Got {numel} elements from {possible_arg_list}"
+                    )
+                    raise RuntimeError(err_msg)
+            else:
+                # single element list with no comma
+                val = float(possible_arg_list[0])
+                clean_list = [val, val, val]
+        elif numel == 3:
+            clean_list = []
+            for el in possible_arg_list:
+                clean_list.append(float(el))
+        else:
+            err_msg = (
+                "Expecting a list with either 1 or 3 elements, or None."
+                f"Got {numel} elements from {possible_arg_list}"
+            )
+            raise RuntimeError(err_msg)
+
+    return clean_list
 
 
 def main(args=None):
