@@ -1004,6 +1004,7 @@ def make_lupton_threecolor_plots(
     for each of the following **complete** filter sets:
 
     - ``Red``, ``Green``, and ``Blue``: plotted in that order.
+    - ``Ha``, ``Green``, and ``Blue``: plotted in that order.
     - ``SII``, ``Ha``, and ``OIII``: plotted in the standard Hubble SHO order
       with SII as red, H-alpha as green, and OIII as blue.
 
@@ -1063,7 +1064,8 @@ def make_lupton_threecolor_plots(
     panel_cols: int = 1
     panel_rows: int = 0
 
-    # Look for RGB or SHO
+    # Look for RGB, HGB, or SHO
+
     rgb_satisfied: bool = False
     rgb_list: list[str] = []
     rgb_required: list[str] = ["Red", "Green", "Blue"]
@@ -1076,6 +1078,19 @@ def make_lupton_threecolor_plots(
         print("There are enough files to generate a RGB threecolor composite.")
     else:
         print("NB: insufficient files to generate a RGB threecolor composite.")
+
+    hgb_satisfied: bool = False
+    hgb_list: list[str] = []
+    hgb_required: list[str] = ["Ha", "Green", "Blue"]
+    for filter_name in hgb_required:
+        if filter_name in filter_imdict.keys():
+            hgb_list.append(filter_imdict[filter_name])
+    if len(hgb_list) == 3:
+        hgb_satisfied = True
+        panel_rows += 1
+        print("There are enough files to generate a HaGB threecolor composite.")
+    else:
+        print("NB: insufficient files to generate a HaGB threecolor composite.")
 
     sho_satisfied: bool = False
     sho_list: list[str] = []
@@ -1090,8 +1105,8 @@ def make_lupton_threecolor_plots(
     else:
         print("NB: insufficient files to generate a SHO threecolor composite.")
 
-    if not (rgb_satisfied or sho_satisfied):
-        print("Returning as cannot generated either RGB or SHO composities.")
+    if not (rgb_satisfied or hgb_satisfied or sho_satisfied):
+        print("Returning as cannot generated either RGB, HaGB, or SHO composities.")
         return
 
     # Use our own figure and axes
@@ -1113,6 +1128,37 @@ def make_lupton_threecolor_plots(
             rgb_list[0],
             rgb_list[1],
             rgb_list[2],
+            outpngfile=None,
+            ax=ax,
+            extnum=extnum,
+            usewcs=usewcs,
+            vmin=vmin,
+            xaxlim=xaxlim,
+            yaxlim=yaxlim,
+            qval=qval,
+            stretchval=stretchval,
+            verbose=verbose,
+            angle_tick_spacing_am=angle_tick_spacing_am,
+            swap_radec_axis=swap_radec_axis,
+            add_cbar=add_cbar,
+        )
+        hdulist.close()
+
+    if hgb_satisfied:
+        iplot += 1
+        hdulist = fits.open(hgb_list[0])
+        hdu1 = hdulist[extnum]
+
+        if usewcs:
+            w = wcs.WCS(hdu1.header)
+            ax = fig.add_subplot(panel_rows, panel_cols, iplot, projection=w)
+        else:
+            ax = fig.add_subplot(panel_rows, panel_cols, iplot)
+
+        _ = plot_lupton_threecolor(
+            hgb_list[0],
+            hgb_list[1],
+            hgb_list[2],
             outpngfile=None,
             ax=ax,
             extnum=extnum,

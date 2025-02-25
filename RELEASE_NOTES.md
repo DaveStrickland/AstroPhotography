@@ -13,7 +13,7 @@ RAW file conversion will resume at some point in the future.
 The objectives of version 0.6 are:
 
 - Working `sphinx` documentation!
-- Semi-tutorial jupyer notebooks.
+- Semi-tutorial jupyyer notebooks.
 - Easier and more pythonic configuration for processing a set of images.
   The example `bash` shell scripts provided in the `scripts` directory
   are neither flexiable nor sustainable.
@@ -24,6 +24,14 @@ The objectives of version 0.6 are:
 
 - More Ruff linting and type hinting
 - #27 Added `ap_fits_rasterizer`, with only the `stiff` backend currently.
+- #27 `ApProcessor` will generate TIFF format quick look image of resampled output.
+- #27 `ApProcessor` can skip regenerating already preprocessed images.
+- #27 Fix bug introduced into `ApMasterCal` when linting.
+- #27 Add option to `ApProcessor` to allow different swarp `COMBINE_TYPE` when 
+  resampling, in particular allow `MEDIAN` instead of `WEIGHTED`. `MEDIAN` strongly
+  reduces residual hard-to-correct CR noise but increases background noise 
+  levels by 60%, and requires input images are similar in exposure time 
+  (and maybe pixel scale and coverage). 
 - #32 Improve summary plot generation for multi-degree wide images.
 - #32 Better handing of cases where no candidates can be fitted in
   `ApMeasureStars` and `ApFindStars`, with helpful error messaging.
