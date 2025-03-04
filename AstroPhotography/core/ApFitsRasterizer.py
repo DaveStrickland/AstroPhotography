@@ -19,7 +19,7 @@ from astropy.io import fits
 
 # AstroPhotography includes
 from .. import __version__
-from ..util import read_fits
+from ..util.read import read_fits
 
 
 class ApFitsRasterizer:

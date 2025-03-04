@@ -23,7 +23,11 @@ The objectives of version 0.6 are:
 ### Version 0.6.1 WIP
 
 - More Ruff linting and type hinting
-- #27 Added `ap_fits_rasterizer`, with only the `stiff` backend currently.
+- Reorganize `util` into more submodules to avoid circular dependencies. 
+- #27 Added `ApFitsRasterizer` and CLI `ap_fits_rasterizer`, with only
+  the `stiff` backend currently.
+- #27  Added `plot_stiff_threecolor` and `make_stiff_threecolor_plots`
+  to `ApUtil`.
 - #27 `ApProcessor` will generate TIFF format quick look image of resampled output.
 - #27 `ApProcessor` can skip regenerating already preprocessed images.
 - #27 Fix bug introduced into `ApMasterCal` when linting.
