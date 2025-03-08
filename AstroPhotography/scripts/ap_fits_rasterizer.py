@@ -52,7 +52,10 @@ def command_line_opts(argv):
     # Commands
     def_backend = "stiff"
     subparsers = parser.add_subparsers(
-        title="Commands", dest="command", required=True, help="Available subcommands. Choose one."
+        title="Commands",
+        dest="command",
+        required=True,
+        help="Available subcommands. Choose one.",
     )
 
     grey_parser = subparsers.add_parser(
@@ -244,7 +247,7 @@ def command_line_opts(argv):
             " the sky background is around the 50th percentile."
             " If one value is specified it is applied to all channels."
             " Alternatively three values may be specified in order of the"
-            " red, green, and blue channels.",
+            " red, green, and blue channels."
         ),
     )
     rgb_max_group.add_argument(
@@ -258,7 +261,7 @@ def command_line_opts(argv):
             "  a percentile level of 99.9%% or slightly lower is a good choice."
             " If one value is specified it is applied to all channels."
             " Alternatively three values may be specified in order of the"
-            " red, green, and blue channels.",
+            " red, green, and blue channels."
         ),
     )
     (
