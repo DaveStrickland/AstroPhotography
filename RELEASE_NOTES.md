@@ -20,9 +20,9 @@ The objectives of version 0.6 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
-### Version 0.6.2 WIp
+### Version 0.6.2 WIP
 
-- TBA
+- Update `iTelescope_processing.md`
 
 ### Version 0.6.1 2025-03-07
 
