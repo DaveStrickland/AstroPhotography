@@ -20,7 +20,11 @@ The objectives of version 0.6 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
-### Version 0.6.1 WIP
+### Version 0.6.2 WIp
+
+- TBA
+
+### Version 0.6.1 2025-03-07
 
 - More Ruff linting and type hinting
 - Reorganize `util` into more submodules to avoid circular dependencies. 
