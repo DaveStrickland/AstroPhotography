@@ -17,4 +17,4 @@ and backwards compatibility is not guaranteed for minor versions.
 
 """
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
