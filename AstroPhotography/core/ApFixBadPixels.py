@@ -225,24 +225,26 @@ class ApFixBadPixels:
         return
 
     def _write_corrected_image(self, inpdata_file, ext_num, outdata_file, odata, odict):
-        """Writes the bad-pixel-corrected data to the specified output
-           file, preserving all other items from the original input file.
+        """
+        Writes the bad-pixel-corrected data to the specified output
+        file, preserving all other items from the original input file.
 
         The output file differs from the original input data file in
         having the bad-pixel corrected image, and additional header
         keywords:
+
         - BPIXCORR: Logical true denoting whether bad pixel correction
-                    applied.
+          applied.
         - BPIXFILE: The name of the bad pixel file used, stripped of any
-                    preceding path elements.
+          preceding path elements.
         - BPIX_MIN: Minimum number of surrounding good pixels required
-                    for a correction to be attempted.
+          for a correction to be attempted.
         - BPIXDPIX: Delta pixels, the distance around the bad pixel that
-                    surrounding pixels are drawn from.
+          surrounding pixels are drawn from.
         - BPIXNBAD: Number of bad pixels in the bad pixel file.
         - BPIXNFIX: Number of pixels successfully corrected.
         - BPIXNREM: Number of remaining bad pixels, the number that could
-                    not be corrected using BPIXDPIX and BPIX_MIN
+          not be corrected using BPIXDPIX and BPIX_MIN
 
         :param inpdata_file: Input FITS data file affected by bad pixels.
         :param ext_num: Extension number for data array and header.

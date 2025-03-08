@@ -13,7 +13,7 @@ RAW file conversion will resume at some point in the future.
 The objectives of version 0.6 are:
 
 - Working `sphinx` documentation!
-- Semi-tutorial jupyer notebooks.
+- Semi-tutorial jupyyer notebooks.
 - Easier and more pythonic configuration for processing a set of images.
   The example `bash` shell scripts provided in the `scripts` directory
   are neither flexiable nor sustainable.
@@ -23,13 +23,26 @@ The objectives of version 0.6 are:
 ### Version 0.6.1 WIP
 
 - More Ruff linting and type hinting
+- Reorganize `util` into more submodules to avoid circular dependencies. 
+- #27 Added `ApFitsRasterizer` and CLI `ap_fits_rasterizer`, with only
+  the `stiff` backend currently.
+- #27  Added `plot_stiff_threecolor` and `make_stiff_threecolor_plots`
+  to `ApUtil`.
+- #27 `ApProcessor` will generate TIFF format quick look image of resampled output.
+- #27 `ApProcessor` can skip regenerating already preprocessed images.
+- #27 Fix bug introduced into `ApMasterCal` when linting.
+- #27 Add option to `ApProcessor` to allow different swarp `COMBINE_TYPE` when 
+  resampling, in particular allow `MEDIAN` instead of `WEIGHTED`. `MEDIAN` strongly
+  reduces residual hard-to-correct CR noise but increases background noise 
+  levels by 60%, and requires input images are similar in exposure time 
+  (and maybe pixel scale and coverage). 
 - #32 Improve summary plot generation for multi-degree wide images.
 - #32 Better handing of cases where no candidates can be fitted in
-  ApMeasureStars and ApFindStars, with helpful error messaging.
+  `ApMeasureStars` and `ApFindStars`, with helpful error messaging.
 - #32 Include nearest neighbor distance estimate in fit box size calculation.
-- Added patching_holes_from_bad_flats.ipynb
+- Added `patching_holes_from_bad_flats.ipynb`
 - Split make_dothead_from into file, keywords, wcs options
-- Fix summarize_wcs when there is a PC?_? matrix.
+- Fix summarize_wcs when there is a `PC?_?` matrix.
 - #31 Added ApFixHoles to fill in larger scale user-defined holes.
 - #28 Added option to exclude source detection at the corners of images.
 

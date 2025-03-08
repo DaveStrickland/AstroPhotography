@@ -34,6 +34,7 @@ from .ApAstrometry import ApAstrometry as ApAstrometry
 from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 from .ApFixBadPixels import ApFixBadPixels as ApFixBadPixels
 from .ApFixHoles import ApFixHoles as ApFixHoles
+from .ApFitsRasterizer import ApFitsRasterizer as ApFitsRasterizer
 
 # ApFixCosmicRays did not, instead requiring the more verbose line shown.
 
@@ -311,6 +312,7 @@ class ApProcess:
 
         self.qual_pref: str = "qual"
         self.qual_suff: str = ".yaml"
+        self._rasterizer = ApFitsRasterizer(self._loglevel)
 
         return
 
@@ -1434,6 +1436,7 @@ class ApProcess:
         filter_list: list[str] | None = None,
         resampled_summary_plot: str | None = None,
         composite_summary_plot: str | None = None,
+        combine_type: str = "WEIGHTED",
         preprocess_replace: str | None = None,
         preprocess_with: str | None = None,
         find_exposure_time: bool = False,
@@ -1443,6 +1446,7 @@ class ApProcess:
         deltapix: int = 2,
         holemaskfile: str | None = None,
         fix_cosmic_rays: bool = False,
+        clean_preprocess: bool = True,
     ):
         """
         Performs all processing stages
@@ -1598,13 +1602,13 @@ class ApProcess:
             match.
             If set to ``None`` then the first navigated file is used.
             (resample_images_to_match parameter)
-        resampled_file_prefix : str. optional, default='resampled_'
+        resampled_file_prefix : str. optional, default="resampled_"
             The part of the resampled image file name in front of the
             filter name. For example, for a ``Green`` filter output
             image name of ``M101_Supernova_2023ixf_Green_resamp_weighted.fits``
             then ``resampled_file_prefix='M101_Supernova_2023ixf_'``.
             (resample_images_to_match parameter)
-        resampled_file_suffix : str, optional, default='_resamp_weighted.fits'
+        resampled_file_suffix : str, optional, default="_resamp_weighted.fits"
             The part of the resampled image file name after the filter
             name. **Note** that this should include the file suffix, which
             should include ``.fits`` (or further, e.g. ``.fits.gz``)
@@ -1639,6 +1643,13 @@ class ApProcess:
             will be generated. The plots are
             generated using :func:`util.plot_lupton_threecolor`.
             Default intensity scaling and WCS plotting options will be used.
+            (resample_images_to_match parameter)
+        combine_type : str, optional, default='WEIGHTED'
+            One of the valid swarp ``COMBINE_TYPE`` values, i.e. one
+            of ``AVERAGE, CHI2, MEDIAN, MIN, MAX, SUM, WEIGHTED``.
+            I recommened including some information on the chosen type in your
+            ``resampled_file_suffix``, e.g. in the example above the suffix was
+            ``resampled_file_suffix='_resamp_weighted.fits'``.
             (resample_images_to_match parameter)
         preprocess_replace : str
             Substring common to all the input calibrated files that will
@@ -1680,6 +1691,12 @@ class ApProcess:
             (preprocess_images parameter)
         fix_cosmic_rays : bool, optional, default=False
             If True then perform Cosmic Ray rejection on the images.
+            (preprocess_images parameter)
+        clean_preprocess : bool, optional, default=True
+            Overwrite any existing file with the same name as a preprocessed
+            output file. If False, then the presence of the output file
+            will cause preprocessing to be skipped for the assciated input
+            file.
             (preprocess_images parameter)
 
         Returns
@@ -1733,6 +1750,7 @@ class ApProcess:
                     deltapix=deltapix,
                     holemaskfile=holemaskfile,
                     fix_cosmic_rays=fix_cosmic_rays,
+                    clean_preprocess=clean_preprocess,
                 )
                 self._logger.debug(
                     (
@@ -1827,6 +1845,7 @@ class ApProcess:
             filter_list,
             resampled_summary_plot=resampled_summary_plot,
             composite_summary_plot=composite_summary_plot,
+            combine_type=combine_type,
         )
 
         procall_tend = time.perf_counter()
@@ -2480,6 +2499,8 @@ class ApProcess:
         filter_list: list[str] | None = None,
         resampled_summary_plot: str | None = None,
         composite_summary_plot: str | None = None,
+        combine_type: str = "WEIGHTED",
+        composite_plot_type: str = "stiff",
     ) -> tuple[Any, Any]:
         """
         Resample and combine all navigated images to match the WCS defined
@@ -2500,6 +2521,12 @@ class ApProcess:
         and regenerated. This behavior differs from :func:`navigate_images`
         because changing the optional parameters of ``resample_images_to_match``
         can change the output image drastically.
+
+        In addition to the FITS-format resampled images, a rasterizer
+        "quick look" version of each image will be generated using
+        :class:`ApFitsRasterizer` and the ``swarp`` backend. The output
+        rasterized images will have the same name as the resampled FITS
+        output files bu with a ``.tiff`` extension.
 
         Parameters
         ----------
@@ -2544,6 +2571,17 @@ class ApProcess:
             will be generated. The plots are
             generated using :func:`util.plot_lupton_threecolor`.
             Default intensity scaling and WCS plotting options will be used.
+        combine_type : str, optional, default='WEIGHTED'
+            One of the valid swarp ``COMBINE_TYPE`` values, i.e. one
+            of ``AVERAGE, CHI2, MEDIAN, MIN, MAX, SUM, WEIGHTED``.
+            I recommened including some information on the chosen type in your
+            ``resampled_file_suffix``, e.g. in the example above the suffix was
+            ``resampled_file_suffix='_resamp_weighted.fits'``.
+        composite_plot_type : {"stiff", "lupton"}, optional, default="stiff"
+            Method used for generating 3-color composite images. If
+            ``"lupton"`` then the ``astropy`` method ``make_lupton_rgb`` will
+            used. If ``"stiff"`` then :class:`ApFitsRasterizer` will be used
+            which in turn uses Astromatic ``stiff``.
 
         Returns
         -------
@@ -2572,7 +2610,8 @@ class ApProcess:
         Notes
         -----
 
-        Astromatic ``swarp`` must be installed.
+        Astromatic ``swarp`` must be installed. The rasterized TIFF-format
+        quick look images also require that ``stiff`` is installed.
 
         Images must have valid WCS headers in order to be resampled and
         stacked, either from external sources or generated by
@@ -2674,10 +2713,22 @@ class ApProcess:
         # image to be aligned North up, East left, irrespective of the
         # orientation in ``target_wcs_file``.
 
+        # check the combine type
+        allowed_combine_types = ["AVERAGE", "CHI2", "MEDIAN", "MIN", "MAX", "SUM", "WEIGHTED"]
+        swarp_combine_type = combine_type.upper()  # = "MEDIAN"   # WEIGHTED MEDIAN etc
+        if swarp_combine_type not in allowed_combine_types:
+            err_msg = (
+                f"Unexpected combine_type={combine_type} specified"
+                f", should be one of {allowed_combine_types}"
+            )
+            self._logger.error(err_msg)
+            raise RuntimeError(err_msg)
+
         swarp_center_type = "FIRST"  # MANUAL, MOST, ALL, FIRST (MANUAL and ALL are swarp types)
         dothead_format = "fits"  # 'text' or 'fits
         swarp_verbose = False  # Echo swarp input string if True, echo .head for FIRST case
-        resampled_images = {}
+        resampled_images: dict[str, str] = {}
+        raster_images: dict[str, str] = {}
 
         # Check target WCS file exists
         crot: float = 0
@@ -2774,7 +2825,7 @@ class ApProcess:
                     f"swarp {file_str} -FSCALASTRO_TYPE VARIABLE -FSCALE_DEFAULT {fscale_str}"
                 )
                 test_cmd2 = (
-                    "-VERBOSE_TYPE FULL -SUBTRACT_BACK N -COMBINE_TYPE WEIGHTED"
+                    f"-VERBOSE_TYPE FULL -SUBTRACT_BACK N -COMBINE_TYPE {swarp_combine_type}"
                     " -GAIN_DEFAULT 1.0 -GAIN_KEYWORD EGAIN -RESAMPLING_TYPE LANCZOS3"
                     " -OVERSAMPLING 4 -PROJECTION_TYPE TAN"
                 )
@@ -2849,6 +2900,30 @@ class ApProcess:
                     self._update_fits_header(ofilename, self._extnum, first_file_kw_dict)
                     resampled_images[filter] = ofilename
 
+                    # Create a raster image
+                    raster_file_name = None
+                    try:
+                        raster_file_name = ofilename.replace(".fits", ".tiff")
+                        self._rasterizer.fits_to_greyscale(
+                            ofilename,
+                            raster_file_name,
+                            backend="stiff",
+                            extnum=self._extnum,
+                            min_cut=None,
+                            max_cut=None,
+                            min_percent=50,
+                            max_percent=99.9,
+                            negative=False,
+                            binning=1,
+                        )
+                        raster_images[ofilename] = raster_file_name
+                    except RuntimeError as e:
+                        err_msg = (
+                            f"Failed to generate raster file from {ofilename}. Proceeding anyway."
+                        )
+                        self._logger.warning(err_msg)
+                        self._logger.warning(f"Error message from ApFitsRasterized was: {e}")
+
                 except subprocess.CalledProcessError as err:
                     fs_tend = time.perf_counter()
                     fs_telapsed = fs_tend - fs_tstart  # seconds
@@ -2866,7 +2941,10 @@ class ApProcess:
         # Generate a summary
         self._resampled_image_dict = resampled_images
         resampled_info_table = self.make_filter_image_summary(
-            filter_list, self._navfile_files, resampled_image_info=True
+            filter_list,
+            self._navfile_files,
+            resampled_image_info=True,
+            raster_img_dict=raster_images,
         )
         res_tend = time.perf_counter()
         res_telapsed = res_tend - res_tstart  # seconds
@@ -2942,25 +3020,46 @@ class ApProcess:
             )
             self._logger.info(f"Resampled image summary plot generated: {resampled_summary_plot}")
         if composite_summary_plot is not None:
-            self._logger.debug(
-                "Generating a summary color composite plot using "
-                f"WCS info, tick spacing {angle_tick_spacing} arcmin,"
-                f" and swap_radec_axis={swap_axis}."
-            )
-            util.make_lupton_threecolor_plots(
-                resampled_images,
-                composite_summary_plot,
-                extnum=self._extnum,
-                usewcs=True,
-                vmin=None,
-                xaxlim=None,
-                yaxlim=None,
-                qval=qval,
-                stretchval=stretch,
-                verbose=True,
-                angle_tick_spacing_am=angle_tick_spacing,
-                swap_radec_axis=swap_axis,
-            )
+            if "lupton" in composite_plot_type:
+                self._logger.debug(
+                    "Generating a summary color composite plot using "
+                    f"WCS info, tick spacing {angle_tick_spacing} arcmin,"
+                    f" and swap_radec_axis={swap_axis}."
+                )
+                util.make_lupton_threecolor_plots(
+                    resampled_images,
+                    composite_summary_plot,
+                    extnum=self._extnum,
+                    usewcs=True,
+                    vmin=None,
+                    xaxlim=None,
+                    yaxlim=None,
+                    qval=qval,
+                    stretchval=stretch,
+                    verbose=True,
+                    angle_tick_spacing_am=angle_tick_spacing,
+                    swap_radec_axis=swap_axis,
+                )
+            elif "stiff" in composite_plot_type:
+                util.make_stiff_threecolor_plots(
+                    resampled_images,
+                    composite_summary_plot,
+                    rasterizer=self._rasterizer,
+                    extnum=self._extnum,
+                    min_cut=None,
+                    max_cut=None,
+                    min_percent=[50.0, 50.0, 50.0],
+                    max_percent=[99.9, 99.9, 99.9],
+                    negative=False,
+                    binning=2,
+                    xaxlim=None,
+                    yaxlim=None,
+                    verbose=True,
+                )
+            else:
+                err_msg = f"Unexpected composite_plot_type={composite_plot_type}"
+                self._logger.error(err_msg)
+                raise RuntimeError(err_msg)
             self._logger.info(f"Summary color composite plot generated: {composite_summary_plot}")
 
         return resampled_images, resampled_info_table
@@ -3044,7 +3143,11 @@ class ApProcess:
         return filter_list
 
     def make_filter_image_summary(
-        self, filter_list: list[str], img_file_list: list[str], resampled_image_info: bool = False
+        self,
+        filter_list: list[str],
+        img_file_list: list[str],
+        resampled_image_info: bool = False,
+        raster_img_dict: dict[str, str] = None,
     ):
         """
         Generate a summary table of the total exposure time associated
@@ -3071,6 +3174,12 @@ class ApProcess:
         resampled_image_info : bool, optional, default=False
             If True then add a column listing any combined resampled images
             (``ap_filetype='stacked'``) for those filters.
+        raster_img_dict : dict of str, str or None, optional, default=None
+            If ``resampled_image_info`` is ``True`` the file name of
+            any raster (tiff, png, etc.) version of a given resampled file
+            can be passed in using the ``raster_img_dict``. This is a
+            dictionary with keys equal to the resampled FITS image file
+            names and values corresponding to any rasterized version.
 
         Returns
         -------
@@ -3086,6 +3195,7 @@ class ApProcess:
         # - Min exposure time (minutes)
         # - Max exposure time (minutes)
         # - {optional) Resampled output image
+        # - {optional} Raster version of resampled FITS image
 
         num_images = []
         net_exptime_min = []
@@ -3155,6 +3265,17 @@ class ApProcess:
 
             c = Column(data=resampled_imgs, name="resampled_image", dtype=object)
             resampled_info_table.add_column(c)
+
+            if raster_img_dict is not None:
+                raster_img_list = []
+                for fits_file in resampled_imgs:
+                    raster_img = ""
+                    if fits_file in raster_img_dict:
+                        raster_img = raster_img_dict[fits_file]
+                    raster_img_list.append(raster_img)
+
+                c2 = Column(data=raster_img_list, name="raster_image", dtype=object)
+                resampled_info_table.add_column(c2)
 
         return resampled_info_table
 
@@ -3349,6 +3470,7 @@ class ApProcess:
         deltapix: int = 2,
         holemaskfile: str | None = None,
         fix_cosmic_rays: bool = False,
+        clean_preprocess: bool = True,
     ):
         """
         Modify the calibrated input files before performing image navigation
@@ -3506,6 +3628,11 @@ class ApProcess:
             (preprocess_images parameter)
         fix_cosmic_rays : bool, optional, default=False
             If True then perform Cosmic Ray rejection on the images.
+        clean_preprocess : bool, optional, default=True
+            Overwrite any existing file with the same name as a preprocessed
+            output file. If False, then the presence of the output file
+            will cause preprocessing to be skipped for the assciated input
+            file.
 
         Returns
         -------
@@ -3568,6 +3695,16 @@ class ApProcess:
 
             self._logger.debug(80 * "-")
             self._logger.info(f"Preprocessing input file {fname} into {oname}")
+            if not clean_preprocess:
+                ofile_exists = self._check_file_exists(oname, throws=False)
+                if ofile_exists:
+                    self._logger.debug(
+                        f"Skipping preprocessing of {fname}"
+                        f" because {oname} exists and clean_preprocess=False."
+                    )
+                    preprocessed_modified_files.append(oname)
+                    continue
+
             inp_hdr = hdu.header
             inp_data = hdu.data
 

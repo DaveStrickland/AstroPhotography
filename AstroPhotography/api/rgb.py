@@ -4,7 +4,7 @@ Implements the rgb command using RawConv
 import time
 from ..core.logger import logger
 from ..core.RawConv import *
-from ..util.file_writer import file_writer
+from ..util.write import file_writer
 
 def main(rawfile, output, method, keepblack, whitebalance, renormalize):
     """

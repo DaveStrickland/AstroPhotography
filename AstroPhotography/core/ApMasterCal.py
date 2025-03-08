@@ -257,7 +257,7 @@ class ApMasterCal:
             if (temp >= temp_min) and (temp <= temp_max):
                 good_file_list.append(fname)
             else:
-                self.logger.warning(f'Excluding {fname} as CCD-TEMP={temp:2.f} outside allowed range.')
+                self._logger.warning(f'Excluding {fname} as CCD-TEMP={temp:.2f} outside allowed range.')
         
         self._logger.info(f'Updated file list contains {len(good_file_list)} files ({len(raw_file_list)} before filtering).')
         return good_file_list
