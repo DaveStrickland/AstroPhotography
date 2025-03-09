@@ -24,6 +24,7 @@
 # 2021-01-18 dks : Move ApMeasureStars into core in separate file.
 # 2024-01-25 dks : Catch up to latest astropy/photutils changes
 # 2025-01-21 dks : Re-order NN and fit box initialization.
+# 2025-03-09 dks : Issue-030, changes to work with astropy 7.0.1
 
 import logging
 
@@ -698,7 +699,7 @@ class ApMeasureStars:
             f"FitOK={fit_ok}",
             f"Circular={symmetric}",
         ]
-        fitinfo_str = "\n".join(info_list)
+        fitinfo_str = r"\n".join(info_list)
         return fitinfo_str
 
     def _get_subplot_title(self, index):

@@ -101,6 +101,10 @@ YaML file, e.g.
 conda env create -f ap-env.yml
 conda activate ap-env 
 ```
+*Note:* If creating a `conda` environment you must then use one of 
+the `pip` commands to install `AstroPhotography` after you have created and
+activated the `conda` environment.
+
 
 Get general command line application help:
 

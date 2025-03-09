@@ -525,8 +525,7 @@ class ApAstrometry:
             try_number += 1
             if try_number > self._max_tries:
                 self._logger.error(
-                    f"Maximum number of attempts ({self._max_tries})"
-                    f" exceeded for {srclist_fname}"
+                    f"Maximum number of attempts ({self._max_tries}) exceeded for {srclist_fname}"
                 )
                 try_again = False
 
@@ -535,8 +534,7 @@ class ApAstrometry:
             wcs = wcs_header
         else:
             self._logger.error(
-                f"Astrometry.net submission={submission_id}"
-                f" failed on source list {srclist_fname}"
+                f"Astrometry.net submission={submission_id} failed on source list {srclist_fname}"
             )
 
         return wcs
@@ -575,7 +573,7 @@ class ApAstrometry:
         to update the photometry table in the srclist file.
         """
 
-        self._logger.info(f"Updating photometry in {srclist} with WCS soluton.")
+        self._logger.info(f"Updating photometry in {srclist} with WCS solution.")
 
         # Hardwired extension name
         ext_name = "AP_L1MAG"
