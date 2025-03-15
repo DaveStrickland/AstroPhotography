@@ -1,9 +1,11 @@
 ## Python requirements for using the AstroPhotography application.
 ##
-##   python3 -m pip install . --requirement=requirements.txt
+## NOTE: This file is associated with ap-env_py310_astropy60.yml
+##
+##   python3 -m pip install . --requirement=etc/requirements_astropy60.txt
 ##
 ## To install in developer mode:
-##   pip3 install -e . -r requirements.txt
+##   pip3 install -e . -r etc/requirements_astropy60.txt
 ##
 PyYAML>=3.11
 matplotlib>=3.0.3
@@ -13,7 +15,7 @@ imageio>=2.5.0
 pytest>=5.2.1
 pytest-cov>=2.8.1  
 coverage>=5.0.3
-astropy>=7.0
+astropy>=6.0
 regions>=0.8
 astroplan>=0.7
 astroquery>=0.4.1
