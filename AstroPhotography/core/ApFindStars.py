@@ -37,6 +37,7 @@
 # 2024-08-14 dks : Start switch over to numpy format docstrings
 # 2024-11-10 dks : Format changes based on Ruff/Mypy
 # 2024-11-28 dks : issue-028, add optional source exclusion at image corners
+# 2025-03-09 dks : Issue-030, changes to work with astropy 7.0.1
 
 import sys
 import logging
@@ -62,13 +63,13 @@ from astropy.stats import SigmaClip
 from regions import PixCoord, CirclePixelRegion, Regions
 
 from photutils.segmentation import detect_threshold, detect_sources
-from photutils import find_peaks, DAOStarFinder
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry
+from photutils.detection import find_peaks, DAOStarFinder
+from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
 
 # AstroPhotography includes
 from .. import __version__
 from .ApMeasureStars import ApMeasureStars as ApMeasureStars
-#from ..util import read_fits
+# from ..util import read_fits
 
 
 def yaml_float_representer(dumper: Any, value: float) -> Any:
@@ -982,8 +983,8 @@ class ApFindStars:
         self._logger.debug(
             "Converting python 0-based coordinates to FITS 1-based pixel coordinates for XY table."
         )
-        x = src_table["xcenter"] + 1.0 * u.Unit("pix")
-        y = src_table["ycenter"] + 1.0 * u.Unit("pix")
+        x = src_table["xcenter"] + 1.0  # * u.Unit("pix")
+        y = src_table["ycenter"] + 1.0  # * u.Unit("pix")
         xy_table = Table([x, y], names=("X", "Y"))
 
         # Get rid of metadata as it can't be written to the FITS file
