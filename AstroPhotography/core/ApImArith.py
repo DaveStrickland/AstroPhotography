@@ -2,6 +2,8 @@
 Contains the implementation of the ApImArith class.
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 #  2021-05-02 dks : Initial work on ApImArith.
 #  2025-01-26 dks : Ruff linting, switch to utility fits reader.
 

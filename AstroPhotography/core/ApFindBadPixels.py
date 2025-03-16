@@ -2,6 +2,8 @@
 Contains the implementation of the ApFindBadPixels class.
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # 2020-12-31 dks : Moved ApFindBadPixels into core from ap_find_badpix.py
 # 2020-01-09 dks : Added user-defined bad pixel processing.
 # 2024-12-08 dks : Adopt Ruff liiting

@@ -2,6 +2,8 @@
 Contains the implementation of the ApFitsRasterizer class.
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 #  2025-02-08 dks : Initial work on ApFitsRasterizer.
 
 # import sys

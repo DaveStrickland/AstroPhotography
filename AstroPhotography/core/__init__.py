@@ -6,6 +6,8 @@ The `Astrophotography.core` module contains classes for FITS
 image reduction and processing.
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # This seems overly verbose, but it works.
 from .RawConv import RawConv as RawConv
 from .ApAddMetadata import ApAddMetadata as ApAddMetadata

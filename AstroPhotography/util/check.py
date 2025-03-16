@@ -4,6 +4,8 @@ File checking utilities.
 Note that this module should NOT depend on any other AstroPhotography modules.
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from ..core.logger import logger
 #import imageio
 #import time

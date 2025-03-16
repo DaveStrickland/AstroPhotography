@@ -9,6 +9,8 @@ the ``core`` package, in particular **not** importing from ``.core``. Any
 injection.
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # This seems overly verbose, but it works.
 from .check import (
     does_file_exist,

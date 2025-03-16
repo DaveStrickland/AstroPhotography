@@ -19,6 +19,7 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 #
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 
 # 2021-05-29 dks : Initial coding of skeleton

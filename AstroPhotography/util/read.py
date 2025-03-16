@@ -2,6 +2,8 @@
 Function based interface to FileWriter
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from ..core.logger import logger
 
 # import imageio

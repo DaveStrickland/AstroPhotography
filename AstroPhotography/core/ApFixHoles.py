@@ -1,5 +1,7 @@
 """Contains the implementation of the ApFixHoles class."""
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 #  2024-12-26 dks : Original based on ApFixBadPixels.
 
 import sys
@@ -191,7 +193,7 @@ class ApFixHoles:
 
         self._logger.debug(info_str)
         if ndim == 3:
-            self._loggererror("Error, 3-D handling has not been implemented yet.")
+            self._logger.error("Error, 3-D handling has not been implemented yet.")
             sys.exit(1)
 
         # Get data absolute limits.

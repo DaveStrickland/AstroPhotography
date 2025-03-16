@@ -1,10 +1,10 @@
 """
 Implementation of the command line interface for the dksraw
 command within the AstroPhotography python module.
-    
+
 The dksraw command is intended to provide the following subcommands:
 
-- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or 
+- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG or
   FITS file using one of several methods.
 - split: Splits the input RAW file into separate 16-bit PNG files for each
   of the R, G, B and G channel in the Bayer mask.
@@ -24,11 +24,14 @@ Typical use-cases might be:
 - Later, converting all the RAW images taken in that session to FITS
   files, using the default options of `dksraw grey` or `dksraw rgb`,
   and then processing those with the ap_ scripts to build calibrated
-  and resampled composite image.  
-- Looking at basic information from a set of RAW files using 
+  and resampled composite image.
+- Looking at basic information from a set of RAW files using
   `dksraw info`. (Still to be implemented.)
 
 """
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from argparse import ArgumentParser
 from inspect import getfullargspec
 
@@ -40,7 +43,7 @@ from .core.config import config
 from .core.logger import logger
 import sys
 
-__all__ = "main",
+__all__ = ("main",)
 
 
 def main(argv=None) -> int:
@@ -72,7 +75,7 @@ def main(argv=None) -> int:
         return 1
     logger.debug("Successful completion")
     return 0
- 
+
 
 def _args(argv):
     """
@@ -81,85 +84,99 @@ def _args(argv):
     :param argv: argument list to parse
     """
     p_loglevel = "INFO"
-    parser = ArgumentParser(prog='dksraw',
-        description='Dave\'s RAW file conversion tool for AstroPhotography')
-    parser.add_argument("-c", "--config", action="append",
-            help="config file [etc/config.yml]")
-            
+    parser = ArgumentParser(
+        prog="dksraw", description="Dave's RAW file conversion tool for AstroPhotography"
+    )
+    parser.add_argument("-c", "--config", action="append", help="config file [etc/config.yml]")
+
     # Common options for all command parsers
     common = ArgumentParser(add_help=False)
-    common.add_argument("rawfile",
-        help="RAW file to process.") 
-    common.add_argument("--output", "-o",
+    common.add_argument("rawfile", help="RAW file to process.")
+    common.add_argument(
+        "--output",
+        "-o",
         default=None,
-        help="Root name for output files." + 
-        " If omitted then the name of the input RAW file " +
-        "(with extension removed) will be used as the root name.")
-    common.add_argument("-v", "--version", action="version",
-            version="AstroPhotography {:s}".format(__version__),
-            help="print version and exit")
-    common.add_argument("-l", "--loglevel", default=p_loglevel,
-            help=("Logger informational level, one of NOTSET, DEBUG, INFO"
+        help="Root name for output files."
+        + " If omitted then the name of the input RAW file "
+        + "(with extension removed) will be used as the root name.",
+    )
+    common.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version="AstroPhotography {:s}".format(__version__),
+        help="print version and exit",
+    )
+    common.add_argument(
+        "-l",
+        "--loglevel",
+        default=p_loglevel,
+        help=(
+            "Logger informational level, one of NOTSET, DEBUG, INFO"
             ", WARNING, ERROR, or CRITICAL in order of increasing severity."
-            f" Default: {p_loglevel}"))
-    
+            f" Default: {p_loglevel}"
+        ),
+    )
+
     # Command parsers
-    subparsers = parser.add_subparsers(title="Commands", 
-        description="RAW file processing commands." +
-        " One command MUST be selected by the user.",
-        help="Command-specfic help.")
+    subparsers = parser.add_subparsers(
+        title="Commands",
+        description="RAW file processing commands." + " One command MUST be selected by the user.",
+        help="Command-specfic help.",
+    )
     _rgb(subparsers, common)
     _grey(subparsers, common)
     _split(subparsers, common)
-    
+
     # Process
     args = parser.parse_args(argv)
     if not args.config:
         # Don't specify this as an argument default or else it will always be
         # included in the list.
         args.config = "etc/config.yml"
-    
+
     # Perform any additional command line argument checking or processing
-    _check_args(parser, args)    
-        
+    _check_args(parser, args)
+
     return args
- 
+
+
 def _check_args(parser, args):
-    """Runs any additional command line argument validation or processing
-    """
-    if not hasattr(args, 'command'):
+    """Runs any additional command line argument validation or processing"""
+    if not hasattr(args, "command"):
         # Command not defined.
         parser.print_help()
-        print('Error: no command was specified.')
+        print("Error: no command was specified.")
         sys.exit(1)
-    
-    if ( args.command == split ):
+
+    if args.command == split:
         _check_output_args(args)
-    elif ( (args.command == grey) or (args.command == rgb)):
-        default_suffix = '.fits'
+    elif (args.command == grey) or (args.command == rgb):
+        default_suffix = ".fits"
         if args.output is None:
             _check_output_args(args)
-            args.output += default_suffix
+            args.output = default_suffix
     return
-    
+
+
 def _check_output_args(args):
-    """Additional processing for the output argument.
-    """
+    """Additional processing for the output argument."""
     # If args.output is not defined we need to craft a suitable output
     # prefix to which split will add vaious band-specific suffixes.
     if args.output is None:
         # For split command output is root name for output PNG images.
-        idx = args.rawfile.rfind('.')
-        if ( idx != -1 ):
-            slash_idx = args.rawfile.rfind('/')
-            if (slash_idx == -1):
+        idx = args.rawfile.rfind(".")
+        if idx != -1:
+            slash_idx = args.rawfile.rfind("/")
+            if slash_idx == -1:
                 start_idx = 0
             else:
                 start_idx = slash_idx + 1
             args.output = args.rawfile[start_idx:idx]
         else:
-            raise RuntimeError('Could not determine root name from {}'.format(args.rawfile))
+            raise RuntimeError("Could not determine root name from {}".format(args.rawfile))
     return
+
 
 def _rgb(subparsers, common):
     """Defines command line options for the rgb command.
@@ -167,55 +184,74 @@ def _rgb(subparsers, common):
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
     """
-    allowed_wb = ['daylight', 'camera', 'auto', 'region[regspec]', 'user[userspec]']
-    default_wb = 'camera'
-    allowed_method = ['linear']
-    default_method = 'linear'
-    
-    parser = subparsers.add_parser("rgb", 
+    allowed_wb = ["daylight", "camera", "auto", "region[regspec]", "user[userspec]"]
+    default_wb = "camera"
+    allowed_method = ["linear"]
+    default_method = "linear"
+
+    parser = subparsers.add_parser(
+        "rgb",
         description="Creates a 3-channel RGB output image using the specified method and white-balance.",
-        parents=[common], 
-        help='Creates a RGB output image using the specified method and white-balance.')
-    parser.add_argument('-m', '--method',
+        parents=[common],
+        help="Creates a RGB output image using the specified method and white-balance.",
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
         default=default_method,
-        help=('Method used to assemble the monochrome luminance image'
-            f' from the Bayer sub channels. Available options are: {allowed_method}'
-            ' linear: Performs the rawpy linear postprocess to an RBG image,'
-            ' then applies CCIR 601 luma coefficients to obtain greyscale.'
-            ' This de-Bayers the image, but unfortunately renormalizes it'
-            ' to fill the full dynamic range available in the output.'
-            f' Default: {default_method}'))
-    parser.add_argument('-w', '--whitebalance',
+        help=(
+            "Method used to assemble the monochrome luminance image"
+            f" from the Bayer sub channels. Available options are: {allowed_method}"
+            " linear: Performs the rawpy linear postprocess to an RBG image,"
+            " then applies CCIR 601 luma coefficients to obtain greyscale."
+            " This de-Bayers the image, but unfortunately renormalizes it"
+            " to fill the full dynamic range available in the output."
+            f" Default: {default_method}"
+        ),
+    )
+    parser.add_argument(
+        "-w",
+        "--whitebalance",
         default=default_wb,
-        help='Whitebalance to use when convert R, G and B channels.' + 
-            ' Allowed whitebalance methods are: {}'.format(allowed_wb) +
-            ' To calculate the whitebalance from the entire image use "auto".' +
-            ' To calculate the whitebalance from part of an image use "region"' +
-            ' with a region specifier of the form [minrow, maxrow, mincol, maxcol],' +
-            ' where the pixel indices are zero-based and inclusive. For example:' +
-            ' "region[450, 463, 2850, 2863]".' +
-            ' To specify a user selected whitebalance use "user" with a user specifier' +
-            ' of form [Rmult, G1mult, Bmult, G2mult].' +
-            ' For example "user[1.85, 1.0, 2.01, 1.0]".' +
-            ' The region and user options should be enclosed in quotes to prevent shell expansion.' +
-            ' Default: {}'.format(default_wb))
-    parser.add_argument('--keepblack',
+        help="Whitebalance to use when convert R, G and B channels."
+        + " Allowed whitebalance methods are: {}".format(allowed_wb)
+        + ' To calculate the whitebalance from the entire image use "auto".'
+        + ' To calculate the whitebalance from part of an image use "region"'
+        + " with a region specifier of the form [minrow, maxrow, mincol, maxcol],"
+        + " where the pixel indices are zero-based and inclusive. For example:"
+        + ' "region[450, 463, 2850, 2863]".'
+        + ' To specify a user selected whitebalance use "user" with a user specifier'
+        + " of form [Rmult, G1mult, Bmult, G2mult]."
+        + ' For example "user[1.85, 1.0, 2.01, 1.0]".'
+        + " The region and user options should be enclosed in quotes to prevent shell expansion."
+        + " Default: {}".format(default_wb),
+    )
+    parser.add_argument(
+        "--keepblack",
         default=False,
-        action='store_true',
-        help=('Retain the camera band-specific black levels in the data.'
-            ' These are roughly equivalent to a CCD bias level.'
-            ' Default: False'))
-    parser.add_argument('--renormalize',
+        action="store_true",
+        help=(
+            "Retain the camera band-specific black levels in the data."
+            " These are roughly equivalent to a CCD bias level."
+            " Default: False"
+        ),
+    )
+    parser.add_argument(
+        "--renormalize",
         default=False,
-        action='store_true',
-        help=('If specified the output image will be linearly renormalized'
-            ' to span the dynamic range 0 to (2^16)-1 ADU, similar to the'
-            ' ImageMagick -normalize option.'
-            ' This option is useful for quick look purposes, but as it'
-            ' alters the output data values it is not suitable for later'
-            ' image combination or processing.'))
+        action="store_true",
+        help=(
+            "If specified the output image will be linearly renormalized"
+            " to span the dynamic range 0 to (2^16)-1 ADU, similar to the"
+            " ImageMagick -normalize option."
+            " This option is useful for quick look purposes, but as it"
+            " alters the output data values it is not suitable for later"
+            " image combination or processing."
+        ),
+    )
     parser.set_defaults(command=rgb)
     return
+
 
 def _grey(subparsers, common):
     """
@@ -224,60 +260,79 @@ def _grey(subparsers, common):
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
     """
-    allowed_wb = ['daylight', 'camera', 'auto', 'region[regspec]', 'user[userspec]']
-    default_wb = 'camera'
-    allowed_method = ['linear', 'direct']
-    default_method = 'linear'
-    
-    parser = subparsers.add_parser("grey", 
+    allowed_wb = ["daylight", "camera", "auto", "region[regspec]", "user[userspec]"]
+    default_wb = "camera"
+    allowed_method = ["linear", "direct"]
+    default_method = "linear"
+
+    parser = subparsers.add_parser(
+        "grey",
         description="Creates a monochrome output image using the specified method and white-balance.",
-        parents=[common], 
-        help='Creates a monochrome output image using the specified method and white-balance.')
-    parser.add_argument('-m', '--method',
+        parents=[common],
+        help="Creates a monochrome output image using the specified method and white-balance.",
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
         default=default_method,
-        help=('Method used to assemble the monochrome luminance image'
-            f' from the Bayer sub channels. Available options are: {allowed_method}'
-            ' linear: Performs the rawpy linear postprocess to an RBG image,'
-            ' then applies CCIR 601 luma coefficients to obtain greyscale.'
-            ' This de-Bayers the image, but unfortunately renormalizes it'
-            ' to fill the full dynamic range available in the output.'
-            ' direct: Direct does not perform any de-Bayer calculation, instead'
-            ' just setting each pixel to its whitebalance-scaled value from'
-            ' which ever RGBG subband it can from. This will look spotty'
-            ' unless the correct whitebalance is chosen.'
-            f' Default: {default_method}'))
-    parser.add_argument('-w', '--whitebalance',
+        help=(
+            "Method used to assemble the monochrome luminance image"
+            f" from the Bayer sub channels. Available options are: {allowed_method}"
+            " linear: Performs the rawpy linear postprocess to an RBG image,"
+            " then applies CCIR 601 luma coefficients to obtain greyscale."
+            " This de-Bayers the image, but unfortunately renormalizes it"
+            " to fill the full dynamic range available in the output."
+            " direct: Direct does not perform any de-Bayer calculation, instead"
+            " just setting each pixel to its whitebalance-scaled value from"
+            " which ever RGBG subband it can from. This will look spotty"
+            " unless the correct whitebalance is chosen."
+            f" Default: {default_method}"
+        ),
+    )
+    parser.add_argument(
+        "-w",
+        "--whitebalance",
         default=default_wb,
-        help='Whitebalance to use when convert R, G and B channels.' + 
-            ' Allowed whitebalance methods are: {}'.format(allowed_wb) +
-            ' To calculate the whitebalance from the entire image use "auto".' +
-            ' To calculate the whitebalance from part of an image use "region"' +
-            ' with a region specifier of the form [minrow, maxrow, mincol, maxcol],' +
-            ' where the pixel indices are zero-based and inclusive. For example:' +
-            ' "region[450, 463, 2850, 2863]".' +
-            ' To specify a user selected whitebalance use "user" with a user specifier' +
-            ' of form [Rmult, G1mult, Bmult, G2mult].' +
-            ' For example "user[1.85, 1.0, 2.01, 1.0]".' +
-            ' The region and user options should be enclosed in quotes to prevent shell expansion.' +
-            ' Default: {}'.format(default_wb))
-    parser.add_argument('--keepblack',
+        help="Whitebalance to use when convert R, G and B channels."
+        + " Allowed whitebalance methods are: {}".format(allowed_wb)
+        + ' To calculate the whitebalance from the entire image use "auto".'
+        + ' To calculate the whitebalance from part of an image use "region"'
+        + " with a region specifier of the form [minrow, maxrow, mincol, maxcol],"
+        + " where the pixel indices are zero-based and inclusive. For example:"
+        + ' "region[450, 463, 2850, 2863]".'
+        + ' To specify a user selected whitebalance use "user" with a user specifier'
+        + " of form [Rmult, G1mult, Bmult, G2mult]."
+        + ' For example "user[1.85, 1.0, 2.01, 1.0]".'
+        + " The region and user options should be enclosed in quotes to prevent shell expansion."
+        + " Default: {}".format(default_wb),
+    )
+    parser.add_argument(
+        "--keepblack",
         default=False,
-        action='store_true',
-        help=('Retain the camera band-specific black levels in the data.'
-            ' These are roughly equivalent to a CCD bias level.'
-            ' Default: False'))
-    parser.add_argument('--renormalize',
+        action="store_true",
+        help=(
+            "Retain the camera band-specific black levels in the data."
+            " These are roughly equivalent to a CCD bias level."
+            " Default: False"
+        ),
+    )
+    parser.add_argument(
+        "--renormalize",
         default=False,
-        action='store_true',
-        help=('If specified the output image will be linearly renormalized'
-            ' to span the dynamic range 0 to (2^16)-1 ADU, similar to the'
-            ' ImageMagick -normalize option.'
-            ' This option is useful for quick look purposes, but as it'
-            ' alters the output data values it is not suitable for later'
-            ' image combination or processing.'))
+        action="store_true",
+        help=(
+            "If specified the output image will be linearly renormalized"
+            " to span the dynamic range 0 to (2^16)-1 ADU, similar to the"
+            " ImageMagick -normalize option."
+            " This option is useful for quick look purposes, but as it"
+            " alters the output data values it is not suitable for later"
+            " image combination or processing."
+        ),
+    )
     parser.set_defaults(command=grey)
     return
-    
+
+
 def _split(subparsers, common):
     """
     Defines command line options for the split command.
@@ -285,30 +340,39 @@ def _split(subparsers, common):
     :param subparsers: subcommand parsers
     :param common: parser for common subcommand arguments
     """
-    
+
     # png is very slow with imageio, and imageio doesn't
     # support 16-bit jp2 or jpeg.
-    default_ext = 'tiff'
-    
-    parser = subparsers.add_parser("split", 
-        description="Exports raw Bayer map as separate images with suffix _r.tiff," +
-        " g1.tiff, _b.tiff and _g2.tiff.",
-        parents=[common], 
-        help='Outputs raw, unmodified, R, G, B and G as separate TIFF files.' +
-            'Output files use the specified or default output root name followed' +
-            ' by a channel-specific suffix, and specified or default file name extension.')
-    parser.add_argument('--keepblack',
+    default_ext = "tiff"
+
+    parser = subparsers.add_parser(
+        "split",
+        description="Exports raw Bayer map as separate images with suffix _r.tiff,"
+        + " g1.tiff, _b.tiff and _g2.tiff.",
+        parents=[common],
+        help="Outputs raw, unmodified, R, G, B and G as separate TIFF files."
+        + "Output files use the specified or default output root name followed"
+        + " by a channel-specific suffix, and specified or default file name extension.",
+    )
+    parser.add_argument(
+        "--keepblack",
         default=False,
-        action='store_true',
-        help=('Retain the camera band-specific black levels in the data.'
-            ' These are roughly equivalent to a CCD bias level.'
-            ' Default: False'))
-    parser.add_argument('--extension',
+        action="store_true",
+        help=(
+            "Retain the camera band-specific black levels in the data."
+            " These are roughly equivalent to a CCD bias level."
+            " Default: False"
+        ),
+    )
+    parser.add_argument(
+        "--extension",
         default=default_ext,
-        help='File name extension (i.e. type) for output files.' +
-            ' Default: {}'.format(default_ext))
+        help="File name extension (i.e. type) for output files."
+        + " Default: {}".format(default_ext),
+    )
     parser.set_defaults(command=split)
     return
+
 
 # Make the module executable.
 if __name__ == "__main__":

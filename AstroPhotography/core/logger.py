@@ -10,6 +10,8 @@ This logger is not currently used.
 
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from logging import Formatter
 from logging import Logger as _Logger
 from logging import NullHandler

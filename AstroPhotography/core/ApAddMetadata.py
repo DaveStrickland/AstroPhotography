@@ -1,5 +1,7 @@
 """Contains the implementation of the ApAddMetadata class."""
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # 2020-12-16 dks : Initial implementation.
 # 2020-12-20 dks : Working version.
 # 2021-08-14 dks : Add capabilty to remove Telescopius mosaic suffixes
@@ -8,12 +10,13 @@
 # 2022-10-01 dks : Added yamkkeyval mode and robustness improvements
 # 2025-03-09 dks : Issue-030, changes to work with astropy 7.0.1
 
-import sys
+##import sys
 import logging
 from pathlib import Path
-import math
-import time
-from datetime import datetime, timezone
+
+##import math
+##import time
+from datetime import datetime  ##, timezone
 import re
 import yaml
 
@@ -193,7 +196,6 @@ class ApAddMetadata:
 
         # Dictory of iTelescope to site. Note, used lower case
         tel_site_dict = {
-            "t02": "mayhill",
             "t02": "mayhill",
             "t05": "mayhill",
             "t11": "mayhill",
