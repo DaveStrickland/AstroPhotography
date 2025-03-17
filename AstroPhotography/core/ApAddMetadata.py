@@ -507,7 +507,7 @@ class ApAddMetadata:
                     )
                 else:
                     key_up = key.upper()
-                    self._logger.debug(f"Adding {key_up}={val} to FITS header.")
+                    self._logger.debug(f"Adding {key_up}={val!r} to FITS header.")
                     kwdict[key_up] = (val, f"From {yamlfile}")
 
                     # check if this is one of the important keywords that
@@ -541,7 +541,7 @@ class ApAddMetadata:
             kwdict["TELESCOP"] = (telescope_str, "Name of telescope used.")
 
         # Target related keywords
-        if target_str is not None:
+        if target_str is not None and target is not None:
             kwdict["OBJECT"] = (target_str, "Target of observation")
             kwdict["OBJNAME"] = kwdict["OBJECT"]
             kwdict["RA-OBJ"] = (target.ra.deg, "[deg] Right Ascension of target")
@@ -550,12 +550,12 @@ class ApAddMetadata:
         # Get FITS header and date of observation
         ext_num = 0
         fdata, fhdr = self._read_fits(fitsfile, ext_num)
-        required_kw = []
-        optional_kw = ["DATE-OBS"]
+        required_kw: list[str] = []
+        optional_kw: list[str] = ["DATE-OBS"]
         self._check_header(fhdr, required_kw, optional_kw)
 
         # Need the time of observation to calculate the airmass
-        if "DATE-OBS" in fhdr:
+        if "DATE-OBS" in fhdr and site is not None:
             date_obs = Time(fhdr["DATE-OBS"])
             self._logger.debug(f"Date of observation start: {date_obs}")
 
