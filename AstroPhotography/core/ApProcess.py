@@ -291,14 +291,14 @@ class ApProcess:
         """
 
         self._name: str = "ApProcess"  # str : class name
-        self._version: str = __version__  # str : class version
+        self._version: str = str(__version__)  # str : class version
         self._loglevel: str = loglevel  # str : Logging level
         self._initialize_logger(self._loglevel)
 
         # Processing state variables
         self._nav_status_table: Any = None  # Table : processing status
         self._input_ifc: Any = None  # ImageFileCollection : Input files that were actually used
-        self._data_dir: str = None  # Path : to input ``data_dir``
+        self._data_dir: str | Path | None = None  # Path : to input ``data_dir``
         self._extnum: int | str = 0  # Extension number or name for input data
 
         # Existing file of the specified types
@@ -464,7 +464,7 @@ class ApProcess:
             self._logger.info(msg1)
             self._logger.info(msg2)
             self._logger.info(msg3)
-        return [minval, maxval, meanval, medval]
+        return minval, maxval, meanval, medval
 
     def _initialize_logger(self, loglevel: str) -> None:
         """
@@ -1756,6 +1756,8 @@ class ApProcess:
                 or holemaskfile
                 or fix_cosmic_rays
             ):
+                assert data_dir is not None
+                assert input_suffix is not None
                 preprocessed_modified_files = self.preprocess_images(
                     data_dir,
                     preprocess_replace,

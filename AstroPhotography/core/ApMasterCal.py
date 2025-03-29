@@ -172,7 +172,7 @@ class ApMasterCal:
         else:
             diag = False
 
-        good_file_list = []
+        good_file_list: list[str] = []
         raw_file_list = self._files.values("file")
 
         # Get unique values of all keywords, also logging them for
