@@ -883,7 +883,7 @@ class ApProcess:
         return output_fname_list
 
     def _get_processed_file_names(
-        self, ap_filetype: str, data_dir: str, name_and_dir: bool = False
+        self, ap_filetype: str, data_dir: str | Path, name_and_dir: bool = False
     ) -> list[str]:
         """
         Return the files of the specified file type that this instance is
@@ -1079,7 +1079,7 @@ class ApProcess:
     def get_directories(
         self,
         ap_filetype: str,
-        data_dir: str,
+        data_dir: str | Path,
         absolute: bool = False,
         resampled_dir: str = r"./",
     ) -> str:
@@ -2766,7 +2766,7 @@ class ApProcess:
 
         swarp_center_type = "FIRST"  # MANUAL, MOST, ALL, FIRST (MANUAL and ALL are swarp types)
         dothead_format = "fits"  # 'text' or 'fits
-        swarp_verbose = False  # Echo swarp input string if True, echo .head for FIRST case
+        swarp_verbose = True  # Echo swarp input string if True, echo .head for FIRST case
         resampled_images: dict[str, str] = {}
         raster_images: dict[str, str] = {}
 
@@ -2976,7 +2976,7 @@ class ApProcess:
                     self._logger.error(f"  Input args: {err.cmd}\n")
                     self._logger.error(f"  Stdout: {err.output}\n")
                     self._logger.error(f"  Stderr: {err.stderr}\n")
-                    self._logger.error(f'  Command line equivalent command: {" ".join(err.cmd)}')
+                    self._logger.error(f"  Command line equivalent command: {' '.join(err.cmd)}")
 
         # Generate a summary
         self._resampled_image_dict = resampled_images
@@ -3167,6 +3167,7 @@ class ApProcess:
             filter_list.append(filter)
 
         # Generate a valid summary table
+        assert self._data_dir is not None
         file_list = self._get_processed_file_names(ap_filetype, self._data_dir, name_and_dir=True)
         filter_image_summary = self.make_filter_image_summary(filter_list, file_list)
         table_str_list = filter_image_summary.pformat_all(max_lines=-1, max_width=-1)
@@ -3187,7 +3188,7 @@ class ApProcess:
         filter_list: list[str],
         img_file_list: list[str],
         resampled_image_info: bool = False,
-        raster_img_dict: dict[str, str] = None,
+        raster_img_dict: dict[str, str] | None = None,
     ):
         """
         Generate a summary table of the total exposure time associated
@@ -3386,7 +3387,7 @@ class ApProcess:
             read from the input FITS file.
         """
 
-        kw_dict = {}
+        kw_dict: dict[str, Any] = {}
 
         exists = self._check_file_exists(source_file, False)
         if not exists:
@@ -3784,6 +3785,7 @@ class ApProcess:
                         inp_hdr[key] = val
 
             if badpixelfile is not None:
+                assert bad_pixel_fixer is not None
                 out_data, out_dict = bad_pixel_fixer.fix_bad_pixels(inp_data, msk_data, deltapix)
                 out_dict["BPIXFILE"] = (
                     Path(badpixelfile).name,
@@ -3795,6 +3797,7 @@ class ApProcess:
                 hdu.header = inp_hdr
 
             if holemaskfile is not None:
+                assert hole_fixer is not None
                 out_data, out_dict = hole_fixer.fix_holes(out_data, hole_msk_data)
                 out_dict["HOLEFILE"] = (
                     Path(holemaskfile).name,
@@ -3806,6 +3809,7 @@ class ApProcess:
                 hdu.header = inp_hdr
 
             if fix_cosmic_rays:
+                assert cr_fixer is not None
                 if "EGAIN" in inp_hdr:
                     gain = inp_hdr["EGAIN"]
                 else:

@@ -180,7 +180,7 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
     values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
     for keyword, value in zip(keywords, values):
         for idx in range(ipwcs.naxis):
-            kw_str = f"{keyword}{1+idx}"
+            kw_str = f"{keyword}{1 + idx}"
             if "CTYPE" in keyword:
                 # Wrap strings in quotes
                 val_str = f"{kw_str:8s} = '{value[idx]}'"
@@ -195,14 +195,14 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
         ##naxis3 = ipwcs.array_shape[2]
         print(f"Warning: summarize_wcs() written for 2-D images, not {naxis}-dimensional data")
 
-    cdelt1 = None
-    cdelt2 = None
-    crot = None
+    cdelt1: float = 0
+    cdelt2: float = 0
+    crot: float = 0
 
     if hasattr(ipwcs.wcs, "cd"):
         for irow in range(ipwcs.naxis):
             for jcol in range(ipwcs.naxis):
-                kw_str = f"CD{irow+1}_{jcol+1}"
+                kw_str = f"CD{irow + 1}_{jcol + 1}"
                 val_str = f"{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}"
                 dothead_list.append(val_str)
         cd = ipwcs.wcs.cd
@@ -224,10 +224,10 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
     elif hasattr(ipwcs.wcs, "pc"):
         for irow in range(ipwcs.naxis):
             for jcol in range(ipwcs.naxis):
-                kw_str = f"PC{irow+1}_{jcol+1}"
+                kw_str = f"PC{irow + 1}_{jcol + 1}"
                 val_str = f"{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}"
                 dothead_list.append(val_str)
-            kw_str = f"CDELT{1+irow}"
+            kw_str = f"CDELT{1 + irow}"
             val_str = f"{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
             dothead_list.append(val_str)
             # Think that CD1_* = CDELT1 * PC1_* and CD2_* = CDELT2 * PC2_*
@@ -255,10 +255,10 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
     else:
         # Assume we have a simple CDELT[12] case with CROTA
         for irow in range(ipwcs.naxis):
-            kw_str = f"CDELT{1+irow}"
+            kw_str = f"CDELT{1 + irow}"
             val_str = f"{kw_str:8s} = {ipwcs.wcs.cdelt[irow]}"
             dothead_list.append(val_str)
-            kw_str = f"CROTA{1+irow}"
+            kw_str = f"CROTA{1 + irow}"
             val_str = f"{kw_str:8s} = {ipwcs.wcs.crota[irow]}"
             dothead_list.append(val_str)
         cdelt1 = ipwcs.wcs.cdelt[0]
@@ -286,20 +286,28 @@ def summarize_wcs(w: Any, verbose: bool = True) -> tuple[str, float, float, floa
     dothead_str = "\n".join(dothead_list)
     if verbose:
         print(dothead_str)
+    assert dothead_str is not None
+    assert cdelt1_as is not None
+    assert cdelt2_as is not None
+    assert ximgsz_am is not None
+    assert yimgsz_am is not None
+    assert crot is not None
     return (dothead_str, cdelt1_as, cdelt2_as, ximgsz_am, yimgsz_am, crot)
 
 
 def make_dothead_from_keywords(
     output_swarp_dothead: str,
-    naxis: list[int, int],
-    crval: list[float, float],
-    cdelt: list[float, float],
-    crpix: list[float, float] | None = None,
-    ctype: list[str, str] | None = None,
-    cunit: list[str, str] | None = None,
+    naxis: tuple[int, int],
+    crval: tuple[float, float],
+    cdelt: tuple[float, float],
+    crpix: tuple[float, float] | None = None,
+    ctype: tuple[str, str] | None = None,
+    cunit: tuple[str, str] | None = None,
     extnum: int | str = 0,
     format: str = "fits",
     verbose: bool = False,
+    crota: float | None = None,
+    do_cd_mtx: bool = True,
 ) -> None:
     """
     Create the .head format file that swarp expects based on user-supplied values
@@ -335,6 +343,8 @@ def make_dothead_from_keywords(
     cdelt : list of int
         A list containing the pixel size parameters CDELT1 and CDELT2.
         Values should be in decimal degrees.
+        Note that a traditionally aligned image with North up and East to
+        the left has a negative cdelt1 and a positive cdelt2.
     crpix : list of int, optional, default=None
         A list containing the pixel coordinates CRPIX1, CRPIX2, that correspond
         to the RA, Dec coordinates in ``crval``. This follows the FITS convention
@@ -358,24 +368,50 @@ def make_dothead_from_keywords(
         file consisting only of a primary HDU will be created.
     verbose : bool, optional, default=False
         If True then diagnostic information will be written to stdout.
+    crota : float or None, optional, default=None
+        Optional rotation angle (degrees). If this is not none then a CDi_j
+        matrix will be used irrespective of whether do_cd_mtx is True or
+        false.
+    do_cd_mtx : bool, optional, default=False
+        If true, then a CDi_j matrix is written instead of the CDELT1, CDELT2
+        values, using the formulae given in
+        `this PDF <https://lweb.cfa.harvard.edu/~jzhao/SMA-FITS-CASA/docs/wcs88.pdf>`_.
+        It appears that SWARP requires a CDi_j matrix to correctly match a
+        WCS given in an another FITS file, so this parameter is set to one by
+        default.
     """
 
     # Parse the WCS keywords in the primary HDU
     ipwcs = wcs.WCS(naxis=2)
     ipwcs.array_shape = (naxis[1], naxis[0])  # Note python row, column order
     ipwcs.wcs.crval = crval
-    ipwcs.wcs.cdelt = cdelt
+
+    if (crota is not None) or do_cd_mtx:
+        if crota is None:
+            crota_rad: float = 0.0
+        else:
+            crota_rad = math.radians(crota)
+        cdelt1: float = cdelt[0]
+        cdelt2: float = cdelt[1]
+        cd11: float = cdelt1 * math.cos(crota_rad)
+        cd12: float = math.fabs(cdelt2) * math.copysign(1.0, cdelt1) * math.sin(crota_rad)
+        cd21: float = -math.fabs(cdelt1) * math.copysign(1.0, cdelt2) * math.sin(crota_rad)
+        cd22: float = cdelt2 * math.cos(crota_rad)
+        cd_mtx = [[cd11, cd12], [cd21, cd22]]
+        ipwcs.wcs.cd = cd_mtx
+    else:
+        ipwcs.wcs.cdelt = cdelt
 
     if ctype is None:
-        ctype = ["RA---TAN", "DEC--TAN"]
+        ctype = ("RA---TAN", "DEC--TAN")
     ipwcs.wcs.ctype = ctype
 
     if crpix is None:
-        crpix = [0.5 + 0.5 * naxis[0], 0.5 + 0.5 * naxis[1]]
+        crpix = (0.5 + 0.5 * naxis[0], 0.5 + 0.5 * naxis[1])
     ipwcs.wcs.crpix = crpix
 
     if cunit is None:
-        cunit = ["deg", "deg"]
+        cunit = ("deg", "deg")
     ipwcs.wcs.cunit = cunit
 
     make_dothead_from_wcs(
@@ -443,7 +479,7 @@ def make_dothead_from_file(
 def make_dothead_from_wcs(
     ipwcs: Any,
     output_swarp_dothead: str,
-    data: npt.NDArray = None,
+    data: npt.NDArray | None = None,
     extnum: int | str = 0,
     format: str = "fits",
     verbose: bool = False,
@@ -481,8 +517,7 @@ def make_dothead_from_wcs(
     if "text" in format:
         if verbose:
             print(
-                "Generating an ASCII header using the format"
-                " specified in the swarp documentation."
+                "Generating an ASCII header using the format specified in the swarp documentation."
             )
 
         dothead_list = []
@@ -490,7 +525,7 @@ def make_dothead_from_wcs(
         values = [ipwcs.array_shape, ipwcs.wcs.ctype, ipwcs.wcs.crval, ipwcs.wcs.crpix]
         for keyword, value in zip(keywords, values):
             for idx in range(ipwcs.naxis):
-                kw_str = f"{keyword}{1+idx}"
+                kw_str = f"{keyword}{1 + idx}"
                 if "CTYPE" in keyword:
                     # Wrap strings in quotes
                     val_str = f"{kw_str:8s} = '{value[idx]}'"
@@ -501,16 +536,16 @@ def make_dothead_from_wcs(
         if hasattr(ipwcs.wcs, "pc"):
             for irow in range(ipwcs.naxis):
                 for jcol in range(ipwcs.naxis):
-                    kw_str = f"PC{irow+1}_{jcol+1}"
+                    kw_str = f"PC{irow + 1}_{jcol + 1}"
                     val_str = f"{kw_str:8s} = {ipwcs.wcs.pc[irow, jcol]}"
                     dothead_list.append(val_str)
-                kw_str = f"CDELT{1+irow}"
+                kw_str = f"CDELT{1 + irow}"
                 val_str = "f{kw_str:8s} = {pwcs.wcs.cdelt[irow]}"
                 dothead_list.append(val_str)
         elif hasattr(ipwcs.wcs, "cd"):
             for irow in range(ipwcs.naxis):
                 for jcol in range(ipwcs.naxis):
-                    kw_str = f"CD{irow+1}_{jcol+1}"
+                    kw_str = f"CD{irow + 1}_{jcol + 1}"
                     val_str = f"{kw_str:8s} = {ipwcs.wcs.cd[irow, jcol]}"
                     dothead_list.append(val_str)
 

@@ -63,8 +63,8 @@ def load_image_and_plot(
     extnum: int | str = 0,
     output: str | None = None,
     usewcs: bool = True,
-    vmin: float = None,
-    vmax: float = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
     xaxlim: Any = None,
     yaxlim: Any = None,
     verbose: bool = True,
@@ -256,7 +256,7 @@ def load_image_and_plot(
 
 def load_imlist_and_plot(
     imlist: list[str],
-    extnum: int = 0,
+    extnum: int | str = 0,
     output: str | None = None,
     usewcs: bool = True,
     vmin: float | None = None,
@@ -353,14 +353,11 @@ def load_imlist_and_plot(
         ncols_arr = [1, 1, 2, 2, 2, 3, 3, 4, 4, 5]
         for idx, thresh in enumerate(nimlt_arr):
             if num_imgs < thresh:
-                panel_rows: int = nrows_arr[idx]
-                panel_cols: int = ncols_arr[idx]
+                panel_rows = nrows_arr[idx]
+                panel_cols = ncols_arr[idx]
                 break
     print(
-        (
-            f"  With {num_imgs} files the plot layout is "
-            f"{panel_rows} rows x {panel_cols} columns."
-        )
+        (f"  With {num_imgs} files the plot layout is {panel_rows} rows x {panel_cols} columns.")
     )
 
     default_font_size = 7
@@ -370,7 +367,7 @@ def load_imlist_and_plot(
     ipctls = [0.5, 99.5]
 
     # Display the image
-    fig = plt.figure(figsize=[7.5, 10.0])
+    fig = plt.figure(figsize=(7.5, 10.0))
     fig.subplots_adjust(hspace=0.4)
 
     for idx in range(num_imgs):
@@ -1068,7 +1065,7 @@ def make_lupton_threecolor_plots(
         return
 
     # Use our own figure and axes
-    fig = plt.figure(figsize=[7.5, 10.0])
+    fig = plt.figure(figsize=(7.5, 10.0))
 
     iplot: int = 0
     if rgb_satisfied:
@@ -1323,7 +1320,7 @@ def make_stiff_threecolor_plots(
         return
 
     # Use our own figure and axes
-    fig = plt.figure(figsize=[7.5, 10.0])
+    fig = plt.figure(figsize=(7.5, 10.0))
 
     iplot: int = 0
     if rgb_satisfied:
