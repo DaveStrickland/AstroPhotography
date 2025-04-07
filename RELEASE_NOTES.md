@@ -23,15 +23,18 @@ The objectives of version 0.6 are:
 ### Version 0.6.2 WIP
 
 > [!CAUTION]
+> Updated conda/python environment. 
 > The updated code appears to still work with the older `python 3.10` and `astropy 6.0`
 > configuration within the limited coverage of my batch processing tests. If you
 > experience problems file an issue or create a new conda environment with the current
 > `ap-env.yml` and `requirements.txt` files. The older configuration can be found in
 > the `etc/` directory.
 
+- #37 Add `ap_gradient_to_mask.py` and `ApGradientToMask`. 
 - #30 Updated conda environment and pip `requirements.txt` to `python 3.12` and `astropy 7.0`.
 - #30 Various minor code changes forced by newer versions of `ccdproc` and `numpy`.
 - Updated `iTelescope_processing.md`
+- More `ruff` linting and `mypy` type-hinting edits.
 
 ### Version 0.6.1 2025-03-07
 

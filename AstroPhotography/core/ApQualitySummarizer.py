@@ -22,6 +22,8 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 #
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 #  2020-09-04 dks : Initial coding.
 #  2021-01-19 dks : Move ApQualitySummarizer into core.
 #  2024-08-20 dks : Fixes for processing YaML lacking metadata from raw

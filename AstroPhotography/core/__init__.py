@@ -6,6 +6,8 @@ The `Astrophotography.core` module contains classes for FITS
 image reduction and processing.
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # This seems overly verbose, but it works.
 from .RawConv import RawConv as RawConv
 from .ApAddMetadata import ApAddMetadata as ApAddMetadata
@@ -18,6 +20,7 @@ from .ApFitsRasterizer import ApFitsRasterizer as ApFitsRasterizer
 from .ApFixBadPixels import ApFixBadPixels as ApFixBadPixels
 from .ApFixCosmicRays import ApFixCosmicRays as ApFixCosmicRays
 from .ApFixHoles import ApFixHoles as ApFixHoles
+from .ApGradientToMask import ApGradientToMask as ApGradientToMask
 from .ApImArith import ApImArith as ApImArith
 from .ApMasterCal import ApMasterCal as ApMasterCal
 from .ApMeasureBackground import ApMeasureBackground as ApMeasureBackground
@@ -27,21 +30,22 @@ from .ApQualitySummarizer import ApQualitySummarizer as ApQualitySummarizer
 
 
 __all__ = [
-    "RawConv",
+    "ApAddMetadata",
+    "ApAutoBadcols",
+    "ApAstrometry",
     "ApCalibrate",
     "ApFindBadPixels",
+    "ApFindStars",
     "ApFitsRasterizer",
     "ApFixHoles",
     "ApFixBadPixels",
     "ApFixCosmicRays",
-    "ApAddMetadata",
-    "ApAutoBadcols",
-    "ApFindStars",
-    "ApMeasureStars",
-    "ApQualitySummarizer",
-    "ApAstrometry",
+    "ApGradientToMask",
     "ApImArith",
-    "ApMeasureBackground",
-    "ApProcess",
     "ApMasterCal",
+    "ApMeasureBackground",
+    "ApMeasureStars",
+    "ApProcess",
+    "ApQualitySummarizer",
+    "RawConv",
 ]

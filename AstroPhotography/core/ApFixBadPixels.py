@@ -1,5 +1,7 @@
 """Contains the implementation of the ApFixBadPixels class."""
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 #  2020-11-16 dks : Working version of ApFixBadPixels.
 
 import sys

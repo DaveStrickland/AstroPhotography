@@ -1,5 +1,7 @@
 """Contains the implementation of the ApAddMetadata class."""
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # 2020-12-16 dks : Initial implementation.
 # 2020-12-20 dks : Working version.
 # 2021-08-14 dks : Add capabilty to remove Telescopius mosaic suffixes
@@ -8,12 +10,13 @@
 # 2022-10-01 dks : Added yamkkeyval mode and robustness improvements
 # 2025-03-09 dks : Issue-030, changes to work with astropy 7.0.1
 
-import sys
+##import sys
 import logging
 from pathlib import Path
-import math
-import time
-from datetime import datetime, timezone
+
+##import math
+##import time
+from datetime import datetime  ##, timezone
 import re
 import yaml
 
@@ -193,7 +196,6 @@ class ApAddMetadata:
 
         # Dictory of iTelescope to site. Note, used lower case
         tel_site_dict = {
-            "t02": "mayhill",
             "t02": "mayhill",
             "t05": "mayhill",
             "t11": "mayhill",
@@ -505,7 +507,7 @@ class ApAddMetadata:
                     )
                 else:
                     key_up = key.upper()
-                    self._logger.debug(f"Adding {key_up}={val} to FITS header.")
+                    self._logger.debug(f"Adding {key_up}={val!r} to FITS header.")
                     kwdict[key_up] = (val, f"From {yamlfile}")
 
                     # check if this is one of the important keywords that
@@ -539,7 +541,7 @@ class ApAddMetadata:
             kwdict["TELESCOP"] = (telescope_str, "Name of telescope used.")
 
         # Target related keywords
-        if target_str is not None:
+        if target_str is not None and target is not None:
             kwdict["OBJECT"] = (target_str, "Target of observation")
             kwdict["OBJNAME"] = kwdict["OBJECT"]
             kwdict["RA-OBJ"] = (target.ra.deg, "[deg] Right Ascension of target")
@@ -548,12 +550,12 @@ class ApAddMetadata:
         # Get FITS header and date of observation
         ext_num = 0
         fdata, fhdr = self._read_fits(fitsfile, ext_num)
-        required_kw = []
-        optional_kw = ["DATE-OBS"]
+        required_kw: list[str] = []
+        optional_kw: list[str] = ["DATE-OBS"]
         self._check_header(fhdr, required_kw, optional_kw)
 
         # Need the time of observation to calculate the airmass
-        if "DATE-OBS" in fhdr:
+        if "DATE-OBS" in fhdr and site is not None:
             date_obs = Time(fhdr["DATE-OBS"])
             self._logger.debug(f"Date of observation start: {date_obs}")
 

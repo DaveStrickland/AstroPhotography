@@ -2,8 +2,10 @@
 
 This module defines a global configuration object. Other modules should use
 this object to store application-wide configuration values.
-
 """
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from re import compile
 from yaml import safe_load
 

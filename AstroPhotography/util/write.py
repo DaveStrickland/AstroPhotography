@@ -2,6 +2,8 @@
 File output/writing based utilities
 """
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from ..core.logger import logger
 import imageio
 import time
@@ -15,6 +17,7 @@ import numpy.typing as npt
 # AstroPhotography includes
 from .. import __version__
 from .check import determine_file_type
+
 
 def file_writer(out_file: str, data_array: Any, exif_dict: Any):
     """

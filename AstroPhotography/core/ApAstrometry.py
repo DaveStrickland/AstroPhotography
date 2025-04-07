@@ -2,7 +2,7 @@
 #
 #  ApAstrometry.py
 #
-#  Copyright 2020-2021 Dave Strickland <dave.strickland@gmail.com>
+#  Copyright 2020-2025 Dave Strickland <dave.strickland@gmail.com>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #  MA 02110-1301, USA.
 #
 #
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # 2020-08-12 dks : Initial WIP
 # 2020-08-29 dks : Update to keywords read from source list.

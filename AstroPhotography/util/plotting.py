@@ -19,6 +19,7 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 #
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # 2024-04-07 dks : issue-002 Initial coding
 # 2025-03-01 dks : Split off from ApUtil.py
@@ -62,8 +63,8 @@ def load_image_and_plot(
     extnum: int | str = 0,
     output: str | None = None,
     usewcs: bool = True,
-    vmin: float = None,
-    vmax: float = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
     xaxlim: Any = None,
     yaxlim: Any = None,
     verbose: bool = True,
@@ -197,6 +198,7 @@ def load_image_and_plot(
     ax.set_title(f"{title_str}", fontsize=default_font_size)
     if usewcs:
         # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
+        assert hasattr(ax, "coords")
         ra = ax.coords[0]
         dec = ax.coords[1]
         ra.set_major_formatter("hh:mm:ss.ss")  # RA in Hours, minutes, seconds,
@@ -255,7 +257,7 @@ def load_image_and_plot(
 
 def load_imlist_and_plot(
     imlist: list[str],
-    extnum: int = 0,
+    extnum: int | str = 0,
     output: str | None = None,
     usewcs: bool = True,
     vmin: float | None = None,
@@ -352,14 +354,11 @@ def load_imlist_and_plot(
         ncols_arr = [1, 1, 2, 2, 2, 3, 3, 4, 4, 5]
         for idx, thresh in enumerate(nimlt_arr):
             if num_imgs < thresh:
-                panel_rows: int = nrows_arr[idx]
-                panel_cols: int = ncols_arr[idx]
+                panel_rows = nrows_arr[idx]
+                panel_cols = ncols_arr[idx]
                 break
     print(
-        (
-            f"  With {num_imgs} files the plot layout is "
-            f"{panel_rows} rows x {panel_cols} columns."
-        )
+        (f"  With {num_imgs} files the plot layout is {panel_rows} rows x {panel_cols} columns.")
     )
 
     default_font_size = 7
@@ -369,7 +368,7 @@ def load_imlist_and_plot(
     ipctls = [0.5, 99.5]
 
     # Display the image
-    fig = plt.figure(figsize=[7.5, 10.0])
+    fig = plt.figure(figsize=(7.5, 10.0))
     fig.subplots_adjust(hspace=0.4)
 
     for idx in range(num_imgs):
@@ -431,6 +430,7 @@ def load_imlist_and_plot(
             ax.set_title(f"{title_str}", fontsize=default_font_size)
             if usewcs:
                 # Adapted from @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
+                assert hasattr(ax, "coords")
                 ra = ax.coords[0]
                 dec = ax.coords[1]
                 ra.set_major_formatter("hh:mm:ss.ss")  # RA in Hours, minutes, seconds,
@@ -1067,7 +1067,7 @@ def make_lupton_threecolor_plots(
         return
 
     # Use our own figure and axes
-    fig = plt.figure(figsize=[7.5, 10.0])
+    fig = plt.figure(figsize=(7.5, 10.0))
 
     iplot: int = 0
     if rgb_satisfied:
@@ -1322,7 +1322,7 @@ def make_stiff_threecolor_plots(
         return
 
     # Use our own figure and axes
-    fig = plt.figure(figsize=[7.5, 10.0])
+    fig = plt.figure(figsize=(7.5, 10.0))
 
     iplot: int = 0
     if rgb_satisfied:

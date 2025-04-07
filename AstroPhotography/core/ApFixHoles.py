@@ -1,5 +1,7 @@
 """Contains the implementation of the ApFixHoles class."""
 
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 #  2024-12-26 dks : Original based on ApFixBadPixels.
 
 import sys
@@ -191,7 +193,7 @@ class ApFixHoles:
 
         self._logger.debug(info_str)
         if ndim == 3:
-            self._loggererror("Error, 3-D handling has not been implemented yet.")
+            self._logger.error("Error, 3-D handling has not been implemented yet.")
             sys.exit(1)
 
         # Get data absolute limits.
@@ -436,7 +438,7 @@ class ApFixHoles:
             when determining the statistical properties of the local good pixels.
             The background region around each hole will be adjusted in size to
             make sure there are at least ``hfillmin`` good (not masked) pixels.
-        hfilltgt : floart, optional, default = 2.0
+        hfilltgt : float, optional, default = 2.0
             This is target ratio of good pixels to hole (masked) pixels to aim
             for when determining the size of the background region around each
             hole. Each background region has at minimum this ratio of good
@@ -617,10 +619,10 @@ class ApFixHoles:
                 cmax = min(ncols, cmax + deltapix + 1)  # excluded
 
                 mask_co = mask[rmin:rmax, cmin:cmax]  # True where bad
-                nbad_co: int = np.sum(mask_co)
-                bbox_size: int = mask_co.size
-                ngood_co: int = mask_co.size - nbad_co
-                goodbad_ratio: float = float(ngood_co) / float(nbad_co)
+                nbad_co = np.sum(mask_co)
+                bbox_size = mask_co.size
+                ngood_co = mask_co.size - nbad_co
+                goodbad_ratio = float(ngood_co) / float(nbad_co)
                 num_growth += 1
 
                 if bbox_size == last_bbox_size:

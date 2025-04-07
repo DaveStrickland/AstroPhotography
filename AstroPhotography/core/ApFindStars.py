@@ -19,7 +19,7 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA 02110-1301, USA.
 #
-#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # 2020-08-05 dks : Initial coding
 # 2020-08-08 dks : Final script for writing XY source list and approx mags.

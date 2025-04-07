@@ -17,4 +17,6 @@ and backwards compatibility is not guaranteed for minor versions.
 
 """
 
-__version__ = "0.6.1"
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+__version__ = "0.6.2"
