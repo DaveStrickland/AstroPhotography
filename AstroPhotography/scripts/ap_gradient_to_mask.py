@@ -143,8 +143,8 @@ def parse_arg_list(possible_arg_list: list[str] | str) -> list[str]:
 
 def main(args=None):
     p_args = command_line_opts(args)
-    holefinder = ap.ApGradientToMask(p_args.loglevel)
-    holefinder.mask_files(
+    masker = ap.ApGradientToMask(p_args.loglevel)
+    masker.mask_files(
         input_files=p_args.input_fits,
         outhole_mask=p_args.output,
         extnum=p_args.extnum,

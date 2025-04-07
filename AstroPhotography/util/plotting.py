@@ -198,6 +198,7 @@ def load_image_and_plot(
     ax.set_title(f"{title_str}", fontsize=default_font_size)
     if usewcs:
         # Adapted rom @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
+        assert hasattr(ax, "coords")
         ra = ax.coords[0]
         dec = ax.coords[1]
         ra.set_major_formatter("hh:mm:ss.ss")  # RA in Hours, minutes, seconds,
@@ -429,6 +430,7 @@ def load_imlist_and_plot(
             ax.set_title(f"{title_str}", fontsize=default_font_size)
             if usewcs:
                 # Adapted from @astrofrog at https://github.com/astropy/astropy/issues/13458#issuecomment-1242640539
+                assert hasattr(ax, "coords")
                 ra = ax.coords[0]
                 dec = ax.coords[1]
                 ra.set_major_formatter("hh:mm:ss.ss")  # RA in Hours, minutes, seconds,
