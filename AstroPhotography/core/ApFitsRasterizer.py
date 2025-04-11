@@ -184,6 +184,8 @@ class ApFitsRasterizer:
         max_percent: float | None = None,
         negative: bool = False,
         binning: int = 1,
+        ignore_null: bool = False,
+        null_value: float = 0,
     ) -> None:
         """
         Given an input FITS file with image data in a given extension, generate
@@ -206,8 +208,8 @@ class ApFitsRasterizer:
             not the actual data minimum. Specify only one of ``min_cut`` and
             ``min_percentile``, not both.
         max_cut : float or None, optional, default=None
-            If specified, the maximum pixel value displayed will be ``min_cut`` and
-            not the actual data minimum. Specify only one of ``max_cut`` and
+            If specified, the maximum pixel value displayed will be ``max_cut`` and
+            not the actual data maximum. Specify only one of ``max_cut`` and
             ``max_percentile``, not both.
         min_percent : float or None, optional, default=None
             If specified, the minimum pixel value displayed will correspond to
@@ -216,8 +218,8 @@ class ApFitsRasterizer:
             ``min_percentile``, not both.
         max_percent : float or None, optional, default=None
             If specified, the maximum pixel value displayed will correspond to
-            the ``mX_percent`` percentile of all the data in the image,
-            not the actual data minimum. Specify only one of ``max_cut`` and
+            the ``max_percent`` percentile of all the data in the image,
+            not the actual data maximum. Specify only one of ``max_cut`` and
             ``max_percentile``, not both.
         negative : bool, optional, default=False
             If ``True``, then display the image similarly to a photographic negative
@@ -227,6 +229,13 @@ class ApFitsRasterizer:
             the output image. For example, with ``binning=2`` the output image
             will have half the number of rows and half the number of columns
             than the input image, and only a quarter as many pixels.
+        ignore_null : bool, optional, default=False
+            If True, then ignore null pixels when computing the pixel value statistics
+            used by the --min_percent and --max_percent arguments. The null value
+            to be ignored is specified using the null_value argument.
+        null_value : float, optional, default=0
+            If ignore_null is True then all pixels with exactly this value will
+            be masked out before computing the image statistics.
         """
 
         self._check_file_exists(input_fits)
@@ -239,7 +248,12 @@ class ApFitsRasterizer:
 
         # determine minimum and maximum values to use.
         stat_list, percentiles = self._img_stats(
-            imdata, "Input image", verbose=True, input_percentiles=(min_percent, max_percent)
+            imdata,
+            "Input image",
+            verbose=True,
+            input_percentiles=(min_percent, max_percent),
+            ignore_null=ignore_null,
+            null_value=null_value,
         )
         min_val = stat_list[0]
         max_val = stat_list[1]
@@ -304,6 +318,8 @@ class ApFitsRasterizer:
         max_percent: list[float] | None = None,
         negative: bool = False,
         binning: int = 1,
+        ignore_null: bool = False,
+        null_value: float = 0,
     ) -> None:
         """
         Given three input FITS files with image data in a given extension, generate
@@ -355,6 +371,13 @@ class ApFitsRasterizer:
             the output image. For example, with ``binning=2`` the output image
             will have half the number of rows and half the number of columns
             than the input image, and only a quarter as many pixels.
+        ignore_null : bool, optional, default=False
+            If True, then ignore null pixels when computing the pixel value statistics
+            used by the --min_percent and --max_percent arguments. The null value
+            to be ignored is specified using the null_value argument.
+        null_value : float, optional, default=0
+            If ignore_null is True then all pixels with exactly this value will
+            be masked out before computing the image statistics.
         """
 
         if len(input_fits_files) != 3:
@@ -388,7 +411,12 @@ class ApFitsRasterizer:
             if max_percent is not None:
                 pct_max = max_percent[idx]
             stat_list, percentiles = self._img_stats(
-                imdata, "Input image", verbose=True, input_percentiles=(pct_min, pct_max)
+                imdata,
+                "Input image",
+                verbose=True,
+                input_percentiles=(pct_min, pct_max),
+                ignore_null=ignore_null,
+                null_value=null_value,
             )
             min_val = stat_list[0]
             max_val = stat_list[1]
@@ -684,15 +712,12 @@ class ApFitsRasterizer:
             fs_tend = time.perf_counter()
             fs_telapsed = fs_tend - fs_tstart  # seconds
             self._logger.error(
-                (
-                    f"  Error, process took {fs_telapsed:.3f} seconds"
-                    f", return code {err.returncode}"
-                )
+                (f"  Error, process took {fs_telapsed:.3f} seconds, return code {err.returncode}")
             )
             self._logger.error(f"  Input args: {err.cmd}\n")
             self._logger.error(f"  Stdout: {err.output}\n")
             self._logger.error(f"  Stderr: {err.stderr}\n")
-            self._logger.error(f'  Command line equivalent command: {" ".join(err.cmd)}')
+            self._logger.error(f"  Command line equivalent command: {' '.join(err.cmd)}")
 
         return success
 
@@ -702,6 +727,8 @@ class ApFitsRasterizer:
         label: str,
         verbose: bool = False,
         input_percentiles: tuple[Any, Any] = (None, None),
+        ignore_null: bool = False,
+        null_value: float = 0,
     ) -> tuple[list[float], tuple[Any, Any]]:
         """
         Calculate and optionally display some image statistics that may
@@ -727,6 +754,12 @@ class ApFitsRasterizer:
             The percentiles corresponding to any of the non-None elements of
             the input tuple will be computed. Note that these are percentiles
             levels in the range ``[0,100]``, not quantiles in the range ``[0, 1]``.
+        ignore_null : bool, optional, default=False
+            If True, then ignore null pixels when computing the pixel value statistics.
+            The null value to be ignored is specified using the null_value argument.
+        null_value : float, optional, default=0
+            If ignore_null is True then all pixels with exactly this value will
+            be masked out before computing the image statistics.
 
         Returns
         -------
@@ -745,24 +778,30 @@ class ApFitsRasterizer:
             non-None elements of the input tuple.
         """
 
-        minval = np.nanmin(data)
-        maxval = np.nanmax(data)
-        meanval = np.nanmean(data)
-        stdval = np.nanstd(data)
+        # selection mask, remove NaNs anyway...
+        mask = np.isfinite(data)
+        if ignore_null:
+            not_null_mask = data != null_value
+            mask = np.logical_and(mask, not_null_mask)
+
+        minval = np.nanmin(data[mask])
+        maxval = np.nanmax(data[mask])
+        meanval = np.nanmean(data[mask])
+        stdval = np.nanstd(data[mask])
 
         # percentiles, 50th percentile is the median
         #         0    1    2    3   4   5   6   7   8   9   10
         ipctls = [0.1, 1.0, 5.0, 10, 25, 50, 75, 90, 95, 99, 99.9]
-        opctls = np.nanpercentile(data, ipctls)
+        opctls = np.nanpercentile(data[mask], ipctls)
         medval = opctls[5]
 
         # User-specified percentiles
         first_val = None
         if input_percentiles[0] is not None:
-            first_val = np.nanpercentile(data, input_percentiles[0])
+            first_val = np.nanpercentile(data[mask], input_percentiles[0])
         second_val = None
         if input_percentiles[1] is not None:
-            second_val = np.nanpercentile(data, input_percentiles[1])
+            second_val = np.nanpercentile(data[mask], input_percentiles[1])
         percentile_values = (first_val, second_val)
 
         if verbose:

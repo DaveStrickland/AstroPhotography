@@ -140,17 +140,17 @@ def command_line_opts(argv):
             "  a percentile level of 99.9%% or slightly lower is a good choice."
         ),
     )
-    (
-        grey_parser.add_argument(
-            "--negative",
-            action="store_true",
-            default=False,
-            help=(
-                "Invert the color table so that bright pixels are black and"
-                " faint pixels are white, similar to photographic negatives."
-            ),
+
+    grey_parser.add_argument(
+        "--negative",
+        action="store_true",
+        default=False,
+        help=(
+            "Invert the color table so that bright pixels are black and"
+            " faint pixels are white, similar to photographic negatives."
         ),
     )
+
     grey_parser.add_argument(
         "--binning",
         type=int,
@@ -162,6 +162,28 @@ def command_line_opts(argv):
             " the number of columns than the input image, and only a quarter as many pixels."
         ),
     )
+
+    grey_parser.add_argument(
+        "--ignore_null",
+        action="store_true",
+        default=False,
+        help=(
+            "Ignore null pixels when computing the pixel value statistics used"
+            " by the --min_percent and --max_percent arguments. The null value"
+            " to be ignored is specified using the --null_value argument."
+        ),
+    )
+
+    p_nullval: float = 0
+    grey_parser.add_argument(
+        "--null_value",
+        type=float,
+        default=p_nullval,
+        help=(
+            f"Null pixel value that is ignored if --ignore_null is specified. Default: {p_nullval}"
+        ),
+    )
+
     grey_parser.add_argument(
         "-l", "--loglevel", default="INFO", help="Logging message level. Default: INFO"
     )
@@ -264,17 +286,17 @@ def command_line_opts(argv):
             " red, green, and blue channels."
         ),
     )
-    (
-        rgb_parser.add_argument(
-            "--negative",
-            action="store_true",
-            default=False,
-            help=(
-                "Invert the color table so that bright pixels are dark and"
-                " faint pixels are bright, similar to photographic negatives."
-            ),
+
+    rgb_parser.add_argument(
+        "--negative",
+        action="store_true",
+        default=False,
+        help=(
+            "Invert the color table so that bright pixels are dark and"
+            " faint pixels are bright, similar to photographic negatives."
         ),
     )
+
     rgb_parser.add_argument(
         "--binning",
         type=int,
@@ -284,6 +306,27 @@ def command_line_opts(argv):
             " generating the output image. For example, with binning=2"
             " the output image will have half the number of rows and half"
             " the number of columns than the input image, and only a quarter as many pixels."
+        ),
+    )
+
+    rgb_parser.add_argument(
+        "--ignore_null",
+        action="store_true",
+        default=False,
+        help=(
+            "Ignore null pixels when computing the pixel value statistics used"
+            " by the --min_percent and --max_percent arguments. The null value"
+            " to be ignored is specified using the --null_value argument."
+        ),
+    )
+
+    p_nullval = 0
+    rgb_parser.add_argument(
+        "--null_value",
+        type=float,
+        default=p_nullval,
+        help=(
+            f"Null pixel value that is ignored if --ignore_null is specified. Default: {p_nullval}"
         ),
     )
     rgb_parser.add_argument(
@@ -360,6 +403,8 @@ def main(args=None):
             p_args.max_percent,
             p_args.negative,
             p_args.binning,
+            p_args.ignore_null,
+            p_args.null_value,
         )
     elif "rgb" in p_args.command:
         rasterizer.fits_to_rgb(
@@ -373,6 +418,8 @@ def main(args=None):
             p_args.max_percent,
             p_args.negative,
             p_args.binning,
+            p_args.ignore_null,
+            p_args.null_value,
         )
     return 0
 
