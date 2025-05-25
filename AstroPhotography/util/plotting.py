@@ -61,7 +61,7 @@ from astropy.visualization import make_lupton_rgb
 def load_image_and_plot(
     fname: str,
     extnum: int | str = 0,
-    output: str | None = None,
+    output: Any | None = None,
     usewcs: bool = True,
     vmin: float | None = None,
     vmax: float | None = None,
@@ -168,8 +168,12 @@ def load_image_and_plot(
         hdu.data, interval=ManualInterval(ourmin, ourmax), stretch=AsinhStretch()
     )
 
+    print(f"Matplotlib is using the {plt.get_backend()} backend.")
+    print(f"Current figure is {plt.gcf()}")
+
     # Display the image
     fig = plt.figure()
+    print(f"Current figure is {plt.gcf()}")
     if usewcs:
         if verbose:
             print("Using WCS information for axis projection")
@@ -251,7 +255,12 @@ def load_image_and_plot(
             fig.savefig(output, dpi=100, bbox_inches="tight")
             if verbose:
                 print(f"Wrote plot to {output}")
-    plt.close(fig=fig)
+
+            # We can close the figure we have written to file, and are not
+            # being run via a notebook (likely output=None). If we closed the
+            # figure when running in ipython/notebook we would not get a
+            # plot at all.
+            plt.close(fig=fig)
     return
 
 
@@ -483,7 +492,12 @@ def load_imlist_and_plot(
             fig.savefig(output, dpi=100, bbox_inches="tight")
             if verbose:
                 print(f"Wrote plot to {output}")
-    plt.close(fig=fig)
+
+            # We can close the figure we have written to file, and are not
+            # being run via a notebook (likely output=None). If we closed the
+            # figure when running in ipython/notebook we would not get a
+            # plot at all.
+            plt.close(fig=fig)
     return
 
 
@@ -1171,7 +1185,12 @@ def make_lupton_threecolor_plots(
             fig.savefig(output, dpi=100, bbox_inches="tight")
             if verbose:
                 print(f"Wrote plot to {output}")
-    plt.close(fig=fig)
+
+            # We can close the figure we have written to file, and are not
+            # being run via a notebook (likely output=None). If we closed the
+            # figure when running in ipython/notebook we would not get a
+            # plot at all.
+            plt.close(fig=fig)
     return
 
 
@@ -1403,5 +1422,10 @@ def make_stiff_threecolor_plots(
             fig.savefig(output, dpi=100, bbox_inches="tight")
             if verbose:
                 print(f"Wrote plot to {output}")
-    plt.close(fig=fig)
+
+            # We can close the figure we have written to file, and are not
+            # being run via a notebook (likely output=None). If we closed the
+            # figure when running in ipython/notebook we would not get a
+            # plot at all.
+            plt.close(fig=fig)
     return

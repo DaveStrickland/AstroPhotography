@@ -30,6 +30,7 @@ The objectives of version 0.6 are:
 > `ap-env.yml` and `requirements.txt` files. The older configuration can be found in
 > the `etc/` directory.
 
+- Fixed bug in `util/plotting.py` that stopped plotting from working in ipython/notebooks.
 - Added simple `pyproject.toml` and updated instructions for editable installs.
 - Added option to ignore null values to `ApFitsRasterizer` and `ap_fits_rasterizer`.
 - #37 Add `ap_gradient_to_mask.py` and `ApGradientToMask`. 
