@@ -30,6 +30,7 @@ The objectives of version 0.6 are:
 > `ap-env.yml` and `requirements.txt` files. The older configuration can be found in
 > the `etc/` directory.
 
+- Added simple `pyproject.toml` and updated instructions for editable installs.
 - Added option to ignore null values to `ApFitsRasterizer` and `ap_fits_rasterizer`.
 - #37 Add `ap_gradient_to_mask.py` and `ApGradientToMask`. 
 - #30 Updated conda environment and pip `requirements.txt` to `python 3.12` and `astropy 7.0`.

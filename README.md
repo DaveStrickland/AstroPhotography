@@ -89,6 +89,8 @@ Install:
 $ python3 -m pip install . -r requirements.txt --user
 # or install for the system (as root, or as a user in a virtual environment).
 $ pip3 install . -r requirements.txt
+# or install in editable mode in a virtual environment
+$ python3 -m pip install --editable . -r requirements.txt 
 ```
 
 To install in developer mode replace the last line with 
