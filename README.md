@@ -1,19 +1,19 @@
 # AstroPhotography
 
-The aim of the AstroPhotography python package is to provides python 
+The aim of the AstroPhotography python package is to provide Python 
 classes and command line applications for amateur astronomy, specifically:
 
-- reduction and combination of multiple FITS images, including calibration,
+- Reduction and combination of multiple FITS images, including calibration,
   artifact removal, star detection, and astrometry.
-- quick inspection and conversion of RAW digital camera format to common 
-  graphical image formats (e.g. PNG) and astronomical FITS format.
+- Quick inspection and conversion of RAW digital camera formats to common 
+  graphical image formats (e.g., PNG) and astronomical FITS format.
 
 FITS images can then be viewed with the powerful features SAO `ds9`
-provides, and/or within python using `astropy`.
+provides, and/or within Python using `astropy`.
 
 *Current status:* This is still very much a work in progress. RAW to 
 image/FITS conversion is partially implemented, but development stalled
-when I became dissatified with the clunky nature of the unit tests. I've
+when I became dissatisfied with the clunky nature of the unit tests. I've
 been putting more effort into the FITS data reduction side of the project,
 but still have a long way to go.
 
@@ -22,125 +22,131 @@ changed recently.
 
 ## Command Line Functionality
 
-A series of python scripts, all beginning with the prefix `ap_`, 
-perform separate command-line driven stages of traditional astronomical 
-image data reduction given FITS files generated either by `dksraw` or obtained directly
-from some other sources (e.g. iTelescope, an archive, etc).
+A series of Python scripts, all beginning with the prefix `ap_`, 
+perform separate command-line stages of astronomical 
+image data reduction using FITS files generated either by `dksraw` or obtained directly
+from other sources (e.g., iTelescope, an archive).
 
-These scripts use python class and functions (typically with names starting in `Ap`)
-that provide the main functionality. These can be called by the user from within
-python or jupyter notebooks instead of using command line scripts.
-A set of jupyter notebooks provide example walk-throughs of some
-use cases, in particular processing calibrated FITS images from iTelescope.
+These scripts use Python classes and functions (typically starting with `Ap`)
+that provide the main functionality. These can also be called from Python or Jupyter notebooks.
+A set of notebooks provides example walk-throughs, particularly for processing calibrated FITS images from iTelescope.
 
-The command line python program `dksraw` provides a simple method of
-quickly converting RAW files into useful images or FITS files without 
-the user having to mess around with `dcraw`, `gimp`, `photoshop` or 
-the equivalent.
+The command line Python program `dksraw` provides a simple method of
+quickly converting RAW files into images or FITS files without the user needing `dcraw`, `gimp`, `photoshop`, etc.
 
 ### ap_ scripts
 
-A series of python classes for FITS data processing (with names beginning 
-with Ap) can be used from the unix command line using scripts (names 
-beginning with ap_).
+A series of Python classes for FITS data processing (with names beginning 
+with `Ap`) can be used from the command line using scripts (names 
+beginning with `ap_`).
 
 (To be described, but see [doc/iTelescope_processing.md](doc/iTelescope_processing.md)
-for a very high level summary of what is currently implemented. The
-jupyter notebooks in `AstroPhotography/notebooks` are more up-to-date,
-but focussed on processing calibrated FITS imagery.)
+for a high-level summary. The notebooks in `AstroPhotography/notebooks` are more up-to-date.)
 
 ### dksraw
 
-**Note** Some are partially implemented at this stage. 
+**Note:** Some features are partially implemented. 
 
-The command line `dksraw` application will provide the following subcommands:
-- grey: Convert a RAW file into a single channel (greyscale) 16-bit PNG/JPG/TIFF or 
-        FITS file. **Working implementation with limited number of options.**
-- rgb: Convert a RAW file into an RGB PNG/JPG/TIFF image or FITS file. 
-  **Working implementation with limited number of options.**
-- split: Splits the input RAW file into separate 16-bit PNG/JPG/TIFF/FITS 
-  files for each of the R, G, B and G channel in the Bayer mask. **Implemented.**
-- whitebalance: Perform whitebalance calculations on the input RAW file in one
-                of several ways. **Partially implemented as part of `grey`.**
-- info: Print metadata about the input RAW file to stdout.  **Not yet implemented.**
+The command line `dksraw` application provides the following subcommands:
+
+- `grey`: Convert a RAW file into a single-channel (greyscale) 16-bit PNG/JPG/TIFF or FITS file. **Working with limited options.**
+- `rgb`: Convert a RAW file into an RGB PNG/JPG/TIFF image or FITS file. **Working with limited options.**
+- `split`: Splits the input RAW file into separate 16-bit PNG/JPG/TIFF/FITS 
+  files for each of the R, G, B, and G channels in the Bayer mask. **Implemented.**
+- `whitebalance`: Perform whitebalance calculations on the input RAW file. **Partially implemented as part of `grey`.**
+- `info`: Print metadata about the input RAW file. **Not yet implemented.**
 
 ## Installation Instructions
 
 ### Minimum Requirements
 
-See `requirements.txt` for full dependency list. This is a Python 3 
-project, with no intention to support Python 2. 
+This is a Python 3 project (>=3.6), with no intention to support Python 2.  
+Dependencies are managed in `pyproject.toml`. The runtime dependencies include:
 
-*Note:* As of version 0.5 of this package the required version of `astropy`
-is version 6.0, to catch up to the latest `astropy` API changes.
+- PyYAML
+- matplotlib
+- numpy
+- rawpy
+- imageio
+- astropy
+- regions
+- astroplan
+- astroquery
+- astroscrappy
+- ccdproc
+- photutils
+- ExifRead
 
-### Optional Requirements
+Optional dependencies for testing and documentation are defined as "extras" (`test`, `docs`) in `pyproject.toml`.
 
-- `pytest` http://pytest.org (for running the test suite)
-- `Sphinx` http://sphinx-doc.org (for generating documentation)
+---
 
-### Basic Setup
+### Basic Setup (Windows / Linux / macOS)
 
-Install:
+> **Note:** Windows users may need to upgrade pip for editable installs.
 
-```bash
-# Install for user (if not using a virtual environment).
-python3 -m pip install . --user
-# or install for the system (as root, or as a user in a virtual environment).
-pip3 install .
-# or install in editable mode in a virtual environment
-python3 -m pip install --editable .
+```powershell
+# Upgrade pip (required for editable installs)
+python -m pip install --upgrade pip
+
+# Install build tools
+pip install --upgrade build setuptools wheel
+
+# Optional: clean old build artifacts
+Remove-Item -Recurse -Force build, dist, *.egg-info -ErrorAction Ignore
 ```
 
-To install in developer mode replace the last line with:
-`pip3 install -e .`
+### Install the package
+```powershell
+# Normal install
+pip install .
 
-If you use conda or miniconda you may want to set up a new
-environment prior to running the pip install using the supplied
-YaML file, e.g.
+# Install with test and docs extras
+pip install .[test,docs]
 
-```bash
+# Editable install (for development)
+pip install -e .[test,docs]
+```
+
+### Using conda (optional)
+```powershell
 conda env create -f ap-env.yml
-conda activate ap-env 
+conda activate ap-env
+
+# Then install the package
+pip install -e .[test,docs]
 ```
 
-Note: If creating a conda environment you must then use one of
-the pip commands above to install AstroPhotography after you have created and
-activated the conda environment.
-Get general command line application help:
-
-```bash
+### Verifying Installation
+```powershell
+# CLI help
 dksraw --help
-# Or for a specific subcommand, e.g. split
+# Specific subcommand
 dksraw split --help
 ```
 
-Build documentation:
+### Developers Only
 
-```bash
+Formatting and linting follow Ruff.
+
+Run the test suite:
+'''powershell
+# Basic test run
+python -m pytest -rfsP test/
+
+# Short summary of each test run
+python -m pytest -rfsp test/
+'''
+
+Generate test coverage:
+```powershell
+python -m pytest --cov-report html --cov=AstroPhotography test/
+# Open htmlcov/index.html in a browser
+```
+
+### Documentation
+```powershell
 cd doc
 make html
-# view doc/_build/html/index.html in a browser
-```
-
-Developers Only
-Formatting and linting follow Ruff.
-The test suite is very limited and will be rewritten at some stage.
-Run the test suite directly with pytest:
-
-```bash
-# Run tests capturing stdout
-python3 -m pytest -rfsP test/
-
-# Runs tests with a short summary of each test run
-python3 -m pytest -rfsp test/
-```
-
-To generate test coverage:
-
-```bash
-# Generates html files in the directory ./htmlcov
-python3 -m pytest --cov-report html --cov=AstroPhotography test/
-
-# Open htmlcov/index.html with a browser...
+# Open doc/_build/html/index.html in a browser
 ```
