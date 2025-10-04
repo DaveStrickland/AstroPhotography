@@ -79,41 +79,40 @@ is version 6.0, to catch up to the latest `astropy` API changes.
 - `pytest` http://pytest.org (for running the test suite)
 - `Sphinx` http://sphinx-doc.org (for generating documentation)
 
-
 ### Basic Setup
 
 Install:
 
 ```bash
 # Install for user (if not using a virtual environment).
-$ python3 -m pip install . -r requirements.txt --user
+python3 -m pip install . --user
 # or install for the system (as root, or as a user in a virtual environment).
-$ pip3 install . -r requirements.txt
+pip3 install .
 # or install in editable mode in a virtual environment
-$ python3 -m pip install --editable . -r requirements.txt 
+python3 -m pip install --editable .
 ```
 
-To install in developer mode replace the last line with 
-`pip3 install -e . -r requirements.txt`.
+To install in developer mode replace the last line with:
+`pip3 install -e .`
 
-If you use `conda` or `miniconda` you may want to set up a new
-environment *prior to running the pip install* using the supplied
+If you use conda or miniconda you may want to set up a new
+environment prior to running the pip install using the supplied
 YaML file, e.g.
+
 ```bash
 conda env create -f ap-env.yml
 conda activate ap-env 
 ```
-*Note:* If creating a `conda` environment you must then use one of 
-the `pip` commands to install `AstroPhotography` after you have created and
-activated the `conda` environment.
 
-
+Note: If creating a conda environment you must then use one of
+the pip commands above to install AstroPhotography after you have created and
+activated the conda environment.
 Get general command line application help:
 
 ```bash
-$ dksraw --help
+dksraw --help
 # Or for a specific subcommand, e.g. split
-$ dksraw split --help
+dksraw split --help
 ```
 
 Build documentation:
@@ -124,27 +123,24 @@ make html
 # view doc/_build/html/index.html in a browser
 ```
 
-#### Developers Only
-
-Formatting and linting follow `Ruff`.
-
+Developers Only
+Formatting and linting follow Ruff.
 The test suite is very limited and will be rewritten at some stage.
-For reasons I haven't resolved running pytest as a stand-alone
-runs into the path issues related to https://docs.pytest.org/en/latest/pythonpath.html
+Run the test suite directly with pytest:
 
 ```bash
-    # Run tests capturing stdout
-    $ python3 -m pytest -rfsP test/
-    
-    # Runs tests with a short summary of each test run
-    $ python3 -m pytest -rfsp test/
+# Run tests capturing stdout
+python3 -m pytest -rfsP test/
+
+# Runs tests with a short summary of each test run
+python3 -m pytest -rfsp test/
 ```
 
 To generate test coverage:
+
 ```bash
 # Generates html files in the directory ./htmlcov
 python3 -m pytest --cov-report html --cov=AstroPhotography test/
 
 # Open htmlcov/index.html with a browser...
 ```
-
