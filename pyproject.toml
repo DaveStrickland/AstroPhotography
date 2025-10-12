@@ -1,5 +1,66 @@
-# pyproject.toml
 [build-system]
-# XXX: If your project needs other packages to build properly, add them to this list.
-requires = ["setuptools >= 64"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "AstroPhotography"
+version = "0.6.2"
+description = "Python workflow for processing astrophotographic images from amateur telescopes and/or digital cameras"
+readme = "README.md"
+requires-python = ">=3.6"
+license = { text = "GNU General Public License v3" }
+authors = [
+  { name = "Dave Strickland", email = "dave.strickland@gmail.com" },
+]
+keywords = ["AstroPhotography"]
+
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+]
+
+dependencies = [
+  "PyYAML>=3.11",
+  "matplotlib>=3.0.3",
+  "numpy>=1.16.2",
+  "rawpy>=0.13.1",
+  "imageio>=2.5.0",
+  "astropy>=6.0",
+  "regions>=0.8",
+  "astroplan>=0.7",
+  "astroquery>=0.4.1",
+  "astroscrappy>=1.0.7",
+  "ccdproc>=2.1.0",
+  "photutils>=0.7.2",
+  "ExifRead>=2.3.2",
+]
+
+[project.optional-dependencies]
+# Developers can install with: pip install .[test]
+test = ["pytest>=5.2.1", "pytest-cov>=2.8.1", "coverage>=5.0.3", "bump2version"]
+
+# For docs: pip install .[docs]
+docs = [
+  "sphinx-argparse",
+  "sphinx-sizzle-theme",
+  "sphinxcontrib-autoprogram",
+  "sphinxcontrib-apidoc",
+  "myst-parser"
+]
+
+[project.urls]
+Homepage = "https://github.com/DaveStrickland/AstroPhotography"
+
+[project.scripts]
+dksraw = "AstroPhotography.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["AstroPhotography", "AstroPhotography.*"]
