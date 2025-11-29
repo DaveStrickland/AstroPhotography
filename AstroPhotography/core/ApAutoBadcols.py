@@ -281,6 +281,8 @@ class ApAutoBadcols:
         nvals = idata.size
         mean_data = np.zeros(nvals)
         std_data = np.zeros(nvals)
+        _, _, global_stddev = sigma_clipped_stats(idata)
+        smallval = 1.0e-2 * global_stddev
 
         for idx in range(nvals):
             min_idx = max(0, idx - hw)  # inclusive
@@ -288,15 +290,21 @@ class ApAutoBadcols:
             local_data = idata[min_idx:max_idx]
 
             # Use sigma clipping, because even a single discrepant
-            # value can through a normal standard deviation off.
+            # value can throw a normal standard deviation off.
             cmean, cmedian, cstd = sigma_clipped_stats(local_data)
 
             # In some cases where the data in the local mask is very similar
             # the sigma clipped standard deviation is returned as zero,
-            # which causes problems. In such case, return the normal
-            # standard deviation within the masked area
-            if cstd == 0:
-                cstd = np.nanstd(local_data)
+            # which causes problems. In such case, return either the normal
+            # standard deviation within the masked area, or if that is also
+            # small compared to the global standard deviation, just
+            # return the global std dev
+            if cstd < smallval:
+                nmlstd = np.nanstd(local_data)
+                if nmlstd > smallval:
+                    cstd = nmlstd
+                else:
+                    cstd = global_stddev
 
             mean_data[idx] = cmean
             std_data[idx] = cstd
@@ -445,7 +453,7 @@ class ApAutoBadcols:
         # Create information for column by column (or row by row) debug level output.
         # This does the first nalways columns/rows irrespective of whether
         # they are good or bad, and then only the bad ones.
-        nalways = 40
+        nalways = 50
         dbg_str_list = []
         hdr_str = "{:>4s}, {:>10s}, {:>10s}, {:>10s}, {:>10s}, {:>6s}".format(
             short_str, "median", "local_mean", "local_std", "nsigma", "isbad?"
@@ -457,9 +465,9 @@ class ApAutoBadcols:
         for idx in range(nvals):
             if (idx < nalways) or (bad_mask[idx]):
                 dbg_str = (
-                    f"{idx:04d}, {median_array[idx]:10.2f}"
-                    f", {sldng_mean[idx]:10.2f}, {sldng_std[idx]:10.2f}"
-                    f", {nsigma_from_mean[idx]:10.2f}, {bad_mask[idx]}"
+                    f"{idx:04d}, {median_array[idx]:10.3f}"
+                    f", {sldng_mean[idx]:10.3f}, {sldng_std[idx]:10.3f}"
+                    f", {nsigma_from_mean[idx]:10.3f}, {bad_mask[idx]}"
                 )
                 dbg_str_list.append(dbg_str)
         self._logger.debug("\n".join(dbg_str_list))
@@ -803,7 +811,7 @@ class ApAutoBadcols:
                     f,
                     self._colstats,
                     header=chdr_str,
-                    fmt=["%05d", "%10.2f", "%10.2f", "%10.2f", "%10.2f", "%5d"],
+                    fmt=["%05d", "%10.3f", "%10.3f", "%10.3f", "%10.3f", "%5d"],
                     delimiter=",",
                 )
                 self._logger.debug(f"Wrote column statistics CSV data to {fcolstat}")
@@ -816,7 +824,7 @@ class ApAutoBadcols:
                     f,
                     self._rowstats,
                     header=rhdr_str,
-                    fmt=["%05d", "%10.2f", "%10.2f", "%10.2f", "%10.2f", "%5d"],
+                    fmt=["%05d", "%10.3f", "%10.3f", "%10.3f", "%10.3f", "%5d"],
                     delimiter=",",
                 )
                 self._logger.debug(f"Wrote row statistics CSV data to {frowstat}")

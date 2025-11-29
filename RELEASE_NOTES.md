@@ -30,6 +30,7 @@ The objectives of version 0.6 are:
 > `ap-env.yml` and `requirements.txt` files. The older configuration can be found in
 > the `etc/` directory.
 
+- Catch artificially low std dev in ApAutoBadcols sliding window calculation.
 - #42 Migrate from setup.py to pyproject.toml (ibirothe)
 - Added `ap_make_wcs_template.py` to the the `scripts` directory.
 - Fixed bug in `util/plotting.py` that stopped plotting from working in ipython/notebooks.
