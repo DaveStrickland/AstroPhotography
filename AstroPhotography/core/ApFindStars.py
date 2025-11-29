@@ -189,7 +189,7 @@ class ApFindStars:
         if max_sources is not None:
             self._max_sources: int = int(max_sources)
         else:
-            self._max_sources: int = 200
+            self._max_sources = 200
         self._nosatmask: bool = nosatmask
         self._sat_frac: float = sat_frac
         self._plotfile: str = plotfile
@@ -202,9 +202,9 @@ class ApFindStars:
 
         # Not calculated by default, only if a user calls measure_fwhm
         self._psf_table = None
-        self._fwhm_both: float | None = None
-        self._fwhm_x: float | None = None
-        self._fwhm_y: float | None = None
+        self._fwhm_both: tuple[float, float, float] | None = None
+        self._fwhm_x: tuple[float, float, float] | None = None
+        self._fwhm_y: tuple[float, float, float] | None = None
 
         # Number of sources detected, and number of sources that had
         # photometry, and number of sources that had FWHM/PSFs fitted.
@@ -771,9 +771,9 @@ class ApFindStars:
         # name of the original image file
         fname = os.path.basename(self._fitsimg)
         plot_title = f"Star FWHM measurements for:\n{fname}"
-        self._fwhm_both: tuple[float, float, float] = (0, 0, 0)
-        self._fwhm_x: tuple[float, float, float] = (0, 0, 0)
-        self._fwhm_y: tuple[float, float, float] = (0, 0, 0)
+        self._fwhm_both = (0, 0, 0)
+        self._fwhm_x = (0, 0, 0)
+        self._fwhm_y = (0, 0, 0)
 
         # Note: Cannot use the initial sources table as it lacks
         #   accurate brightness estimates.

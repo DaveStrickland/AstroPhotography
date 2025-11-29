@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import textwrap  # for dedent
+from typing import Any
+import numpy.typing as npt
 
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
@@ -25,9 +27,19 @@ class ApAutoBadcols:
     astronomical image.
     """
 
-    def __init__(self, loglevel):
+    def __init__(self, loglevel: str) -> None:
         """
-        Initializes an ApAutoBadcols instance.
+        Create an ApAutoBadcols instance.
+
+        Parameters
+        ----------
+        loglevel : str
+            Logging level name used to initialize the internal logger
+            (e.g. "INFO", "DEBUG").
+
+        Returns
+        -------
+        None
         """
 
         self._name = "ApAutoBadcols"
@@ -37,21 +49,36 @@ class ApAutoBadcols:
 
         # Information about file or data processed, to be carried
         # forward to any output files.
-        self._meta = None
+        self._meta: dict[str, Any] | None = None
 
         # Computed statistics
-        self._badcols = None
-        self._badrows = None
-        self._colstats = None
-        self._rowstats = None
+        self._badcols: npt.NDArray | None = None
+        self._badrows: npt.NDArray | None = None
+        self._colstats: npt.NDArray | None = None
+        self._rowstats: npt.NDArray | None = None
         return
 
-    def _check_file_exists(self, filename, throws=True):
+    def _check_file_exists(self, filename: str, throws: bool = True) -> bool:
         """
-        Checks if the named file exists, returning True if it does.
+        Check whether a file exists on disk.
 
-        By default it raises an exception if the named file does not exist,
-        but this can be disabled by setting throws=False
+        Parameters
+        ----------
+        filename : str
+            Path to the file to check.
+        throws : bool, optional
+            If True (default) raise RuntimeError when the file does not exist.
+            If False return False instead.
+
+        Returns
+        -------
+        bool
+            True if the file exists, False otherwise.
+
+        Raises
+        ------
+        RuntimeError
+            If throws is True and the file does not exist.
         """
         exists = Path(filename).exists()
         if (not exists) and throws:
@@ -60,9 +87,23 @@ class ApAutoBadcols:
             raise RuntimeError(err_msg)
         return exists
 
-    def _get_metadata_from_hdr(self, filename, fitshdr):
+    def _get_metadata_from_hdr(self, filename: str, fitshdr: Any) -> dict[str, Any]:
         """
-        Extract some file metadata from the file name and a FITS header
+        Extract metadata from a FITS header and filename.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the FITS file (used to derive the basename).
+        fitshdr : object
+            FITS header-like mapping supporting item access
+            (e.g., astropy.io.fits.Header).
+
+        Returns
+        -------
+        dict[str, Any]
+            A metadata dictionary containing the key "filename" and any of
+            "BITPIX", "NAXIS1", "NAXIS2" if present in fitshdr.
         """
 
         fpath = Path(filename)
@@ -72,9 +113,19 @@ class ApAutoBadcols:
                 metadict[kw] = fitshdr[kw]
         return metadict
 
-    def _initialize_logger(self, loglevel):
+    def _initialize_logger(self, loglevel: str):
         """
-        nitialize and return the logger
+        Initialize the internal logger for the instance.
+
+        Parameters
+        ----------
+        loglevel : str
+            Logging level name used to configure the logger
+            (e.g. "INFO", "DEBUG").
+
+        Returns
+        -------
+        None
         """
 
         self._logger = logging.getLogger(self._name)
@@ -105,9 +156,25 @@ class ApAutoBadcols:
         self._logger.propagate = False
         return
 
-    def _read_fits(self, image_filename, image_extension):
+    def _read_fits(
+        self, image_filename: str, image_extension: int | str
+    ) -> tuple[npt.NDArray, Any]:
         """
-        Read a single extension's data and header from a FITS file
+        Read image data and header from a FITS file extension.
+
+        Parameters
+        ----------
+        image_filename : str
+            Path to the FITS file to open.
+        image_extension : int or str
+            Extension index or name to read from the FITS file.
+
+        Returns
+        -------
+        tuple[numpy.ndarray, object]
+            A tuple (data, header) where data is a NumPy array of the image
+            (converted to float32 if necessary) and header is the corresponding
+            FITS header object.
         """
         self._check_file_exists(image_filename)
         self._logger.info(
@@ -177,20 +244,38 @@ class ApAutoBadcols:
                 maxval = np.amax(ext_data)
                 medval = np.median(ext_data)
                 self._logger.debug(
-                    f"After PEDESTAL removal, min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+                    f"After PEDESTAL removal, min={minval:.2f}"
+                    f", max={maxval:.2f}, median={medval:.2f}"
                 )
 
         self._meta = self._get_metadata_from_hdr(image_filename, ext_hdr)
         self._logger.debug(f"File metadata: {self._meta}")
         return ext_data, ext_hdr
 
-    def _sliding_stats_1d(self, idata, window_len):
+    def _sliding_stats_1d(
+        self, idata: npt.NDArray, window_len: int
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         """
-        Simple brute force 1-dimensional sliding window statistics
+        Compute sliding-window mean and standard deviation for 1-D data.
 
-        :param data: 1-dimensional array
-        :param window_len: Integer window length, must be positive odd number
-          e.g. 11.
+        The function uses sigma-clipped statistics for each local window
+        to be robust against outliers. If the sigma-clipped standard
+        deviation evaluates to zero for a window, the plain NumPy
+        standard deviation is used instead.
+
+        Parameters
+        ----------
+        idata : numpy.ndarray
+            One-dimensional input array.
+        window_len : int
+            Width of the sliding window (should be a positive odd integer,
+            e.g. 11).
+
+        Returns
+        -------
+        tuple[numpy.ndarray, numpy.ndarray]
+            (mean_data, std_data) arrays containing the local mean and
+            standard deviation for each position in idata.
         """
         hw = int((window_len - 1) / 2)
         nvals = idata.size
@@ -217,31 +302,61 @@ class ApAutoBadcols:
             std_data[idx] = cstd
         return mean_data, std_data
 
-    def process_fits(self, fitsimg, nsigma=5, window_len=11):
+    def process_fits(
+        self, fitsimg: str, nsigma: int = 5, window_len: int = 11
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         """
-        Identify bad columns and rows in a numpy 2-dimensional array,
-        returning a 1-d array of the (zero-based) bad column and row
-        indices, or None if there are none.
+        Process a FITS file and identify bad columns and rows.
+
+        Parameters
+        ----------
+        fitsimg : str
+            Path to the FITS file to analyze.
+        nsigma : int, optional
+            Sigma threshold for flagging a column/row as bad (default 5).
+        window_len : int, optional
+            Sliding-window length used for local statistics (default 11).
+
+        Returns
+        -------
+        tuple[numpy.ndarray | None, numpy.ndarray | None]
+            Two 1-D arrays of zero-based indices for bad columns and bad rows
+            respectively. If no bad indices are found, None may be returned
+            for that component.
         """
         ext_num = 0
         idata, ihdr = self._read_fits(fitsimg, ext_num)
         badcols, badrows = self.process(idata, nsigma, window_len)
         return badcols, badrows
 
-    def process(self, data_array, nsigma=5, window_len=11):
+    def process(
+        self, data_array: npt.NDArray, nsigma: int = 5, window_len: int = 11
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         """
-        Identify bad columns and rows in a numpy 2-dimensional array,
-        returning a 1-d array of the (zero-based) bad column and row
-        indices, or None if there are none..
+        Identify bad columns and rows in a 2-D NumPy array.
+
+        Parameters
+        ----------
+        data_array : numpy.ndarray
+            2-D image array to analyze.
+        nsigma : int, optional
+            Sigma threshold for badness detection (default 5).
+        window_len : int, optional
+            Sliding window length used for local mean/std estimation
+            (default 11).
+
+        Returns
+        -------
+        tuple[numpy.ndarray | None, numpy.ndarray | None]
+            (badcols, badrows) where each element is a 1-D array of
+            zero-based indices for bad columns and bad rows respectively,
+            or None if no bad indices were detected.
         """
 
         if nsigma is None:
             nsigma = 5.0  # Want to be sure these are really clearly bad.
         if window_len is None:
             window_len = 11
-
-        nrows = data_array.shape[0]
-        ncols = data_array.shape[1]
 
         # Look for bad columns, median over row axis (collapse down)
         medn_over_cols = np.nanmedian(data_array, axis=0)
@@ -260,23 +375,32 @@ class ApAutoBadcols:
 
         return badcols, badrows
 
-    def _process(self, median_array, axis_used, nsigma, window_len):
+    def _process(
+        self, median_array: npt.NDArray, axis_used: int, nsigma: float, window_len: int
+    ) -> npt.NDArray:
         """
-        Internal utility that performs the work of processing the
-        1-dimensional column or row inspection
+        Find bad indices from a 1-D median array using local statistics.
 
-        :param median_array: A 1-d numpy array of the medians. If the
-          median over all rows (axis=0) is supplied for each column,
-          then this will be used to find bad columns.
-        :param axisname: The axis used when generating the median array.
-          This is an integer that is either 0 or 1. If 0, then the median
-          over all rows is performed per column, so this is used to find
-          bad columns. If 1, the median over all columns was calculated,
-          so this is used to identify bad rows.
-        :param nsigma: Values greater than or equal to this number of
-          standard deviations away from local mean are considered bad.
-        :param window_len: Total width of the sliding window used to
-          assess the local mean value. This should be an odd number.
+        Parameters
+        ----------
+        median_array : numpy.ndarray
+            One-dimensional array of medians (either per-column or per-row
+            medians depending on axis_used).
+        axis_used : int
+            Axis used to create median_array: 0 means medians were computed
+            over rows (so indices refer to columns), 1 means medians were
+            computed over columns (indices refer to rows).
+        nsigma : float
+            Sigma threshold for flagging values as bad relative to the
+            local sliding mean.
+        window_len : int
+            Width of the sliding window used to compute local mean/std.
+
+        Returns
+        -------
+        numpy.ndarray | None
+            Array of zero-based indices that are considered bad, or None
+            if no bad indices were found.
         """
         type_str = "column"
         short_str = "col"
@@ -332,7 +456,11 @@ class ApAutoBadcols:
         # Use primitave arrays instead of values_arr because of nested ''
         for idx in range(nvals):
             if (idx < nalways) or (bad_mask[idx]):
-                dbg_str = f"{idx:04d}, {median_array[idx]:10.2f}, {sldng_mean[idx]:10.2f}, {sldng_std[idx]:10.2f}, {nsigma_from_mean[idx]:10.2f}, {bad_mask[idx]}"
+                dbg_str = (
+                    f"{idx:04d}, {median_array[idx]:10.2f}"
+                    f", {sldng_mean[idx]:10.2f}, {sldng_std[idx]:10.2f}"
+                    f", {nsigma_from_mean[idx]:10.2f}, {bad_mask[idx]}"
+                )
                 dbg_str_list.append(dbg_str)
         self._logger.debug("\n".join(dbg_str_list))
 
@@ -349,10 +477,30 @@ class ApAutoBadcols:
         self._meta["window_len"] = window_len
         return bad_indices
 
-    def generate_stats_plot(self, plotstatfile):
+    def generate_stats_plot(self, plotstatfile: str) -> None:
         """
-        Generate a two-panel plot of the column and row statistics
+        Generate and save a two-panel statistics plot for columns and rows.
+
+        Parameters
+        ----------
+        plotstatfile : str
+            Output filename for the generated plot (image file).
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        RuntimeError
+            If no image has been processed prior to calling this method
+            (metadata and statistics are required).
         """
+
+        if self._meta is None:
+            raise RuntimeError(
+                "Error, attempting to generate a statistics plot when no image has been processed."
+            )
 
         fig, ax_arr = plt.subplots(nrows=2, ncols=1)
 
@@ -369,6 +517,8 @@ class ApAutoBadcols:
         fig.suptitle(title_str, fontsize=7)
 
         # Plot bad columns
+        assert self._colstats is not None
+        assert self._rowstats is not None
         idx = 0
         self._generate_stats_panel(
             ax_arr[idx], self._colstats, "Along-column statistics and bad columns", "column"
@@ -383,10 +533,39 @@ class ApAutoBadcols:
         self._logger.info(f"Column/row statistics info plot written to {plotstatfile}")
         return
 
-    def _generate_stats_panel(self, ax, stats_arr, titlestr, coltype):
+    def _generate_stats_panel(
+        self, ax: Any, stats_arr: npt.NDArray, titlestr: str, coltype: str
+    ) -> None:
         """
-        Generate one of the panels for the column/row statistics plot
+        Render a single panel of the column/row statistics plot.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Axis object to draw into.
+        stats_arr : numpy.ndarray
+            Structured array with fields idx, median, local_mean, local_std,
+            nsigma, and isbad.
+        titlestr : str
+            Title string for the panel.
+        coltype : str
+            Either "column" or "row" to control axis labels and text used
+            in the panel.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        RuntimeError
+            If no metadata (from a prior processing run) has been set.
         """
+
+        if self._meta is None:
+            raise RuntimeError(
+                "Error, attempting to generate a statistics plot when no image has been processed."
+            )
 
         if "column" in coltype:
             xlabel_str = "X-axis column index (pixels)"
@@ -397,8 +576,8 @@ class ApAutoBadcols:
         # Number of sigma around local sliding mean to plot envelope
         env_sigma = 3.0
         medn_sub_mean = stats_arr["median"] - stats_arr["local_mean"]
-        envelope_low = -env_sigma * stats_arr["local_std"]
-        envelope_hi = env_sigma * stats_arr["local_std"]
+        envelope_low = -env_sigma * stats_arr["local_std"]  # noqa: F841
+        envelope_hi = env_sigma * stats_arr["local_std"]  # noqa: F841
 
         mask = stats_arr["isbad"] == 1
         numbad = np.sum(stats_arr["isbad"])
@@ -437,7 +616,7 @@ class ApAutoBadcols:
         ax.set_ylabel(ylabel_str, fontsize=6, color="blue")
 
         plt.rc("legend", fontsize=6)
-        lgnd1 = ax.legend(loc="lower left")
+        lgnd1 = ax.legend(loc="lower left")  # noqa: F841
 
         ax2 = ax.twinx()
         if "column" in coltype:
@@ -464,20 +643,34 @@ class ApAutoBadcols:
 
         return
 
-    def write_badcols_file(self, badcolfile, overwrite=False):
+    def write_badcols_file(self, badcolfile: str, overwrite: bool = False) -> None:
         """
-        Write the bad columns and bad rows in a YaML-like format
+        Write detected bad columns and rows to a YaML-like file.
+
+        Parameters
+        ----------
+        badcolfile : str
+            Output filename to write the bad columns/rows information.
+        overwrite : bool, optional
+            If False (default) do not overwrite an existing file and return
+            without writing. If True overwrite an existing file.
+
+        Returns
+        -------
+        None
         """
 
         exists = self._check_file_exists(badcolfile, False)
         if exists and not overwrite:
             self._logger.error("Bad column/row YaML file exists and overwrite=False")
             self._logger.error(
-                "  No output file will be written unless the file is first deleted or overwrite is specified."
+                "  No output file will be written unless the file is first"
+                " deleted or overwrite is specified."
             )
             return
 
         # TODO use an actual YaML writer?
+        assert self._meta is not None
         with open(badcolfile, "w", encoding="utf-8") as f:
             # generate info string
             f.write("---\n")
@@ -490,7 +683,8 @@ class ApAutoBadcols:
             nsigma = self._meta["nsigma"]
             window_len = self._meta["window_len"]
             f.write(
-                f"# Processing parameters: badness sigma threshold={nsigma:.2f}, sliding window_len={window_len}\n"
+                f"# Processing parameters: badness sigma threshold={nsigma:.2f}"
+                f", sliding window_len={window_len}\n"
             )
             for line in self._get_formatting_str():
                 f.write(line)
@@ -524,29 +718,29 @@ class ApAutoBadcols:
             self._logger.info(f"Wrote bad column/row YaML file to {badcolfile}")
         return
 
-    def _get_formatting_str(self):
+    def _get_formatting_str(self) -> str:
         """
-        Return a multi-line string witj bad column file format information
+        Return a multi-line string with bad column file format information
         """
 
         formatstr = textwrap.dedent("""\
             #
             # This is a YaML file that consists of three named sections:
-            # - bad_columns: Entries are column indices of any entire column 
+            # - bad_columns: Entries are column indices of any entire column
             #   to be marked bad.
             # - bad_rows: Entries are row indices of any entire row to be marked bad.
-            # - bad_rectangles: Entries are lists of the coordinates 
+            # - bad_rectangles: Entries are lists of the coordinates
             #   [row_start, row_end, col_start, col_end] of the rectangle to be marked
             #   bad.
             #
             # Note that these are:
             # 0. You need separate user-defined bad pixel files for different chip
             #    binnings!
-            # 1. 1-based indices, e.g. as reported by ds9, not python/C style 
+            # 1. 1-based indices, e.g. as reported by ds9, not python/C style
             #    0-based indices. So the index of the second column in the image
             #    is 2, not 1.
-            # 2. Inclusive ranges (mathematical notation "[]"), so the rectangle 
-            #    2,3,60,62 is a 2 row, 3 column region that includes rows 2 and 3, 
+            # 2. Inclusive ranges (mathematical notation "[]"), so the rectangle
+            #    2,3,60,62 is a 2 row, 3 column region that includes rows 2 and 3,
             #    columns 61, 62, and 63.
             # 3. The origin of the coordinates matches that of the data you pass
             #    to ApFindBadPixels.
@@ -555,26 +749,35 @@ class ApAutoBadcols:
             # bound exclusive upper bound (mathematically "[)") by ApFindBadPixels.
             #
             # Comments (starting "#") can and should be used to note which telescope
-            # or camera the file applies to, and why you chose to mark the 
+            # or camera the file applies to, and why you chose to mark the
             # row/column/rectangle bad, or where you first noted the problem region.
             #
             """)
         return formatstr
 
-    def write_stats(self, fcolstat, frowstat):
+    def write_stats(self, fcolstat: str, frowstat: str) -> None:
         """
-        Write CSV files of the computed along-column and along-row statistics.
+        Write along-column and along-row statistics to CSV files.
 
-        :param fcolstat: Name for the output CSV of along-column statistics.
-          Note that this will be overwritten if it already exists.
-        :param frowstat: Name for the output CSV of along-row statistics.
-          Note that this will be overwritten if it already exists.
+        Parameters
+        ----------
+        fcolstat : str
+            Filename for the column statistics CSV. If None no file will be
+            written for columns.
+        frowstat : str
+            Filename for the row statistics CSV. If None no file will be
+            written for rows.
+
+        Returns
+        -------
+        None
         """
 
         # generate info string
         info_strings = [
             f"# Column statistics file generated by {__name__} version {__version__}\n"
         ]
+        assert self._meta is not None
         if "filename" in self._meta:
             fname = self._meta["filename"]
         else:
@@ -583,7 +786,8 @@ class ApAutoBadcols:
         nsigma = self._meta["nsigma"]
         window_len = self._meta["window_len"]
         info_strings.append(
-            f"# Processing parameters: badness sigma threshold={nsigma:.2f}, sliding window_len={window_len}\n"
+            f"# Processing parameters: badness sigma threshold={nsigma:.2f}"
+            f", sliding window_len={window_len}\n"
         )
 
         chdr_str = "{:3s},{:>10s},{:>10s},{:>10s},{:>10s},{:>5s}".format(
@@ -591,6 +795,7 @@ class ApAutoBadcols:
         )
         rhdr_str = chdr_str.replace("col", "row")
 
+        assert self._colstats is not None
         if fcolstat is not None:
             with open(fcolstat, "w", encoding="utf-8") as f:
                 f.writelines(info_strings)
@@ -603,6 +808,7 @@ class ApAutoBadcols:
                 )
                 self._logger.debug(f"Wrote column statistics CSV data to {fcolstat}")
 
+        assert self._rowstats is not None
         if frowstat is not None:
             with open(frowstat, "w", encoding="utf-8") as f:
                 f.writelines(info_strings)
