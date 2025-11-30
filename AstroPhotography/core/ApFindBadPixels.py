@@ -11,6 +11,7 @@ Contains the implementation of the ApFindBadPixels class.
 import sys
 import logging
 from pathlib import Path
+from typing import Any
 
 # import math
 from datetime import datetime, timezone
@@ -51,20 +52,20 @@ class ApFindBadPixels:
         self._name = "ApFindBadPixels"
 
         # Initialize logging
-        self._loglevel = loglevel
+        self._loglevel: str = loglevel
         self._initialize_logger(self._loglevel)
 
         # Data file to read for automated bad pixel identification.
-        self._imfile = darkfile
+        self._imfile: str | Path = darkfile
         self._imextnum = 0
 
         # File for user-defined bad pixels.
-        self._userfile = None
+        self._userfile: str | Path | None = None
 
         # Number of pixels defined bad by algorithm and by user,
         # used for output file header metadata.
-        self._nbad_auto = 0
-        self._nbad_user = 0
+        self._nbad_auto: int = 0
+        self._nbad_user: int = 0
 
         # Number of MAD std deviations for sigma clipping
         self._sigma: float = float(sigma)
@@ -226,7 +227,7 @@ class ApFindBadPixels:
         self._logger.debug(f"{nbad_hi} (out of {npix}) pixels above {hithresh:.2f} ADU.")
 
         # Generate final mask in uint8 form.
-        self._badpixmask = np.logical_or(bad_lo, bad_hi).astype("uint8")
+        self._badpixmask: np.ndarray = np.logical_or(bad_lo, bad_hi).astype("uint8")
         nbad = np.sum(self._badpixmask)
         pct_bad = 100 * (nbad / npix)
         msg = f"Out of {npix} pixels, {nbad} are bad ({pct_bad:.4f}%)."
@@ -286,7 +287,7 @@ class ApFindBadPixels:
             self._logger.addHandler(ch)
         return
 
-    def _read_fits(self, image_filename, image_extension):
+    def _read_fits(self, image_filename: str, image_extension: int | str):
         """
         Read a single extension's data and header from a FITS file
         """
@@ -334,7 +335,7 @@ class ApFindBadPixels:
 
         self._logger.debug(info_str)
         if ndim == 3:
-            self._loggererror("Error, 3-D handling has not been implemented yet.")
+            self._logger.error("Error, 3-D handling has not been implemented yet.")
             sys.exit(1)
 
         # Get data absolute limits.
@@ -429,7 +430,7 @@ class ApFindBadPixels:
         self._logger.debug("Updating FITS primary HDU keywords.")
 
         # keyword dictionary to write to header
-        kw_dict = {}
+        kw_dict: dict[str, Any] = {}
 
         # Copy select keywords: basically those that would identify the
         # telescope, instrument, and imaging mode used.
@@ -457,6 +458,7 @@ class ApFindBadPixels:
         kw_dict["CREATOR"] = (self._name, "Software that generated this file.")
         kw_dict["DATE"] = (creation_datestr, "UTC creation time.")
         kw_dict["DATAFILE"] = (self._imfile, "Data file used to identify bad pixels.")
+        assert isinstance(self._userfile, Path)
         if self._userfile is not None:
             kw_dict["USERFILE"] = (self._userfile.name, "User-defined bad pixel file.")
         kw_dict["NBADAUTO"] = (self._nbad_auto, "Number of algorithm-detected bad pixels.")

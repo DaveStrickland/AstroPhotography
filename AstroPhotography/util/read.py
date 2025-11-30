@@ -24,7 +24,10 @@ from .check import _does_file_exist
 
 
 def read_fits(
-    image_filename: str, image_extension: str | int, a_logger: Any, remove_pedestal: str = "always"
+    image_filename: str,
+    image_extension: str | int,
+    a_logger: Any | None = None,
+    remove_pedestal: str = "always",
 ) -> tuple[npt.NDArray, Any]:
     """
     Read a single extension's data and header from a FITS file
@@ -36,8 +39,8 @@ def read_fits(
     image_extension : str or int
         FITS extension number or name from which to read the header
         and data.
-    a_logger : logger instance
-        A logger instance must be provided.
+    a_logger : logger instance or None, optional, default=None
+        A logger instance, or None
     remove_pedestal : {'always', 'positive', 'never'}
         FITS ``PEDESTAL`` keyword handling. If the specified file/extension
         has the ``PEDESTAL`` keyword then ``always`` will remove the pedestal
@@ -61,7 +64,8 @@ def read_fits(
         err_msg = ""
         raise RuntimeError(err_msg)
 
-    a_logger.info("Loading extension {} of FITS file {}".format(image_extension, image_filename))
+    if a_logger is not None:
+        a_logger.info(f"Loading extension {image_extension} of FITS file {image_filename}")
 
     # open() parameters that can be important.
     # Default values used here.
@@ -93,20 +97,23 @@ def read_fits(
         bzero = ext_hdr["BZERO"]
         info_str += f", BZERO={bzero}"
 
-    a_logger.debug(info_str)
+    if a_logger is not None:
+        a_logger.debug(info_str)
 
     if ndim == 3:
         err_msg = "Error, 3-D handling has not been implemented yet."
-        a_logger.error(err_msg)
+        if a_logger is not None:
+            a_logger.error(err_msg)
         raise RuntimeError(err_msg)
 
     # Get data absolute limits.
     minval = np.amin(ext_data)
     maxval = np.amax(ext_data)
     medval = np.median(ext_data)
-    a_logger.debug(
-        f"Raw data statistics are min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
-    )
+    if a_logger is not None:
+        a_logger.debug(
+            f"Raw data statistics are min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+        )
 
     # Is there a PEDESTAL value? MaximDL likes to add an offset, and
     # the PEDESTAL value is the value to ADD to the data to remove the
@@ -123,17 +130,19 @@ def read_fits(
                 if bg_negative:
                     condition_met = False
             if condition_met:
-                a_logger.debug(f"Removing a PEDESTAL value of {pedestal} ADU.")
+                if a_logger is not None:
+                    a_logger.debug(f"Removing a PEDESTAL value of {pedestal} ADU.")
                 ext_data += pedestal
                 minval = np.amin(ext_data)
                 maxval = np.amax(ext_data)
                 medval = np.median(ext_data)
-                a_logger.debug(
-                    (
-                        "After PEDESTAL removal, "
-                        f"min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+                if a_logger is not None:
+                    a_logger.debug(
+                        (
+                            "After PEDESTAL removal, "
+                            f"min={minval:.2f}, max={maxval:.2f}, median={medval:.2f}"
+                        )
                     )
-                )
 
     return ext_data, ext_hdr
 
