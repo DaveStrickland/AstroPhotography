@@ -458,8 +458,8 @@ class ApFindBadPixels:
         kw_dict["CREATOR"] = (self._name, "Software that generated this file.")
         kw_dict["DATE"] = (creation_datestr, "UTC creation time.")
         kw_dict["DATAFILE"] = (self._imfile, "Data file used to identify bad pixels.")
-        assert isinstance(self._userfile, Path)
         if self._userfile is not None:
+            assert isinstance(self._userfile, Path)
             kw_dict["USERFILE"] = (self._userfile.name, "User-defined bad pixel file.")
         kw_dict["NBADAUTO"] = (self._nbad_auto, "Number of algorithm-detected bad pixels.")
         kw_dict["NBADUSER"] = (self._nbad_user, "Number of user-defined bad pixels.")
