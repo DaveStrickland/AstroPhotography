@@ -20,10 +20,10 @@ The objectives of version 0.6 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
-### Version 0.6.2 WIP
+### Version 0.6.2 2026-02-17
 
 > [!CAUTION]
-> Updated conda/python environment. 
+> Updated conda/python environment, now using pyproject.toml instead of setup.py
 > The updated code appears to still work with the older `python 3.10` and `astropy 6.0`
 > configuration within the limited coverage of my batch processing tests. If you
 > experience problems file an issue or create a new conda environment with the current
