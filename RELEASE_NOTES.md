@@ -20,6 +20,10 @@ The objectives of version 0.6 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
+### Version 0.6.3 WIP
+
+- TODO #46 Update contribution guidelines
+
 ### Version 0.6.2 2026-02-17
 
 > [!CAUTION]
@@ -32,7 +36,7 @@ The objectives of version 0.6 are:
 
 - Catch artificially low std dev in ApAutoBadcols sliding window calculation.
 - #42 Migrate from setup.py to pyproject.toml (ibirothe)
-- Added `ap_make_wcs_template.py` to the the `scripts` directory.
+- #39 Added `ap_make_wcs_template.py` to the the `scripts` directory.
 - Fixed bug in `util/plotting.py` that stopped plotting from working in ipython/notebooks.
 - Added simple `pyproject.toml` and updated instructions for editable installs.
 - Added option to ignore null values to `ApFitsRasterizer` and `ap_fits_rasterizer`.
