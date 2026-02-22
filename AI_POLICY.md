@@ -1,6 +1,7 @@
 # AI-Assisted Contributions Policy
 
-This is the AI Policy **for** _human contributors_ about **using** AI with details on:
+This is the AI Policy **for** _human contributors_ about **using** AI 
+that describes:
 
 - What is allowed and what is disallowed
 - Disclosure obligations
@@ -53,12 +54,12 @@ limited fluency in English **who require the aid of an AI** may
 use it to provide a larger fraction of their contribution. This would
 be assessed on a case by case basis. 
 
-Submissions that violate these rules, or plausibly appear to violate 
-them, will be rejected without comment or recourse.
+Submissions that violate these rules, or could plausibly be construed
+to violate them, will be rejected without comment or recourse.
 
 *Large scale initiatives:* The policy does not cover possible large 
 scale initiatives which may significantly change the ways the project 
-operates. Such initiatives need to be discussed separately with 
+is structured. Such initiatives need to be discussed separately with 
 the Project Lead.
 
 ## Mandatory Disclosure and Human Accountability
