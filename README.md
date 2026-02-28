@@ -56,6 +56,10 @@ The command line `dksraw` application provides the following subcommands:
 - `whitebalance`: Perform whitebalance calculations on the input RAW file. **Partially implemented as part of `grey`.**
 - `info`: Print metadata about the input RAW file. **Not yet implemented.**
 
+Development of RAW fie processing features has been limited as I am between
+cameras and lack access to a broad range of good datasets with different good 
+RAW file formats
+
 ## Installation Instructions
 
 ### Minimum Requirements
@@ -127,7 +131,7 @@ dksraw split --help
 
 ### Developers Only
 
-Formatting and linting follow Ruff.
+Formatting and linting follow Ruff. [TBA]
 
 Run the test suite:
 '''powershell
@@ -142,6 +146,11 @@ Generate test coverage:
 ```powershell
 python -m pytest --cov-report html --cov=AstroPhotography test/
 # Open htmlcov/index.html in a browser
+```
+
+To run a subset of tests::
+```bash
+python -m pytest tests.test_astrophotography
 ```
 
 ### Documentation
