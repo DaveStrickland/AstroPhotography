@@ -1,9 +1,20 @@
-include AUTHORS.rst
-include CONTRIBUTING.rst
-include HISTORY.rst
 include LICENSE
-include README.rst
+include AGENTS.md
+include AI_POLICY.md
+include AUTHORS.rst
+include CLAUDE.md
+include CODE_OF_CONDUCT.md
+include CONTRIBUTING.rst
+include README.md
+include RELEASE_NOTES.md
+include ap-env.yml
+include pyproject.toml
+include requirements-dev.txt
+include requirements-docs.txt
+include requirements.txt
+.bumpversion.cfg
 
+recursive-include .github
 recursive-include tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
