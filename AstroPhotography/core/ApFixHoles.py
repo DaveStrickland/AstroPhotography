@@ -837,7 +837,7 @@ class ApBiharmonicFiller:
         chk_maxval = np.max(scaled)
         self._logger.debug(
             f"Rescaled image has minimum={chk_minval:f}, maximum={chk_maxval:f}"
-            f", range={chk_maxval-chk_minval:f} counts per pixel."
+            f", range={chk_maxval - chk_minval:f} counts per pixel."
         )
 
         fixed_scaled = restoration.inpaint_biharmonic(scaled, mask)
@@ -847,7 +847,7 @@ class ApBiharmonicFiller:
         chk_maxval = np.max(fixed)
         self._logger.debug(
             f"Restored image has minimum={chk_minval:f}, maximum={chk_maxval:f}"
-            f", range={chk_maxval-chk_minval:f} counts per pixel."
+            f", range={chk_maxval - chk_minval:f} counts per pixel."
         )
         return fixed
 
@@ -974,8 +974,8 @@ class ApGaussianVariateFiller:
         randvals = rng.normal(medval, stdval, self._inpdata.size).reshape(self._inpdata.shape)
 
         odata[self._inpmask] = randvals[self._inpmask]
-        hole_medval = np.median(self._inpdata[self._inpmask])
-        hole_stdval = np.std(self._inpdata[self._inpmask])
+        hole_medval = np.median(odata[self._inpmask])
+        hole_stdval = np.std(odata[self._inpmask])
         self._logger.debug(
             f"Filled hole now has median={hole_medval:{ffmt}}"
             f" +/- {hole_stdval:{ffmt}} counts per pixel."
