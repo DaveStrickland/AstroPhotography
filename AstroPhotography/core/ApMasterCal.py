@@ -25,24 +25,19 @@
 #  2024-10-01 dks : Moved ApMasterCal into core from ap_combine_darks.py
 #  2024-12-06 dks : Use up to half the free ram.
 
-import sys
 import logging
 from pathlib import Path
-import math
 from datetime import datetime, timezone
 import psutil
 import warnings
 
 import numpy as np
-import matplotlib  # for rc
-import matplotlib.pyplot as plt
 
-from astropy.io import fits
-from astropy.nddata import CCDData
 from astropy.stats import mad_std
 from astropy.utils.exceptions import AstropyWarning
 
 import ccdproc as ccdp
+from typing import Any
 
 # AstroPhotography includes
 from .. import __version__
@@ -64,12 +59,20 @@ class ApMasterCal:
     ----------
     rootdir : str
         The directory in which the raw calibration files to be combined
-        are to be found
+        are to be found. This paramater is only used if file_list
+        is not specified.
     exclude_pattern : str, optional, default='master*'
         A unix-style file pattern that may be used to exclude
         files in the target directory from being processed by this
         command. Usually this is used to exclude any master
-        calibration files from being processed.'
+        calibration files from being processed.
+        This paramater is only used if file_list
+        is not specified.
+    file_list : list[str] or None, optional, default=None
+        A list of file names of only those files to be processed. For use when
+        the root directory contains unwanted files that cannot be easily
+        excluded using a single exclude_pattern. If this parameter is specified
+        then rootdir and exclude_pattern are ignored.
     telescop : str, optional, default='UNKNOWN'
         If the input file header TELESCOP keyword is missing or empty,
         write this string as TELESCOP in the output master calibration
@@ -83,7 +86,13 @@ class ApMasterCal:
     """
 
     def __init__(
-        self, rootdir, exclude_pattern="master*", telescop="UNKNOWN", temptol=0.5, loglevel="INFO"
+        self,
+        rootdir: str,
+        exclude_pattern: str = "master*",
+        file_list: list[str] | None = None,
+        telescop: str = "UNKNOWN",
+        temptol: float = 0.5,
+        loglevel: str = "INFO",
     ):
         """
         Construct and fully initialize an instance of ApMasterCal
@@ -115,7 +124,7 @@ class ApMasterCal:
 
         # Generate initial ImageFileCollection
         self._data_dir = Path(self._rootdir)
-        self._file_list = None
+        self._file_list = file_list
         self._files = self._create_file_collection(
             self._data_dir, exclude_pattern, self._file_list
         )
@@ -130,7 +139,7 @@ class ApMasterCal:
         self._logger.debug("ApMasterCal constructor completed.")
         return
 
-    def _check_files(self, list_all=None):
+    def _check_files(self, list_all: bool | None = None):
         """
         Check the file collection for type, exposure, size, and
         temperature consistency, generating a final file_list for
@@ -165,6 +174,12 @@ class ApMasterCal:
             If True then the unique values of all keywords
             within the _summary_kw list will be logged at DEBUG level
             for diagnostic purposes.
+
+        Returns
+        -------
+        good_file_list : list[str]
+            List of input files that match the expected image size and have CCD
+            temperatues in the expected range.
         """
 
         if list_all is not None:
@@ -194,7 +209,10 @@ class ApMasterCal:
         for kw in ["telescop", "imagetyp", "naxis1", "naxis2", "exptime", "set-temp"]:
             nuniq = len(uniq_dict[kw])
             if nuniq > 1:
-                msg = f"Error, there are {nuniq} unique values of {kw} in the files being processed: {uniq_dict[kw]}"
+                msg = (
+                    f"Error, there are {nuniq} unique values of {kw}"
+                    f" in the files being processed: {uniq_dict[kw]}"
+                )
                 self._logger.error(msg)
                 raise RuntimeError(msg)
 
@@ -207,7 +225,10 @@ class ApMasterCal:
                 telescop = uniq_dict[kw][0]
                 if not bool(telescop.strip()):
                     self._logger.warning(
-                        f"TELESCOP keyword empty or missing in input files. Using {self._telescop} instead."
+                        (
+                            "TELESCOP keyword empty or missing in input files."
+                            f" Using {self._telescop} instead."
+                        )
                     )
                 else:
                     self._telescop = telescop.strip()
@@ -228,7 +249,10 @@ class ApMasterCal:
                 set_temp_is_set = True
                 self._logger.debug(f"Using SET-TEMP value of {set_temperature} degrees C.")
             except Exception as e:
-                msg = f"Error, could not convert SET-TEMP value of {val} to a float. Will use median of CCD-TEMP instead."
+                msg = (
+                    f"Error, could not convert SET-TEMP value of {val} to a float."
+                    " Will use median of CCD-TEMP instead."
+                )
                 self._logger.error(msg)
                 self._logger.error(f"The exception that was caught is: {e}")
 
@@ -238,7 +262,7 @@ class ApMasterCal:
         #   such as a camera, and proceed.
         # - Otherwise we'll check each file's temperature individually using
         #   the summary table.
-        uniq_temps = []
+        ##uniq_temps = []   # Not used, TODO consider deleting
         nuniq = len(uniq_dict["ccd-temp"])
         if nuniq == 1:
             val = uniq_dict["ccd-temp"][0]
@@ -256,10 +280,14 @@ class ApMasterCal:
             self._logger.debug(f"Using median of CCD-TEMP value: {set_temperature} degrees C.")
 
         # Temperature limits:
+        assert set_temperature is not None
         temp_min = set_temperature - self._temptol
         temp_max = set_temperature + self._temptol
         self._logger.info(
-            f"Selecting only files with CCD-TEMP between {temp_min:.2f} and {temp_max:.2f} degrees C."
+            (
+                f"Selecting only files with CCD-TEMP between {temp_min:.2f}"
+                f" and {temp_max:.2f} degrees C."
+            )
         )
         self._set_temperature = set_temperature
 
@@ -267,30 +295,49 @@ class ApMasterCal:
         nfiles = len(self._files.summary)
         good_file_list = []
         for idx in range(nfiles):
-            fname = self._files.summary["file"][idx]
+            fname: str = self._files.summary["file"][idx]
+            full_name: str = str(self._files.files[idx])  # includes path
+            if fname not in full_name:
+                raise RuntimeError(f"Error, idx={idx} {fname} != {full_name}")
             temp = self._files.summary["ccd-temp"][idx]
             if (temp >= temp_min) and (temp <= temp_max):
-                good_file_list.append(fname)
+                # good_file_list.append(fname) # Doesn't include path
+                good_file_list.append(full_name)
             else:
                 self._logger.warning(
                     f"Excluding {fname} as CCD-TEMP={temp:.2f} outside allowed range."
                 )
 
         self._logger.info(
-            f"Updated file list contains {len(good_file_list)} files ({len(raw_file_list)} before filtering)."
+            (
+                f"Updated file list contains {len(good_file_list)} files"
+                f" ({len(raw_file_list)} before filtering)."
+            )
         )
         return good_file_list
 
-    def _create_file_collection(self, data_dir, exclude_pattern, file_list):
+    def _create_file_collection(
+        self, data_dir: str | Path, exclude_pattern: str, file_list: list[str] | None
+    ) -> ccdp.ImageFileCollection:
         """
         Create a FITS ImageFileCollection for a directory, optionally
         including only the files named in fname_list.
 
-        :param data_dir: Path to the directory containing the files.
-        :param exclude_pattern: Pattern used to exclude certain files.
-        :param file_list: None, or list of file names to read instead
-          of reading all files in the data_dir (excluding files that
-          match the exclude_pattern).
+        Parameters
+        ----------
+        data_dir : str or Path
+            Path to the directory containing the files.
+        exclude_pattern : str
+            Pattern used to exclude certain files.
+        file_list : list[str] or None
+            If not None, then the list of file names to read instead
+            of reading all files in the data_dir that don't match the
+            exclude_pattern.
+
+        Returns
+        -------
+        file_collection : ccdproc.ImageFileCollection
+            The ImageFileCollection matching the input parameters
         """
 
         if file_list is not None:
@@ -336,7 +383,7 @@ class ApMasterCal:
             self._logger.warning(f"Unexpected input image type: {raw_imgtype}")
             imgtype = raw_imgtype
 
-        kw_dict = {}
+        kw_dict: dict[str, tuple[Any, str | None]] = {}
         kw_dict["IMAGETYP"] = (imgtype, "Type of file")
         kw_dict["TELESCOP"] = (self._telescop, "Telescope used.")
         kw_dict["CREATOR"] = ("ApMasterCal", "Software that generated this file.")
@@ -433,8 +480,11 @@ class ApMasterCal:
                 f" sig_clip_hithresh={sig_clip_hithresh} max_ram_bytes={max_ram_bytes:.3e}."
             )
             self._logger.debug(msg)
+
+            # 2026-03-21 Appears to be a CCDProc bug that does not include path
+            # Using self._file.files instead ofself._files.files_filtered(include_path=True)
             master = ccdp.combine(
-                self._files.files_filtered(include_path=True),
+                self._files.files,
                 method=comb_method,
                 sigma_clip=do_sig_clip,
                 sigma_clip_low_thresh=sig_clip_lothresh,

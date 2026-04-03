@@ -22,6 +22,7 @@ The objectives of version 0.6 are:
 
 ### Version 0.6.3 WIP
 
+- Add option to specify list of files including paths to `ApMasterCal`.
 - #46 Updated contribution guidelines, added AI_POLICY.md and AGENTS.md.
 
 ### Version 0.6.2 2026-02-17
