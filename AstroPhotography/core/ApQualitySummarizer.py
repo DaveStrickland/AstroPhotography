@@ -35,6 +35,7 @@ import yaml
 
 import numpy as np
 from astropy.table import Table
+from typing import Any
 
 # AstroPhotography includes
 from .. import __version__
@@ -89,7 +90,7 @@ class ApQualitySummarizer:
         self._qual_suff = qual_suff
 
         # Generate a list of all the files as pathlib Paths.
-        self._path_list = []
+        self._path_list: list[Any] = []
         self._find_files()
         if len(self._path_list) == 0:
             self._logger.warning(f"Found zero quality files under {qualdir}. Nothing to do.")
@@ -316,7 +317,7 @@ class ApQualitySummarizer:
         # Dictionary of unique target/telescope/filter combo with a list
         # of the index/indices within self._data_list at which the yaml
         # data can be found.
-        self._index_dict = {}
+        self._index_dict: dict[str, list[int]] = {}
 
         num_paths = len(self._path_list)
         for idx in range(num_paths):

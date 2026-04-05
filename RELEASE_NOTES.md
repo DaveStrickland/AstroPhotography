@@ -22,6 +22,8 @@ The objectives of version 0.6 are:
 
 ### Version 0.6.3 WIP
 
+- The verbose flag of `ap_make_wcs_template.py` now actually does summarize the output WCS
+- More `ruff` linting and `mypy` type-hinting edits.
 - Add option to specify list of files including paths to `ApMasterCal`.
 - #46 Updated contribution guidelines, added AI_POLICY.md and AGENTS.md.
 

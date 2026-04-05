@@ -161,6 +161,11 @@ def main(args=None):
         do_cd_mtx=do_cd_mtx,
         crota=p_args.crota,
     )
+
+    # Summary of WCS printed to STDOUT
+    if p_args.verbose:
+        w, _, _, _ = ap.util.load_wcs_from_file(p_args.output, extnum=0, verbose=False)
+        _ = ap.util.summarize_wcs(w, verbose=True)
     return 0
 
 
