@@ -61,7 +61,7 @@ def main(argv=None) -> int:
     if args.loglevel:
         config.core.logging = args.loglevel
     logger.stop()  # clear handlers to prevent duplicate records
-    logger.start(config.core.logging)
+    logger.start(config.core.logging)  # type: ignore
     command = args.command
     args = vars(args)
     spec = getfullargspec(command)
@@ -191,7 +191,9 @@ def _rgb(subparsers, common):
 
     parser = subparsers.add_parser(
         "rgb",
-        description="Creates a 3-channel RGB output image using the specified method and white-balance.",
+        description=(
+            "Creates a 3-channel RGB output image using the specified method and white-balance."
+        ),
         parents=[common],
         help="Creates a RGB output image using the specified method and white-balance.",
     )

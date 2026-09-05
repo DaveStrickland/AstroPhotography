@@ -108,7 +108,7 @@ pip install .
 # Install with test and docs extras
 pip install .[test,docs]
 
-# Editable install (for development)
+# Edqitable install (for development)
 pip install -e .[test,docs]
 ```
 

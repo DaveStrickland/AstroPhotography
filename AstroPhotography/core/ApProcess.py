@@ -1452,6 +1452,7 @@ class ApProcess:
         use_sip: bool = False,
         user_scale: float | None = None,
         scale_err_ratio: float | None = None,
+        use_local_astnet: bool = False,
         target_wcs_file: str | None = None,
         resampled_file_prefix: str = "resampled_",
         resampled_file_suffix: str = "_resamp_weighted.fits",
@@ -1618,6 +1619,12 @@ class ApProcess:
             Using a larger value can help in cases where astrometric
             solutions fail, for example if incorrect telescope metadata
             leads to inaccurate estimated plate scales.
+            (navigate_image parameter)
+        use_local_astnet : bool, optional, default = False
+            If true, try to use Astrometry.net command line executables in the
+            user's path instead of using the astroquery interface to the
+            Astrometry.net webservice. This parameter is passed to the
+            `ApAstrometry` constructor.
             (navigate_image parameter)
         target_wcs_file : str, optional, default=None
             File name, including path, to the FITS file than contains
@@ -1829,20 +1836,21 @@ class ApProcess:
             clean_star_detection,
             clean_astrometry,
             stop_on_error,
-            extnum,
-            search_fwhm,
-            search_nsigma,
-            detector_bitdepth,
-            max_sources,
-            nosatmask,
-            sat_frac,
-            quiet,
-            exclude_corner_pct,
-            srclist_extname,
-            astnet_key,
-            use_sip,
-            user_scale,
-            scale_err_ratio,
+            extnum=extnum,
+            search_fwhm=search_fwhm,
+            search_nsigma=search_nsigma,
+            detector_bitdepth=detector_bitdepth,
+            max_sources=max_sources,
+            nosatmask=nosatmask,
+            sat_frac=sat_frac,
+            quiet=quiet,
+            exclude_corner_pct=exclude_corner_pct,
+            srclist_extname=srclist_extname,
+            astnet_key=astnet_key,
+            use_sip=use_sip,
+            user_scale=user_scale,
+            scale_err_ratio=scale_err_ratio,
+            use_local_astnet=use_local_astnet,
         )
 
         # Resample and image mosaicing/stacking
@@ -1886,30 +1894,31 @@ class ApProcess:
 
     def navigate_images(
         self,
-        data_dir,
-        include_pattern=None,
-        exclude_pattern=None,
-        input_file_list=None,
-        input_rootname=None,
-        input_suffix=".fits",
-        final_quality_file=None,
-        clean_star_detection=False,
-        clean_astrometry=False,
-        stop_on_error=False,
-        extnum=0,
-        search_fwhm=3.0,
-        search_nsigma=7.0,
-        detector_bitdepth=16,
-        max_sources=200,
-        nosatmask=True,
-        sat_frac=0.8,
-        quiet=True,
+        data_dir: str | Path,
+        include_pattern: str | None = None,
+        exclude_pattern: str | None = None,
+        input_file_list: list[str] | None = None,
+        input_rootname: str | None = None,
+        input_suffix: str | None = ".fits",
+        final_quality_file: str | None = None,
+        clean_star_detection: bool = False,
+        clean_astrometry: bool = False,
+        stop_on_error: bool = False,
+        extnum: int | str = 0,
+        search_fwhm: float = 3.0,
+        search_nsigma: float = 7.0,
+        detector_bitdepth: int = 16,
+        max_sources: int = 200,
+        nosatmask: bool = True,
+        sat_frac: float = 0.8,
+        quiet: bool = True,
         exclude_corner_pct: float | None = None,
-        srclist_extname="AP_XYPOS",
-        astnet_key=None,
-        use_sip=False,
-        user_scale=None,
-        scale_err_ratio=None,
+        srclist_extname: str = "AP_XYPOS",
+        astnet_key: str | None = None,
+        use_sip: bool = False,
+        user_scale: float | None = None,
+        scale_err_ratio: float | None = None,
+        use_local_astnet: bool = False,
     ):
         """
         Runs ApFindStars on a set of files
@@ -2054,6 +2063,11 @@ class ApProcess:
             solutions fail, for example if incorrect telescope metadata
             leads to inaccurate estimated plate scales.
             (ApAstrometry parameter)
+        use_local_astnet : bool, optional, default = False
+            If true, try to use Astrometry.net command line executables in the
+            user's path instead of using the astroquery interface to the
+            Astrometry.net webservice. This parameter is passed to the
+            `ApAstrometry` constructor.
 
         Returns
         -------
