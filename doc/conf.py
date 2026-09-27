@@ -20,7 +20,7 @@ import AstroPhotography
 # -- General configuration ---------------------------------------------
 
 # The full version, including alpha/beta/rc tags
-release = "0.6.2"
+release = "0.7.0"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
