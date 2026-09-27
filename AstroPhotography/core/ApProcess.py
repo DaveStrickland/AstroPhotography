@@ -8,6 +8,7 @@ Contains the implementation of the ApProcess class.
 # 2024-08-12 dks : Numpy format documentation
 # 2024-11-01 dks : Ruff/Mypy changes
 # 2024-12-31 dks : Add ApFixHoles to preprocessing
+# 2026-09-27 dks : Added web_service as optional method for astrometry
 
 from typing import Any
 import sys
@@ -89,7 +90,8 @@ class ApProcess:
     `AstroPhotography` package also refers to this process as image navigation.
 
     The process consists of finding the pixel locations brightest N stars
-    in each image, then calling `Astrometry.net` to compute a WCS solution
+    in each image, then calling `Astrometry.net` (either using locally installed
+    executables, or alternately their web service) to compute a WCS solution
     based on those star locations, and creating a new "navigated" fits file
     that combines the calibrated file and the WCS solution. By default
     2-dimensional Gaussian profiles are also fitted to a representative
@@ -112,9 +114,12 @@ class ApProcess:
             ap_astrometry cal-img source-list --> navigated-img
         ap_quality_summary (all quality-report.yml files) --> quality-summary.csv
 
-    Note that processing is sequential and single threaded *at this time*.
-    Even if this changes for source detection the astrometry part will
-    remain sequential to avoid spamming the ``Astrometry.net`` servers.
+    Note that processing is sequential and single threaded *at this time*,
+    because we used to use the Astrometry.net web service by default and
+    we wished to avoid spamming the ``Astrometry.net`` servers. Now that (AI?)
+    bots seem to be making their web service unreliable we've switch to using
+    locally install Astrometry.net command line tools, but the option to use
+    the web service remains.
 
     Image Resampling And Mosaicing (Stacking)
     -----------------------------------------
@@ -464,7 +469,7 @@ class ApProcess:
             self._logger.info(msg1)
             self._logger.info(msg2)
             self._logger.info(msg3)
-        return minval, maxval, meanval, medval
+        return minval, maxval, meanval, medval  # pyright: ignore[reportReturnType]
 
     def _initialize_logger(self, loglevel: str) -> None:
         """
@@ -861,6 +866,7 @@ class ApProcess:
             self._logger.info(f"Using specified file list: {input_file_list}")
             ifc_cal = ImageFileCollection(data_dir, filenames=input_file_list)
 
+        odir = None
         if not name_and_dir:
             odir = self.get_directories(ap_filetype, data_dir, False)
             self._logger.debug(f"Note that output files will be in subdirectory {odir}")
@@ -873,7 +879,10 @@ class ApProcess:
             output_fname_list = []
             for fname_val in fname_list:
                 if not name_and_dir:
-                    check_fname_val = odir + fname_val  # The actual file path
+                    if odir is not None:
+                        check_fname_val = odir + fname_val  # The actual file path
+                    else:
+                        check_fname_val = fname_val
                 else:
                     check_fname_val = fname_val  # Already include the directory
                 if self._check_file_exists(check_fname_val, False):
@@ -960,15 +969,17 @@ class ApProcess:
         # The member variables store the file name and directory
         # with respect to data_dir, so if name_and_dir is False then
         # the directory name must be removed.
+        odir = None
         if not name_and_dir:
             output_fname_list = []
             odir = self.get_directories(ap_filetype, data_dir, False)
+            assert odir is not None
             dir_str_len = len(odir)
-            for file in ftype_list:
+            for file in ftype_list: # pyright: ignore[reportPossiblyUnboundVariable]
                 dir_start_pos = file.find(odir)
                 output_fname_list.append(file[dir_start_pos + dir_str_len - 1 :])
         else:
-            output_fname_list = ftype_list
+            output_fname_list = ftype_list # pyright: ignore[reportPossiblyUnboundVariable]
 
         return output_fname_list
 
@@ -1396,7 +1407,7 @@ class ApProcess:
                 ftype_list = self._qualfile_files
             if ftype in "navfile":
                 ftype_list = self._navfile_files
-            ftype_list.clear()
+            ftype_list.clear() # pyright: ignore[reportPossiblyUnboundVariable]
 
             self._logger.debug(f"Looking for existing {ftype} files.")
             flist = self._get_file_names(
@@ -1422,8 +1433,8 @@ class ApProcess:
                     if ftype in "navfile":
                         self._navfile_files.append(fname_val)
                         continue
-            numfiles = len(ftype_list)
-            self._logger.info(f"Found the following {numfiles} {ftype} files: {ftype_list}")
+            numfiles = len(ftype_list) # pyright: ignore[reportPossiblyUnboundVariable]
+            self._logger.info(f"Found the following {numfiles} {ftype} files: {ftype_list}") # pyright: ignore[reportPossiblyUnboundVariable]
         return
 
     def process_all(
@@ -1448,11 +1459,11 @@ class ApProcess:
         quiet: bool = True,
         exclude_corner_pct: float | None = None,
         srclist_extname: str = "AP_XYPOS",
+        web_service: bool = False,
         astnet_key=None,
         use_sip: bool = False,
         user_scale: float | None = None,
         scale_err_ratio: float | None = None,
-        use_local_astnet: bool = False,
         target_wcs_file: str | None = None,
         resampled_file_prefix: str = "resampled_",
         resampled_file_suffix: str = "_resamp_weighted.fits",
@@ -1593,10 +1604,16 @@ class ApProcess:
         srclist_extname : str, optional, default='AP_XYPOS'
             FITS extension name for star X,Y position data. Default=``AP_XYPOS``
             (navigate_image parameter)
+        web_service : bool, optional, default = False
+            If true, automatically try to use the Astrometry.net web service
+            via astroquery instead of local versions of their command line
+            executables. Even if this is false, if the `solve-field` executable
+            is not present in the user's path then `ApAstrometry` will fall back
+            to using the Astrometry.net webservice.
         astnet_key : str, optional, default=None
             Your personal Astrometry.net API key, if you have not already
             added it to your ~/.astropy/config/astroquery.cfg config file.
-            (navigate_image parameter)
+            (navigate_image parameter). Only used if ``web_service`` is True.
         use_sip : bool, optional, default=False
             Allow astrometry.net to fit SIP polynomial distortion terms.
             This may be necessary for very large fields of view (>10 deg),
@@ -1846,11 +1863,11 @@ class ApProcess:
             quiet=quiet,
             exclude_corner_pct=exclude_corner_pct,
             srclist_extname=srclist_extname,
+            web_service=web_service,
             astnet_key=astnet_key,
             use_sip=use_sip,
             user_scale=user_scale,
             scale_err_ratio=scale_err_ratio,
-            use_local_astnet=use_local_astnet,
         )
 
         # Resample and image mosaicing/stacking
@@ -1914,11 +1931,11 @@ class ApProcess:
         quiet: bool = True,
         exclude_corner_pct: float | None = None,
         srclist_extname: str = "AP_XYPOS",
+        web_service: bool = False,
         astnet_key: str | None = None,
         use_sip: bool = False,
         user_scale: float | None = None,
         scale_err_ratio: float | None = None,
-        use_local_astnet: bool = False,
     ):
         """
         Runs ApFindStars on a set of files
@@ -2036,10 +2053,16 @@ class ApProcess:
         srclist_extname : str, optional, default='AP_XYPOS'
             FITS extension name for star X,Y position data. Default=``AP_XYPOS``
             (ApAstrometry parameter)
+        web_service : bool, optional, default = False
+            If true, automatically try to use the Astrometry.net web service
+            via astroquery instead of local versions of their command line
+            executables. Even if this is false, if the `solve-field` executable
+            is not present in the user's path then `ApAstrometry` will fall back
+            to using the Astrometry.net webservice.
         astnet_key : str, optional, default=None
             Your personal Astrometry.net API key, if you have not already
             added it to your ~/.astropy/config/astroquery.cfg config file.
-            (ApAstrometry parameter)
+            (ApAstrometry parameter). Only used if ``web_service`` is True.
         use_sip : bool, optional, default=False
             Allow astrometry.net to fit SIP polynomial distortion terms.
             This may be necessary for very large fields of view (>10 deg),
@@ -2063,11 +2086,6 @@ class ApProcess:
             solutions fail, for example if incorrect telescope metadata
             leads to inaccurate estimated plate scales.
             (ApAstrometry parameter)
-        use_local_astnet : bool, optional, default = False
-            If true, try to use Astrometry.net command line executables in the
-            user's path instead of using the astroquery interface to the
-            Astrometry.net webservice. This parameter is passed to the
-            `ApAstrometry` constructor.
 
         Returns
         -------
@@ -2234,6 +2252,7 @@ class ApProcess:
                             f_navfile,
                             inp_img_extnum=extnum,
                             srclist_extname=srclist_extname,
+                            web_service=web_service,
                             astnet_key=astnet_key,
                             use_sip=use_sip,
                             user_scale=user_scale,

@@ -5,7 +5,7 @@ Release notes for versions starting at v0.2.2 and later.
 **Note:** Standard sematic versioning API stability is not guaranteed
 until version 1.0 or later.
 
-## Version 0.6
+## Version 0.7 Goals
 
 Version 0.6 continues work on FITS file processing. Work on photographic
 RAW file conversion will resume at some point in the future.
@@ -20,12 +20,21 @@ The objectives of version 0.6 are:
 - The ability to process the metadata-less "Premium" datasets now 
   available from iTelescope.
 
-### Version 0.6.3 WIP
+### Version 0.7.0 2026-09-27
 
+- Use of locally installed `Astrometry.net` executables has been made the
+  default mode of astrometry, with the web service becoming optional. This
+  is because the web service has been failing fairly often in the last few
+  months, by rejecting repeated connections. Presumably this is related to
+  bot traffic. You can still use the web service by specifying `--web_service`
+  on the `ap_astrometry.py` or `ap_process.py` command lines, or by specifying
+  `web_service=True` in python calls to `ApAstrometry` or `ApProcess`.
+  On the plus side, astrometry and hence processing is significantly faster.
+- #33 Added capability to use locally installed Astrometry.net tools.
 - The verbose flag of `ap_make_wcs_template.py` now actually does summarize the output WCS
 - More `ruff` linting and `mypy` type-hinting edits.
 - Add option to specify list of files including paths to `ApMasterCal`.
-- #46 Updated contribution guidelines, added AI_POLICY.md and AGENTS.md.
+- #46 Updated contribution guidelines, added `AI_POLICY.md` and `AGENTS.md`.
 
 ### Version 0.6.2 2026-02-17
 

@@ -28,10 +28,18 @@
 # 2020-12-28 dks : Disable SIP by default because swarp does not support it.
 # 2021-01-19 dks : Move ApAstrometry into core.
 #                  Modify how scale estimates are used.
-# 2026-07-19 dks : Add use of local command line Astrometry.net toolsls
+# 2026-09-26 dks : Add use of local command line Astrometry.net tools, make
+#                  it the default.
+
+# AstroPhotography includes
+from ..util.fitsutils import load_wcs_from_file
+from .. import __version__  # noqa: E402
 
 import sys
 import logging
+import shlex
+import time
+import subprocess
 
 ##import numpy as np
 import math
@@ -50,13 +58,10 @@ from astropy.table import Table
 from astropy import log as aplog
 
 aplog.setLevel("ERROR")
-from astroquery.astrometry_net import AstrometryNet  # noqa: E402
+from astroquery.astrometry_net import AstrometryNet  # pyright: ignore[reportMissingImports] # noqa: E402
 
 aplog.setLevel("INFO")
-import astroquery.exceptions  # noqa: E402
-
-# AstroPhotography includes
-from .. import __version__  # noqa: E402
+import astroquery.exceptions  # pyright: ignore[reportMissingImports] # noqa: E402
 
 
 class ApAstrometry:
@@ -87,7 +92,7 @@ class ApAstrometry:
         use_sip: bool = False,
         user_scale: float | None = None,
         scale_err_ratio: float | None = None,
-        use_local_astnet: bool = False,
+        web_service: bool = False,
         loglevel: str = "INFO",
     ):
         """
@@ -129,11 +134,11 @@ class ApAstrometry:
             Using a larger value can help in cases where astrometric
             solutions fail, for example if incorrect telescope metadata
             leads to inaccurate estimated plate scales.
-        use_local_astnet : bool, optional, default = False
-            If true, try to use Astrometry.net command line executables in the
-            user's path instead of using the astroquery interface to the
-            Astrometry.net webservice. If the `solve-field` executable is
-            not present in the user's path then `ApAstrometry` will fall back
+        web_service : bool, optional, default = False
+            If true, automatically try to use the Astrometry.net web service
+            via astroquery instead of local versions of their command line
+            executables. Even if this is false, if the `solve-field` executable
+            is not present in the user's path then `ApAstrometry` will fall back
             to using the Astrometry.net webservice.
         loglevel : str, optional, default="INFO"
             Standard logging framework log-level, e.g. ``'INFO'``
@@ -145,6 +150,7 @@ class ApAstrometry:
         self._loglevel = loglevel
         self._status = ApAstrometry.NOMINAL
         self._use_sip = use_sip
+        self._wcs = None
 
         # User-define pixel scale (arcsec/pixel)? If None then
         # use pixel scale estimate from sourcelist
@@ -159,8 +165,8 @@ class ApAstrometry:
 
         # Whether to try to find the Astrometry.net `solve-field` executable,
         # and whether it has been successfully found.
-        self._try_local_astnet = use_local_astnet
-        self._use_local_astnet = use_local_astnet
+        self._try_local_astnet = not web_service
+        self._local_solve = not web_service
 
         # Maxmum number of tries for the Astrometry.net webservice
         self._max_tries: int = 3
@@ -196,21 +202,21 @@ class ApAstrometry:
         self._astnet_hint_dict = self._generate_hints(self._src_meta)
 
         if self._try_local_astnet:
-            self._use_local_astnet = self._check_solve_field_is_in_path()
+            self._local_solve = self._check_solve_field_is_in_path()
 
         # Run query
         self._astnet_key = astnet_key
-        if self._use_local_astnet:
-            # TODO
+        if self._local_solve:
+            self._logger.debug("Using Astrometry.net solve-field executable")
             self._wcs = self._call_solve_field(
+                inp_img_fname,
                 srclist_fname,
-                self._astnet_key,
                 self._cols,
                 self._rows,
-                self._src_xytable,
                 self._astnet_hint_dict,
             )
         else:
+            self._logger.debug("Using Astrometry.net web service")
             self._wcs = self._query_astrometry_dot_net(
                 srclist_fname,
                 self._astnet_key,
@@ -223,11 +229,11 @@ class ApAstrometry:
         # If a WCS solution was found then create a copy of the input
         # image and add parts of the WCS header data to it.
         self._out_fname = out_img_fname
-        if len(self._wcs) > 0:
+        if self._wcs is not None:
             self._write_fits_image(self._wcs)  # Creates _out_fname
             self._update_sourcelist(self._src_fname, self._out_fname)
         else:
-            self._logger.warn(
+            self._logger.warning(
                 f"No output as no WCS found. Output image {out_img_fname} NOT created."
             )
             self._status = ApAstrometry.NO_SOLUTION
@@ -455,11 +461,14 @@ class ApAstrometry:
         rows: int,
         xy_table: Table,
         hints_dict: dict[str, Any],
-    ):
+    ) -> fits.Header | None:
         """
         Attempt to get an astrometric solution using astrometry.net
 
-        Returns a FITS header if successful, an empty dictionary if not.
+        Returns
+        -------
+        wcs_header : fits.Header
+            Returns a FITS header with WCS information if successful, None if not.
         """
 
         # Try to stop astroquery astrometry warnings. This won't work
@@ -469,11 +478,13 @@ class ApAstrometry:
         warnings.filterwarnings("ignore", module="astroquery.astrometry_net.core")
         warnings.filterwarnings("ignore", module="astroquery.astrometry_net.AstrometryNet")
 
-        wcs = {}
+        wcs = None
         image_width = cols
         image_height = rows
         aplog.setLevel("ERROR")
         ast = AstrometryNet()
+        unique_app_identifier = f"AstroPhotography/{__version__}"
+        ast._session.headers["User-Agent"] = f"{unique_app_identifier}"
         aplog.setLevel("INFO")
         if astnetkey is not None:
             # Use user-specified key.
@@ -551,6 +562,8 @@ class ApAstrometry:
                         f" from source list timed out after {timeout} seconds."
                     )
                     submission_id = e.args[1]
+            except Exception as e:
+                self._logger.warning(f"Caught general exception: {e}")
             else:
                 # got a result or failed twice, so terminate
                 try_again = False
@@ -569,141 +582,160 @@ class ApAstrometry:
             self._logger.error(
                 f"Astrometry.net submission={submission_id} failed on source list {srclist_fname}"
             )
-
         return wcs
 
     def _call_solve_field(
         self,
+        inp_img_fname: str,
         srclist_fname: str,
-        astnetkey: str | None,
         cols: int,
         rows: int,
-        xy_table: Table,
         hints_dict: dict[str, Any],
-    ):
+    ) -> fits.Header | None:
         """
         Attempt to get an astrometric solution using a locally installed set
-        astrometry.net tools, specically solve-field
+        astrometry.net tools, specifically solve-field
 
         Returns a FITS header if successful, an empty dictionary if not.
 
         Notes
         -----
-        It is the responsibility of the caller to be sure that solve-field is in
-        the user's PATH and that index files have been installed and configured.
+        - Calling solve-field with a source list is **much** quicker than using
+          the web service.
+        - It is the responsibility of the caller to be sure that solve-field is in
+          the user's PATH and that index files have been installed and configured.
+        - Solve field if successful, solve-field will write a temporary WCS to
+          a file called `tmp_solve.wcs` that this function will read and then
+          delete.
+
+        Parameters
+        ----------
+        inp_img_fname: str
+            Input FITS image, must exist
+        srclist_fname: str
+            Input ApFindStars source list file, must exist
+        cols: int
+            Number of columns in input FITS image
+        rows: int
+            Number of rows in input FITS image
+        hints_dict: dict
+            astroquery Astrometry.Net hints dictionary, in the form used for
+            querying the online Astrometry.net webservice.
+
+        Returns
+        -------
+        wcs :
+            Fits header containing WCS
         """
 
-        TODO
-
-        # Try to stop astroquery astrometry warnings. This won't work
-        # yet, because the astrometry.net package is using logging instead
-        # of warnings.
-        warnings.filterwarnings("ignore", module="astroquery.astrometry_net")
-        warnings.filterwarnings("ignore", module="astroquery.astrometry_net.core")
-        warnings.filterwarnings("ignore", module="astroquery.astrometry_net.AstrometryNet")
-
-        wcs = {}
-        image_width = cols
-        image_height = rows
-        aplog.setLevel("ERROR")
-        ast = AstrometryNet()
-        aplog.setLevel("INFO")
-        if astnetkey is not None:
-            # Use user-specified key.
-            ast.api_key = astnetkey
-
-        # Check that we have a key now
-        if not ast.api_key:
-            # Empty string evaluates False
-            err_msg = (
-                "Your astroquery config file does not contain an Astrometry.net key"
-                " and you did not supply one."
-            )
-            self._logger.error(err_msg)
-            raise RuntimeError(err_msg)
-
-        try_again = True
-        submission_id = None
-        pos_err_pix = 10  # TODO get better estimate from srclist?
-        timeout = 180
-
-        sip_order = 0
-        if self._use_sip:
-            sip_order = 2
-            self._logger.debug(
-                f"Allowing fitting of SIP distortion polynomial of order {sip_order}"
-            )
-            self._logger.warning(
-                "Some downstream software, e.g. swarp, may not handle SIP correctly."
-            )
-
-        # TODO: Robustness...
-        # This block is a modified version of the example online.
-        # - Both the original example and this version seem to fail to try
-        #   again.
+        wcs = None
         wcs_header = None
-        try_number: int = 1
-        while try_again:
-            try:
-                if submission_id is None:
-                    self._logger.debug(
-                        f"Submitting astrometry.net solve from source list {srclist_fname}"
-                        f" with {len(xy_table)} positions (attempt #{try_number})"
-                    )
-                    wcs_header = ast.solve_from_source_list(
-                        xy_table["X"],
-                        xy_table["Y"],
-                        image_width,
-                        image_height,
-                        solve_timeout=timeout,
-                        parity=2,
-                        positional_error=pos_err_pix,
-                        crpix_center=True,
-                        publicly_visible="n",
-                        tweak_order=sip_order,
-                        submission_id=submission_id,
-                        **hints_dict,
-                    )
-                else:
-                    self._logger.debug(
-                        "Monitoring astrometry.net submission {}".format(submission_id)
-                    )
-                    try_again = False
-                    wcs_header = ast.monitor_submission(submission_id, solve_timeout=timeout)
-            except json.JSONDecodeError:
-                err_msg = (
-                    "Caught JSONDecodeError."
-                    " Usually this means Astrometry.net is down or login failed."
-                )
-                self._logger.error(err_msg)
-                raise RuntimeError(err_msg)
-            except astroquery.exceptions.TimeoutError as e:
-                if (submission_id is not None) and (try_again):
-                    self._logger.warning(
-                        f"Astronomy.net solve (id={submission_id})"
-                        f" from source list timed out after {timeout} seconds."
-                    )
-                    submission_id = e.args[1]
-            else:
-                # got a result or failed twice, so terminate
-                try_again = False
 
-            try_number += 1
-            if try_number > self._max_tries:
-                self._logger.error(
-                    f"Maximum number of attempts ({self._max_tries}) exceeded for {srclist_fname}"
-                )
-                try_again = False
+        # example hints from web service call
+        # Astrometry.net hints dictionary: {'center_ra': 6.022333333333333,
+        # 'center_dec': -72.08144444444444, 'radius': 3, 'scale_units': 'arcsecperpix',
+        # 'scale_type': 'ul', 'scale_lower': 0.49038019236682884,
+        # 'scale_upper': 0.8287425250999408}
 
-        if wcs_header:
-            self._logger.info("Obtained a WCS header")
-            wcs = wcs_header
+        # Useful info.
+        # - field 1 indicates the first extension in the srclist file
+        # - "none" to switch out optional outputs
+        # - if successful will generate a file called tmp_solve.wcs
+
+        # remove any existing file
+        wcs_file = "tmp_solve.wcs"
+        if os.path.exists(wcs_file):
+            os.remove(wcs_file)
+
+        ra = hints_dict["center_ra"]
+        dec = hints_dict["center_dec"]
+        rad = hints_dict["radius"]
+        units = hints_dict["scale_units"]
+        scale_low = hints_dict["scale_lower"]
+        scale_high = hints_dict["scale_upper"]
+        solve_cmd_string = (
+            f"solve-field {srclist_fname}"
+            f" --fields 1 --x-column X --y-column Y --width {cols} --height {cols}"
+            f" --ra {ra} --dec {dec} --radius {rad} --crpix-center --no-tweak --depth=100"
+            f" --scale-units {units} --scale-low {scale_low} --scale-high {scale_high}"
+            " --out tmp_solve --dir ./ --overwrite --no-plots"
+            " --new-fits bob.fits --kmz none --scamp none --corr none"
+            " --index-xyls none --solved none --match none --rdls none --temp-axy"
+        )
+
+        test_cmd_list = shlex.split(solve_cmd_string)
+        success: bool = self._run_solve_field(test_cmd_list)
+        if not success:
+            raise RuntimeError(f"Attempt to run local solve-field on {srclist_fname} failed")
+
+        # See if we can read the wcs file. Need to ignore the data array dimension
+        if not os.path.exists(wcs_file):
+            raise RuntimeError()
+
+        self._logger.info("Call to solve-field succeeded")
+        wcs, pix_scales, pix_area, im_scales = load_wcs_from_file(
+            wcs_file, extnum=0, verbose=False, ignore_dim=True
+        )
+
+        if wcs:
+            self._logger.info("Obtained a WCS instance, converting to a FITS header...")
+            wcs_header = wcs.to_header()
         else:
             self._logger.error(
-                f"Astrometry.net submission={submission_id} failed on source list {srclist_fname}"
+                f"Failed to get a valid WCS header when processsing {srclist_fname}"
             )
+        return wcs_header
 
-        return wcs
+    def _run_solve_field(self, cmd_list: list[str]) -> bool:
+        """
+        Run solve-field as a subprocess with a command list
+
+        Parameters
+        ----------
+        cmd_list : list of str
+            The command line arguments to be supplied to the subprocess instance.
+            This should be a ``shlex`` processed list.
+
+        Returns
+        -------
+        success : bool
+            Returns true if the subprocess command succeeded.
+        """
+
+        success = False
+        self._logger.debug(f"Command string to be passed to subprocess.run is {cmd_list}")
+
+        # Run swarp
+        fs_tstart = time.perf_counter()
+        try:
+            result = subprocess.run(
+                cmd_list,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            fs_tend = time.perf_counter()
+            fs_telapsed = fs_tend - fs_tstart  # seconds
+            self._logger.debug(
+                (
+                    f"Success: solve-field process took {fs_telapsed:.3f} seconds"
+                    f", return code {result.returncode}"
+                )
+            )
+            success = True
+
+        except subprocess.CalledProcessError as err:
+            fs_tend = time.perf_counter()
+            fs_telapsed = fs_tend - fs_tstart  # seconds
+            self._logger.error(
+                (f"  Error, process took {fs_telapsed:.3f} seconds, return code {err.returncode}")
+            )
+            self._logger.error(f"  Input args: {err.cmd}\n")
+            self._logger.error(f"  Stdout: {err.output}\n")
+            self._logger.error(f"  Stderr: {err.stderr}\n")
+            self._logger.error(f"  Command line equivalent command: {' '.join(err.cmd)}")
+
+        return success
 
     def _sanity_check(self, image_filename, srclist_metadata):
         """

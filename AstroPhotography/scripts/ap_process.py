@@ -23,6 +23,7 @@
 # 2024-11-26 dks : issue-2 Initial script implemented
 # 2024-11-29 dks : issue-28 Added exclude_corner_pct
 # 2024-12-31 dks : issue-31 Add holemaskfile for hole filling
+# 2026-09-27 dks : issue-33 Add web_service option.
 
 import sys
 import argparse
@@ -48,7 +49,7 @@ def command_line_opts(argv):
     parser.add_argument(
         "data_dir",
         metavar="DATA_DIR",
-        help=("Base-level data directory associated with the input" " data files, e.g. './'"),
+        help=("Base-level data directory associated with the input data files, e.g. './'"),
     )
 
     # Optional default parameters
@@ -344,9 +345,23 @@ def command_line_opts(argv):
         "--srclist_extname",
         default=def_value,
         type=str,
-        help=("FITS extension name for star X,Y position data." f" Default value: {def_value}"),
+        help=(f"FITS extension name for star X,Y position data. Default value: {def_value}"),
     )
 
+    parser.add_argument(
+        "--web_service",
+        action="store_true",
+        default=False,
+        help=(
+            "If specified, try to use Astrometry.net web service to get an"
+            " astrometric solution. By default we try to use command line "
+            " executables in the user's path instead of using the astroquery"
+            " interface to the Astrometry.net webservice. Even if `--web_service`"
+            " is not specified, if the `solve-field` executable is"
+            " not present in the user's path then `ApAstrometry` will fall back"
+            " to using the Astrometry.net web service."
+        ),
+    )
     def_value = defaults["astnet_key"]
     parser.add_argument(
         "--astnet_key",
@@ -356,6 +371,7 @@ def command_line_opts(argv):
             "Your personal Astrometry.net API key, if you have not already"
             " added it to your ~/.astropy/config/astroquery.cfg config file."
             f" Default value: {def_value}"
+            " Only needed if use of the Astrometry.net web service is specified."
         ),
     )
 
@@ -706,6 +722,7 @@ def main(args):
         quiet=p_args.quiet,
         exclude_corner_pct=p_args.exclude_corner_pct,
         srclist_extname=p_args.srclist_extname,
+        web_service=p_args.web_service,
         astnet_key=p_args.astnet_key,
         use_sip=p_args.use_sip,
         user_scale=p_args.user_scale,

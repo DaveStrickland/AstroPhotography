@@ -339,7 +339,7 @@ class ApAutoBadcols:
 
     def process(
         self, data_array: npt.NDArray, nsigma: int = 5, window_len: int = 11
-    ) -> tuple[npt.NDArray, npt.NDArray]:
+    ) -> tuple[Any, Any]:
         """
         Identify bad columns and rows in a 2-D NumPy array.
 
@@ -385,7 +385,7 @@ class ApAutoBadcols:
 
     def _process(
         self, median_array: npt.NDArray, axis_used: int, nsigma: float, window_len: int
-    ) -> npt.NDArray:
+    ) -> npt.NDArray | None:
         """
         Find bad indices from a 1-D median array using local statistics.
 

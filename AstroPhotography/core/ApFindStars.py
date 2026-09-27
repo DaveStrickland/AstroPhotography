@@ -46,7 +46,7 @@ import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 import math
-import yaml
+import yaml  # type: ignore[import-untyped]
 from datetime import datetime
 from typing import Any
 
@@ -60,11 +60,11 @@ from astropy.stats import sigma_clipped_stats
 from astropy import units as u
 from astropy.stats import SigmaClip
 
-from regions import PixCoord, CirclePixelRegion, Regions
+from regions import PixCoord, CirclePixelRegion, Regions  # pyright: ignore[reportMissingImports]
 
-from photutils.segmentation import detect_threshold, detect_sources
-from photutils.detection import find_peaks, DAOStarFinder
-from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
+from photutils.segmentation import detect_threshold, detect_sources  # pyright: ignore[reportMissingImports]
+from photutils.detection import find_peaks, DAOStarFinder  # pyright: ignore[reportMissingImports]
+from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry  # pyright: ignore[reportMissingImports]
 
 # AstroPhotography includes
 from .. import __version__
@@ -193,7 +193,7 @@ class ApFindStars:
         self._nosatmask: bool = nosatmask
         self._sat_frac: float = sat_frac
         self._plotfile: str = plotfile
-        self._max_adu: int = math.pow(2, detector_bitdepth) - 1
+        self._max_adu: int = int(math.pow(2, detector_bitdepth)) - 1
         self._sat_thresh: float = math.floor(sat_frac * self._max_adu)
         self._quiet: bool = quiet
         self._exclude_corner_pct: float | None = None
@@ -284,38 +284,38 @@ class ApFindStars:
         num_sat_candidates = 0
         if saturated_locations is not None:
             num_sat_candidates = len(saturated_locations)
-        if not self._nosatmask:
-            # Find possibly saturated stars and exclude them from source
-            # detection and photometry.
-            box_width = int(4 * self._search_fwhm)
+            if not self._nosatmask:
+                # Find possibly saturated stars and exclude them from source
+                # detection and photometry.
+                box_width = int(4 * self._search_fwhm)
 
-            self._logger.debug(
-                (
-                    f"Excluding {num_sat_candidates} possibly saturated stars"
-                    f" using mask boxes of half-width {box_width} pixels."
+                self._logger.debug(
+                    (
+                        f"Excluding {num_sat_candidates} possibly saturated stars"
+                        f" using mask boxes of half-width {box_width} pixels."
+                    )
                 )
-            )
-            # Masking format is mask[rowmin:rowmax+1, colmin:colmax] = True
-            # But as we're counting the center as 1 pixel the first included
-            # row is = rowcen - width + 1. The last included row is rowcen
-            # + width - 1. Adding one to the last one because python has
-            # exclusive ranges gives us the following...
-            for isat in range(num_sat_candidates):
-                scol = saturated_locations["x_peak"][isat]
-                colmin = max(0, scol - box_width + 1)
-                colmax = min(ncols, scol + box_width)
-                srow = saturated_locations["y_peak"][isat]
-                rowmin = max(0, srow - box_width + 1)
-                rowmax = min(nrows, srow + box_width)
-                mask[rowmin:rowmax, colmin:colmax] = True
-        else:
-            # Leave possibly saturated stars in the image.
-            self._logger.debug(
-                (
-                    f"Retaining {num_sat_candidates} possibly saturated stars"
-                    " in source searching and photometry."
+                # Masking format is mask[rowmin:rowmax+1, colmin:colmax] = True
+                # But as we're counting the center as 1 pixel the first included
+                # row is = rowcen - width + 1. The last included row is rowcen
+                # + width - 1. Adding one to the last one because python has
+                # exclusive ranges gives us the following...
+                for isat in range(num_sat_candidates):
+                    scol = saturated_locations["x_peak"][isat]
+                    colmin = max(0, scol - box_width + 1)
+                    colmax = min(ncols, scol + box_width)
+                    srow = saturated_locations["y_peak"][isat]
+                    rowmin = max(0, srow - box_width + 1)
+                    rowmax = min(nrows, srow + box_width)
+                    mask[rowmin:rowmax, colmin:colmax] = True
+            else:
+                # Leave possibly saturated stars in the image.
+                self._logger.debug(
+                    (
+                        f"Retaining {num_sat_candidates} possibly saturated stars"
+                        " in source searching and photometry."
+                    )
                 )
-            )
         self._nsrcs_saturated = num_sat_candidates
 
         # Optional corner exclusion

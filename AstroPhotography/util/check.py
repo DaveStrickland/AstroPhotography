@@ -6,20 +6,24 @@ Note that this module should NOT depend on any other AstroPhotography modules.
 
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from ..core.logger import logger
-#import imageio
-#import time
+from ..core.logger import logger  # noqa: F401
+
+# import imageio
+# import time
 import os.path
-#import yaml
+
+# import yaml
 from pathlib import Path
-#from datetime import datetime, timezone
-#from astropy.io import fits
+
+# from datetime import datetime, timezone
+# from astropy.io import fits
 from typing import Any
-#import numpy as np
-#import numpy.typing as npt
+# import numpy as np
+# import numpy.typing as npt
 
 # AstroPhotography includes
-from .. import __version__
+from .. import __version__  # noqa: F401
+
 
 def does_file_exist(filename: str, verbose: bool = False) -> bool:
     """

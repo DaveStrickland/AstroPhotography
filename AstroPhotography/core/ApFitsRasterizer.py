@@ -280,6 +280,8 @@ class ApFitsRasterizer:
                 f"Output raster data value limits are {min_val:.3f}"
                 f" to {max_val:.3f} ADU per binned pixel"
             )
+            assert min_val is not None
+            assert max_val is not None
             if max_val <= min_val:
                 self._logger.warning(
                     "Maximum output data value limits is less than minimum value."
@@ -429,6 +431,8 @@ class ApFitsRasterizer:
             elif max_percent is not None:
                 max_val = percentiles[1]
 
+            assert min_val is not None
+            assert max_val is not None
             self._logger.info(
                 f"Output raster data value limits are {min_val:.3f}"
                 f" to {max_val:.3f} ADU per binned pixel"
@@ -448,7 +452,7 @@ class ApFitsRasterizer:
             #     min_val *= float(binning * binning)
             #     max_val *= float(binning * binning)
             user = __name__
-            description = input_fits
+            description = input_fits  # pyright: ignore[reportPossiblyUnboundVariable]
             verbose = True
 
             self._stiff_rgb_handler(
@@ -729,7 +733,7 @@ class ApFitsRasterizer:
         input_percentiles: tuple[Any, Any] = (None, None),
         ignore_null: bool = False,
         null_value: float = 0,
-    ) -> tuple[list[float], tuple[Any, Any]]:
+    ) -> tuple[list[Any], tuple[Any, Any]]:
         """
         Calculate and optionally display some image statistics that may
         include two user-specified percentiles, returning both (a) a

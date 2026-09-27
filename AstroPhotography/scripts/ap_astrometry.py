@@ -3,7 +3,7 @@
 #
 #  ap_astrometry.py
 #
-#  Copyright 2020-2021 Dave Strickland <dave.strickland@gmail.com>
+#  Copyright 2020-2026 Dave Strickland <dave.strickland@gmail.com>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 # 2021-01-19 dks : Moved ApAstrometry class over to core.
 # 2022-02-08 dks : Make key optional, depending on whether already in config.
 # 2024-08-17 dks : Change in ApAstrometry argument order.
+# 2026-09-19 dks : web_solve is optional, local solve preferred.
 
 import argparse
 
@@ -36,7 +37,7 @@ import argparse
 import logging
 from astroquery.astrometry_net import AstrometryNet
 
-import AstroPhotography as ap
+import AstroPhotography as ap  # noqa: N813
 
 
 def command_line_opts(argv):
@@ -54,17 +55,6 @@ def command_line_opts(argv):
         "source_list", help="Input FITS table of star positions found by ap_find_stars."
     )
     parser.add_argument("out_image", help="Ouput copy of the FITS image with WCS info (if found).")
-
-    parser.add_argument(
-        "--key",
-        default=None,
-        type=str,
-        metavar="ASTROMETRY_API_KEY",
-        help=(
-            "Your personal Astrometry.net API key, if you have not already"
-            " added it to your ~/.astropy/config/astroquery.cfg config file."
-        ),
-    )
 
     # Optional
     parser.add_argument(
@@ -122,17 +112,43 @@ def command_line_opts(argv):
             " leads to inaccurate estimated plat scales."
         ),
     )
+    parser.add_argument(
+        "--web_service",
+        action="store_true",
+        default=False,
+        help=(
+            "If specified, try to use Astrometry.net web service to get an"
+            " astrometric solution. By default we try to use command line "
+            " executables in the user's path instead of using the astroquery"
+            " interface to the Astrometry.net webservice. Even if `--web_service`"
+            " is not specified, if the `solve-field` executable is"
+            " not present in the user's path then `ApAstrometry` will fall back"
+            " to using the Astrometry.net web service."
+        ),
+    )
+    parser.add_argument(
+        "--key",
+        default=None,
+        type=str,
+        metavar="ASTROMETRY_API_KEY",
+        help=(
+            "Your personal Astrometry.net API key, if you have not already"
+            " added it to your ~/.astropy/config/astroquery.cfg config file."
+            " Only needed if use of the Astrometry.net web service is specified."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
-    # Check that the Astrometry.ent key is present in the default
-    # config if the user has not specified it here.
-    if args.key is None:
+    # Check that the Astrometry.ent key is present in the default config if
+    # the user has not specified it here and we haven't specified solve_field
+    if args.key is None and args.web_service:
         ast = AstrometryNet()
         if not ast.api_key:
             # Empty string evaluates False
             parser.error(
-                "Your astroquery config file does not contain an Astrometry.net key. You must correct that or supply one using --key."
+                "Your astroquery config file does not contain an Astrometry.net key."
+                " You must correct that or supply one using --key."
             )
 
     return args
@@ -150,6 +166,7 @@ def main(args=None):
     p_use_sip = p_args.use_sip  # Allow SIP fit?
     p_user_scale = p_args.user_scale  # User specified pixel scale (arcsec)
     p_scale_err_ratio = p_args.scale_err_ratio  # Scale error ratio
+    p_web_service = p_args.web_service
 
     ap_astrom = ap.ApAstrometry(
         p_inpimg,
@@ -161,8 +178,9 @@ def main(args=None):
         use_sip=p_use_sip,
         user_scale=p_user_scale,
         scale_err_ratio=p_scale_err_ratio,
+        web_service=p_web_service,
         loglevel=p_loglevel,
-    )
+    )  # pyright: ignore[reportCallIssue]
     return ap_astrom.status()
 
 

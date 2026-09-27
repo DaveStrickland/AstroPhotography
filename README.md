@@ -83,6 +83,33 @@ Dependencies are managed in `pyproject.toml`. The runtime dependencies include:
 
 Optional dependencies for testing and documentation are defined as "extras" (`test`, `docs`) in `pyproject.toml`.
 
+### External Software Dependencies (Non-Python)
+
+Image mosaicing and resampling depends on having Astromatic `swarp` and `stiff` installed local.
+Obtaining astrometric solutions is made faster and more robust by having the `Astrometry.net` command
+line tools installed, although if they are not installed the software will attempt to use the
+Astrometry.net web service to perform the astrometry.
+
+Most of these are available in standard Linux dsitribution repositories, with the possible exception
+of `stiff`.
+
+On Fedora, you can install the Astrometry.net command line tools and `swarp` as follows:
+```bash
+# become root or use sudo...
+dnf -y install swarp swarp-doc astrometry astrometry-libs astrometry-data-*
+```
+
+To install `stiff` I had to download the source code from the astromatric github repo, and then
+adopt a modified `configure/make/make install` chain:
+```bash
+export GCC
+autoreconf -vfi
+autoupdate
+./configure 'CFLAGS=-O2 -g -fcommon'
+make
+sudo make install
+```
+
 ---
 
 ### Basic Setup (Windows / Linux / macOS)
@@ -134,13 +161,13 @@ dksraw split --help
 Formatting and linting follow Ruff. [TBA]
 
 Run the test suite:
-'''powershell
+```powershell
 # Basic test run
 python -m pytest -rfsP test/
 
 # Short summary of each test run
 python -m pytest -rfsp test/
-'''
+```
 
 Generate test coverage:
 ```powershell
